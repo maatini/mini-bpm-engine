@@ -8,6 +8,7 @@ use tokio::sync::Mutex;
 use uuid::Uuid;
 use engine_core::engine::{WorkflowEngine, PendingUserTask};
 use engine_core::model::{ProcessDefinitionBuilder, BpmnElement};
+use bpmn_parser::parse_bpmn_xml;
 
 struct AppState {
     engine: Arc<Mutex<WorkflowEngine>>,
@@ -28,6 +29,16 @@ async fn deploy_simple_process(state: tauri::State<'_, AppState>) -> Result<Stri
 
     engine.deploy_definition(def);
     Ok("Deployed 'simple' process".into())
+}
+
+#[tauri::command]
+async fn deploy_definition(state: tauri::State<'_, AppState>, xml: String, _name: String) -> Result<String, String> {
+    let mut engine = state.engine.lock().await;
+
+    let def = parse_bpmn_xml(&xml).map_err(|e| format!("{:?}", e))?;
+    let def_id = def.id.clone();
+    engine.deploy_definition(def);
+    Ok(def_id)
 }
 
 #[tauri::command]
@@ -61,6 +72,7 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             deploy_simple_process,
+            deploy_definition,
             start_instance,
             get_pending_tasks,
             complete_task

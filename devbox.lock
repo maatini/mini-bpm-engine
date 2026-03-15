@@ -185,6 +185,55 @@
         }
       }
     },
+    "nodejs@latest": {
+      "last_modified": "2026-03-11T12:14:37Z",
+      "plugin_version": "0.0.2",
+      "resolved": "github:NixOS/nixpkgs/75690239f08f885ca9b0267580101f60d10fbe62#nodejs_25",
+      "source": "devbox-search",
+      "version": "25.8.1",
+      "systems": {
+        "aarch64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/yrpv6kp9hf97w5s12a63z8fh2hk80p16-nodejs-25.8.1",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/yrpv6kp9hf97w5s12a63z8fh2hk80p16-nodejs-25.8.1"
+        },
+        "aarch64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/zra42xdwhjgrl4a6cqqxmzxf6mw4niq1-nodejs-25.8.1",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/zra42xdwhjgrl4a6cqqxmzxf6mw4niq1-nodejs-25.8.1"
+        },
+        "x86_64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/1q0myk74bxs9fcd5jk45j2fj52b8vga2-nodejs-25.8.1",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/1q0myk74bxs9fcd5jk45j2fj52b8vga2-nodejs-25.8.1"
+        },
+        "x86_64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/ip73n7ivhhyrgjnv5xqx9jpf6pyy23br-nodejs-25.8.1",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/ip73n7ivhhyrgjnv5xqx9jpf6pyy23br-nodejs-25.8.1"
+        }
+      }
+    },
     "rust-analyzer@latest": {
       "last_modified": "2026-03-11T04:01:32Z",
       "resolved": "github:NixOS/nixpkgs/b6067cc0127d4db9c26c79e4de0513e58d0c40c9#rust-analyzer",

@@ -15,6 +15,7 @@ serde_json = "1.0"
 tokio = { version = "1.33", features = ["full"] }
 uuid = { version = "1.0", features = ["v4", "serde"] }
 engine-core = { path = "../../engine-core" }
+bpmn-parser = { path = "../../bpmn-parser" }
 persistence-nats = { path = "../../persistence-nats" }
 
 [features]
