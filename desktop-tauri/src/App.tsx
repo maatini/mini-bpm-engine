@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { deployDefinition, startInstance, getPendingTasks, completeTask, type PendingUserTask } from './lib/tauri'
 import { Modeler } from './Modeler'
+import { Instances } from './Instances'
 
 function App() {
   const [activeTab, setActiveTab] = useState('modeler')
@@ -65,6 +66,9 @@ function App() {
         <div className={`nav-item ${activeTab === 'tasks' ? 'active' : ''}`} onClick={() => setActiveTab('tasks')}>
           Pending Tasks
         </div>
+        <div className={`nav-item ${activeTab === 'instances' ? 'active' : ''}`} onClick={() => setActiveTab('instances')}>
+          Instances
+        </div>
       </div>
       
       <div className="main-content">
@@ -90,6 +94,10 @@ function App() {
               </div>
             ))}
           </div>
+        )}
+
+        {activeTab === 'instances' && (
+          <Instances />
         )}
       </div>
     </div>

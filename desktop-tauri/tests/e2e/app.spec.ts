@@ -23,6 +23,14 @@ interface MockState {
     created_at: string;
   }>;
   completedTasks: string[];
+  processInstances: Array<{
+    id: string;
+    definition_id: string;
+    state: string | { WaitingOnUserTask: { task_id: string } };
+    current_node: string;
+    audit_log: string[];
+    variables: Record<string, unknown>;
+  }>;
 }
 
 const DEFAULT_MOCK_STATE: MockState = {
@@ -30,6 +38,7 @@ const DEFAULT_MOCK_STATE: MockState = {
   instances: [],
   pendingTasks: [],
   completedTasks: [],
+  processInstances: [],
 };
 
 /**
@@ -109,6 +118,22 @@ async function injectTauriMock(
                 (t: any) => t.task_id !== taskId,
               );
               resolve(null);
+              break;
+            }
+
+            case 'list_instances': {
+              resolve(mockState.processInstances);
+              break;
+            }
+
+            case 'get_instance_details': {
+              const instId = args.instanceId as string;
+              const found = mockState.processInstances.find((i: any) => i.id === instId);
+              if (found) {
+                resolve(found);
+              } else {
+                reject('No such instance: ' + instId);
+              }
               break;
             }
 
@@ -354,5 +379,97 @@ test.describe('mini-bpm Desktop App – E2E', () => {
     // Step 4: Navigate back to modeler
     await page.locator('.nav-item', { hasText: 'BPMN Modeler' }).click();
     await expect(page.locator('.bjs-container')).toBeVisible({ timeout: 5_000 });
+  });
+
+  // ---- 9. Instances Tab – empty state -----------------------------------
+
+  test('should navigate to Instances tab and show empty state', async ({ page }) => {
+    await injectTauriMock(page);
+    await page.goto('/');
+
+    await page.locator('.nav-item', { hasText: 'Instances' }).click();
+    await expect(page.getByText('No instances found.')).toBeVisible({ timeout: 5_000 });
+    await expect(page.locator('button', { hasText: 'Refresh' })).toBeVisible();
+  });
+
+  // ---- 10. Instances Tab – pre-seeded instances -------------------------
+
+  test('should display pre-seeded instances with state badges', async ({ page }) => {
+    await injectTauriMock(page, {
+      processInstances: [
+        {
+          id: 'inst-aaa-111',
+          definition_id: 'order-process',
+          state: 'Running',
+          current_node: 'ServiceTask_1',
+          audit_log: ['▶ Process started at node \'start\''],
+          variables: { order_id: 42 },
+        },
+        {
+          id: 'inst-bbb-222',
+          definition_id: 'approval-flow',
+          state: 'Completed',
+          current_node: 'end',
+          audit_log: ['▶ Process started', '⏹ Process completed'],
+          variables: {},
+        },
+      ],
+    });
+    await page.goto('/');
+
+    await page.locator('.nav-item', { hasText: 'Instances' }).click();
+
+    const cards = page.locator('.card');
+    await expect(cards).toHaveCount(2, { timeout: 5_000 });
+
+    // First instance should show Running badge
+    await expect(cards.first().locator('.state-running')).toBeVisible();
+    await expect(cards.first().getByText('Definition: order-process')).toBeVisible();
+
+    // Second instance should show Completed badge
+    await expect(cards.nth(1).locator('.state-completed')).toBeVisible();
+  });
+
+  // ---- 11. Instances Tab – click to see details -------------------------
+
+  test('should show instance details with audit log and variables when clicked', async ({ page }) => {
+    await injectTauriMock(page, {
+      processInstances: [
+        {
+          id: 'inst-detail-001',
+          definition_id: 'review-process',
+          state: 'Running',
+          current_node: 'ReviewTask',
+          audit_log: [
+            '▶ Process started at node \'start\'',
+            '⚙ Executed service task \'validate\' (handler: validate)',
+          ],
+          variables: { validated: true, score: 95 },
+        },
+      ],
+    });
+    await page.goto('/');
+
+    await page.locator('.nav-item', { hasText: 'Instances' }).click();
+    await expect(page.locator('.card')).toBeVisible({ timeout: 5_000 });
+
+    // Click the instance card
+    await page.locator('.card').first().click();
+
+    // Detail view should appear
+    const detail = page.locator('.instance-detail');
+    await expect(detail).toBeVisible({ timeout: 5_000 });
+
+    // Audit log entries
+    await expect(detail.getByText('Process started')).toBeVisible();
+    await expect(detail.getByText('Executed service task')).toBeVisible();
+
+    // Variables JSON
+    await expect(detail.locator('.variables-block')).toContainText('"validated": true');
+    await expect(detail.locator('.variables-block')).toContainText('"score": 95');
+
+    // Close button
+    await detail.locator('button', { hasText: 'Close' }).click();
+    await expect(detail).not.toBeVisible();
   });
 });

@@ -8,6 +8,15 @@ export interface PendingUserTask {
   created_at: string;
 }
 
+export interface ProcessInstance {
+  id: string;
+  definition_id: string;
+  state: 'Running' | 'Completed' | { WaitingOnUserTask: { task_id: string } };
+  current_node: string;
+  audit_log: string[];
+  variables: Record<string, unknown>;
+}
+
 export async function deploySimpleProcess(): Promise<string> {
   return invoke('deploy_simple_process');
 }
@@ -26,4 +35,12 @@ export async function getPendingTasks(): Promise<PendingUserTask[]> {
 
 export async function completeTask(taskId: string): Promise<void> {
   return invoke('complete_task', { taskId });
+}
+
+export async function listInstances(): Promise<ProcessInstance[]> {
+  return invoke('list_instances');
+}
+
+export async function getInstanceDetails(instanceId: string): Promise<ProcessInstance> {
+  return invoke('get_instance_details', { instanceId });
 }

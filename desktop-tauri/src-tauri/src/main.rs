@@ -6,7 +6,7 @@
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use uuid::Uuid;
-use engine_core::engine::{WorkflowEngine, PendingUserTask};
+use engine_core::engine::{WorkflowEngine, PendingUserTask, ProcessInstance};
 use engine_core::model::{ProcessDefinitionBuilder, BpmnElement};
 use bpmn_parser::parse_bpmn_xml;
 
@@ -63,6 +63,19 @@ async fn complete_task(state: tauri::State<'_, AppState>, task_id: String) -> Re
     Ok(())
 }
 
+#[tauri::command]
+async fn list_instances(state: tauri::State<'_, AppState>) -> Result<Vec<ProcessInstance>, String> {
+    let engine = state.engine.lock().await;
+    Ok(engine.list_instances())
+}
+
+#[tauri::command]
+async fn get_instance_details(state: tauri::State<'_, AppState>, instance_id: String) -> Result<ProcessInstance, String> {
+    let engine = state.engine.lock().await;
+    let id = Uuid::parse_str(&instance_id).map_err(|e| e.to_string())?;
+    engine.get_instance_details(id).map_err(|e| format!("{:?}", e))
+}
+
 fn main() {
     let engine = WorkflowEngine::new();
 
@@ -75,7 +88,9 @@ fn main() {
             deploy_definition,
             start_instance,
             get_pending_tasks,
-            complete_task
+            complete_task,
+            list_instances,
+            get_instance_details
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

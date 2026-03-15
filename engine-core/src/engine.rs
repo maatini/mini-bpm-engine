@@ -78,6 +78,8 @@ pub struct ProcessInstance {
     pub state: InstanceState,
     pub current_node: String,
     pub audit_log: Vec<String>,
+    /// Current process variables (synced from the executing token).
+    pub variables: HashMap<String, Value>,
 }
 
 // ---------------------------------------------------------------------------
@@ -161,6 +163,7 @@ impl WorkflowEngine {
             state: InstanceState::Running,
             current_node: start_id.to_string(),
             audit_log: vec![format!("▶ Process started at node '{start_id}'")],
+            variables: HashMap::new(),
         };
 
         log::info!(
@@ -223,6 +226,7 @@ impl WorkflowEngine {
                 "⏰ Timer fired ({}s) — started at node '{start_id}'",
                 provided_duration.as_secs()
             )],
+            variables: HashMap::new(),
         };
 
         log::info!(
@@ -388,6 +392,7 @@ impl WorkflowEngine {
                     .to_string();
                 token.current_node = next.clone();
                 inst.current_node = next;
+                inst.variables = token.variables.clone();
                 Ok(NextAction::Continue(token.clone()))
             }
 
@@ -457,6 +462,7 @@ impl WorkflowEngine {
         inst.audit_log
             .push(format!("✅ User task '{}' completed", pending.node_id));
         inst.state = InstanceState::Running;
+        inst.variables = token.variables.clone();
 
         // Advance token to the next node
         let def = self
@@ -506,6 +512,19 @@ impl WorkflowEngine {
     /// Returns all currently pending user tasks.
     pub fn get_pending_user_tasks(&self) -> &[PendingUserTask] {
         &self.pending_user_tasks
+    }
+
+    /// Returns a list of all process instances (cloned).
+    pub fn list_instances(&self) -> Vec<ProcessInstance> {
+        self.instances.values().cloned().collect()
+    }
+
+    /// Returns full details for a single process instance.
+    pub fn get_instance_details(&self, instance_id: Uuid) -> EngineResult<ProcessInstance> {
+        self.instances
+            .get(&instance_id)
+            .cloned()
+            .ok_or(EngineError::NoSuchInstance(instance_id))
     }
 }
 

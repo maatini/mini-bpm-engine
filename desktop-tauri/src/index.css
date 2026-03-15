@@ -110,3 +110,43 @@ h2 { margin: 20px; }
   font-weight: bold;
   margin-bottom: 10px;
 }
+
+/* Instance view */
+.state-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: white;
+}
+.state-running { background-color: #2563eb; }
+.state-completed { background-color: #16a34a; }
+.state-waiting { background-color: #d97706; }
+
+.instance-detail {
+  border-left: 3px solid var(--primary-color);
+}
+
+.audit-log {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0;
+}
+.audit-log li {
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border-color);
+  font-size: 0.9rem;
+}
+
+.variables-block {
+  background: #f1f5f9;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 10px;
+  margin-top: 6px;
+  font-size: 0.85rem;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
