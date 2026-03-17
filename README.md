@@ -15,7 +15,7 @@ Eine einbettbare BPMN 2.0 Workflow-Engine in Rust.
 
 ## Starten des Engine-Servers
 
-Um den HTTP-REST-API-Server zu starten:
+Um den HTTP-REST-API-Server zu starten: 
 
 ```bash
 # NATS starten (falls Persistenz genutzt werden soll)
