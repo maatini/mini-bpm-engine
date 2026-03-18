@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { listInstances, getInstanceDetails, getPendingTasks, updateInstanceVariables, type ProcessInstance, type PendingUserTask } from './lib/tauri';
+import { listInstances, getInstanceDetails, getPendingTasks, updateInstanceVariables, getDefinitionXml, type ProcessInstance, type PendingUserTask } from './lib/tauri';
+import { InstanceViewer } from './InstanceViewer';
 
 // Helper to render the instance state as a readable string
 function stateLabel(state: ProcessInstance['state']): string {
@@ -18,12 +19,15 @@ function stateBadgeClass(state: ProcessInstance['state']): string {
 
 export function Instances() {
   const [instances, setInstances] = useState<ProcessInstance[]>([]);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<ProcessInstance | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [pendingTasks, setPendingTasks] = useState<PendingUserTask[]>([]);
   const [editVarsJson, setEditVarsJson] = useState('{}');
+  const [definitionXml, setDefinitionXml] = useState<string | null>(null);
+  const [showNodeDetails, setShowNodeDetails] = useState(false);
 
   const fetchInstances = useCallback(async () => {
     setLoading(true);
@@ -44,9 +48,19 @@ export function Instances() {
 
   const handleSelect = async (inst: ProcessInstance) => {
     setDetailLoading(true);
+    setDefinitionXml(null);
+    setShowNodeDetails(false);
     try {
       const details = await getInstanceDetails(inst.id);
       setSelected(details);
+      
+      try {
+        const xml = await getDefinitionXml(details.definition_id);
+        setDefinitionXml(xml);
+      } catch (xmlError) {
+        console.error("Failed to fetch layout XML:", xmlError);
+      }
+
       setEditVarsJson(
         Object.keys(details.variables).length > 0
           ? JSON.stringify(details.variables, null, 2)
@@ -98,6 +112,8 @@ export function Instances() {
   const handleClose = () => {
     setSelected(null);
     setPendingTasks([]);
+    setDefinitionXml(null);
+    setShowNodeDetails(false);
   };
 
   return (
@@ -148,9 +164,28 @@ export function Instances() {
               <div style={{ marginBottom: 12 }}>
                 <strong>Definition:</strong> {selected.definition_id}
               </div>
-              <div style={{ marginBottom: 12 }}>
-                <strong>Current Node:</strong> {selected.current_node}
-              </div>
+
+              {definitionXml && (
+                <div style={{ marginBottom: 16 }}>
+                  <strong>Process Workflow:</strong>
+                  <InstanceViewer 
+                    xml={definitionXml} 
+                    activeNodeId={selected.current_node} 
+                    onNodeClick={() => setShowNodeDetails((prev) => !prev)} 
+                  />
+                  {!showNodeDetails && (
+                    <div style={{ fontSize: '0.85rem', color: '#64748b' }}>
+                      Click on the highlighted active node ({selected.current_node}) to view variables and state details.
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {(!definitionXml || showNodeDetails) && (
+                <div style={{ padding: '12px', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '4px' }}>
+                  <div style={{ marginBottom: 12 }}>
+                    <strong>Current Node:</strong> {selected.current_node}
+                  </div>
 
               {/* Pending user task info */}
               {pendingTasks.length > 0 && (
@@ -191,6 +226,8 @@ export function Instances() {
                   <button className="button save-vars-btn" onClick={handleSaveVariables}>Save Variables</button>
                 </div>
               </div>
+              </div> /* End of detail toggle section */
+              )}
             </>
           )}
         </div>

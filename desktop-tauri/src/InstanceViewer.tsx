@@ -1,0 +1,89 @@
+import { useEffect, useRef } from 'react';
+
+// @ts-ignore
+import NavigatedViewer from 'bpmn-js/lib/NavigatedViewer';
+
+import 'bpmn-js/dist/assets/diagram-js.css';
+import 'bpmn-js/dist/assets/bpmn-font/css/bpmn-embedded.css';
+
+interface InstanceViewerProps {
+  xml: string;
+  activeNodeId: string;
+  onNodeClick: () => void;
+}
+
+export function InstanceViewer({ xml, activeNodeId, onNodeClick }: InstanceViewerProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const viewerRef = useRef<any>(null);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+
+    const viewer = new NavigatedViewer({
+      container: containerRef.current
+    });
+    viewerRef.current = viewer;
+
+    return () => {
+      viewer.destroy();
+      viewerRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!viewerRef.current || !xml) return;
+
+    let isMounted = true;
+    (async () => {
+      try {
+        await viewerRef.current.importXML(xml);
+        
+        if (!isMounted) return;
+
+        const canvas = viewerRef.current.get('canvas');
+        const elementRegistry = viewerRef.current.get('elementRegistry');
+        const eventBus = viewerRef.current.get('eventBus');
+
+        // Zoom to fit
+        canvas.zoom('fit-viewport', 'auto');
+
+        // Highlight active node
+        if (activeNodeId && elementRegistry.get(activeNodeId)) {
+          canvas.addMarker(activeNodeId, 'highlight-node');
+        }
+
+        // Add click listener
+        eventBus.on('element.click', (e: any) => {
+          if (e.element.id === activeNodeId) {
+            onNodeClick();
+          }
+        });
+
+      } catch (err) {
+        console.error('Failed to import BPMN XML for instance viewer', err);
+      }
+    })();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [xml, activeNodeId, onNodeClick]);
+
+  return (
+    <>
+      <style>
+        {`
+          .highlight-node:not(.djs-connection) .djs-visual > :nth-child(1) {
+            stroke: #10b981 !important; /* Emerald green border */
+            stroke-width: 4px !important;
+            fill: rgba(16, 185, 129, 0.2) !important; /* Light emerald fill */
+          }
+        `}
+      </style>
+      <div 
+        ref={containerRef} 
+        style={{ width: '100%', height: '300px', border: '1px solid #e2e8f0', borderRadius: '4px', backgroundColor: '#fafafa', marginBottom: '16px' }}
+      />
+    </>
+  );
+}
