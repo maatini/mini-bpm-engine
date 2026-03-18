@@ -3,10 +3,17 @@
     windows_subsystem = "windows"
 )]
 
+#[cfg(not(feature = "http-backend"))]
 use std::collections::HashMap;
+#[cfg(not(feature = "http-backend"))]
 use std::sync::Arc;
+#[cfg(not(feature = "http-backend"))]
 use tokio::sync::Mutex;
+#[cfg(not(feature = "http-backend"))]
 use uuid::Uuid;
+
+#[cfg(feature = "http-backend")]
+use std::collections::HashMap;
 
 #[cfg(not(feature = "http-backend"))]
 use engine_core::engine::{WorkflowEngine, ProcessInstance, PendingUserTask};
@@ -18,6 +25,7 @@ use bpmn_parser::parse_bpmn_xml;
 use persistence_nats::NatsPersistence;
 
 /// Lightweight summary of a deployed process definition.
+#[cfg(not(feature = "http-backend"))]
 #[derive(serde::Serialize, Clone)]
 struct DefinitionInfo {
     id: String,

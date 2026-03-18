@@ -12,6 +12,14 @@ import 'bpmn-js/dist/assets/diagram-js.css';
 import 'bpmn-js/dist/assets/bpmn-font/css/bpmn-embedded.css';
 import '@bpmn-io/properties-panel/assets/properties-panel.css';
 
+import { CustomPropertiesProvider } from './ConditionPropertiesProvider';
+
+const customProviderModule = {
+  __init__: ['customPropertiesProvider'],
+  customPropertiesProvider: ['type', CustomPropertiesProvider]
+};
+
+
 interface ModelerProps {
   onDeploy: (xml: string) => Promise<void>;
   onStart: (variables: Record<string, unknown>) => void;
@@ -52,7 +60,8 @@ export function Modeler({ onDeploy, onStart, onNewDiagram, initialXml }: Modeler
         propertiesPanel: { parent: propertiesRef.current },
         additionalModules: [
           BpmnPropertiesPanelModule,
-          BpmnPropertiesProviderModule
+          BpmnPropertiesProviderModule,
+          customProviderModule
         ],
         moddleExtensions: {
           camunda: camundaModdleDescriptor

@@ -12,10 +12,10 @@ jobs:
     
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 20
 
@@ -39,3 +39,11 @@ jobs:
           releaseName: 'Windows Build v__VERSION__'
           releaseDraft: true
           prerelease: false
+
+      - name: Upload Windows Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-binary
+          path: |
+            desktop-tauri/src-tauri/target/release/bundle/msi/*.msi
+            desktop-tauri/src-tauri/target/release/bundle/nsis/*.exe

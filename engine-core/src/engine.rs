@@ -569,13 +569,20 @@ impl WorkflowEngine {
             BpmnElement::StartEvent | BpmnElement::TimerStartEvent(_) => {
                 log::debug!("Passing through start event '{current_id}'");
                 let next = def_clone
-                    .next_node(&current_id)
+                    .next_nodes(&current_id)
+                    .iter()
+                    .find(|f| {
+                        f.condition
+                            .as_ref()
+                            .map(|c| evaluate_condition(c, &token.variables))
+                            .unwrap_or(true)
+                    })
+                    .map(|f| f.target.clone())
                     .ok_or_else(|| {
                         EngineError::InvalidDefinition(format!(
-                            "No outgoing flow from '{current_id}'"
+                            "No matching outgoing flow from '{current_id}'"
                         ))
-                    })?
-                    .to_string();
+                    })?;
                 token.current_node = next;
                 Ok(NextAction::Continue(token.clone()))
             }
@@ -607,16 +614,23 @@ impl WorkflowEngine {
                 );
 
                 let next = def_clone
-                    .next_node(&current_id)
+                    .next_nodes(&current_id)
+                    .iter()
+                    .find(|f| {
+                        f.condition
+                            .as_ref()
+                            .map(|c| evaluate_condition(c, &token.variables))
+                            .unwrap_or(true)
+                    })
+                    .map(|f| f.target.clone())
                     .ok_or_else(|| {
                         EngineError::InvalidDefinition(format!(
-                            "No outgoing flow from '{current_id}'"
+                            "No matching outgoing flow from '{current_id}'"
                         ))
-                    })?
-                    .to_string();
-                token.current_node = next.clone();
-                inst.current_node = next;
+                    })?;
+                inst.current_node = next.clone();
                 inst.variables = token.variables.clone();
+                token.current_node = next;
                 Ok(NextAction::Continue(token.clone()))
             }
 
@@ -814,14 +828,21 @@ impl WorkflowEngine {
             .ok_or_else(|| EngineError::NoSuchDefinition(inst.definition_id.clone()))?;
 
         let next = def
-            .next_node(&pending.node_id)
+            .next_nodes(&pending.node_id)
+            .iter()
+            .find(|f| {
+                f.condition
+                    .as_ref()
+                    .map(|c| evaluate_condition(c, &token.variables))
+                    .unwrap_or(true)
+            })
+            .map(|f| f.target.clone())
             .ok_or_else(|| {
                 EngineError::InvalidDefinition(format!(
-                    "No outgoing flow from '{}'",
+                    "No matching outgoing flow from '{}'",
                     pending.node_id
                 ))
-            })?
-            .to_string();
+            })?;
 
         token.current_node = next;
         if let Some(p) = &self.persistence {
@@ -1042,14 +1063,21 @@ impl WorkflowEngine {
             .ok_or_else(|| EngineError::NoSuchDefinition(inst.definition_id.clone()))?;
 
         let next = def
-            .next_node(&task.node_id)
+            .next_nodes(&task.node_id)
+            .iter()
+            .find(|f| {
+                f.condition
+                    .as_ref()
+                    .map(|c| evaluate_condition(c, &token.variables))
+                    .unwrap_or(true)
+            })
+            .map(|f| f.target.clone())
             .ok_or_else(|| {
                 EngineError::InvalidDefinition(format!(
-                    "No outgoing flow from '{}'",
+                    "No matching outgoing flow from '{}'",
                     task.node_id
                 ))
-            })?
-            .to_string();
+            })?;
 
         token.current_node = next;
         if let Some(p) = &self.persistence {
@@ -1251,6 +1279,43 @@ mod tests {
         let def_id = def.id.clone();
         engine.deploy_definition(def);
         (engine, def_id)
+    }
+
+    #[tokio::test]
+    async fn conditional_routing_on_service_task() {
+        let mut engine = WorkflowEngine::new();
+        engine.register_service_handler(
+            "noop",
+            Arc::new(|_vars: &mut HashMap<String, Value>| Ok(())),
+        );
+
+        let def = ProcessDefinitionBuilder::new("cond_svc")
+            .node("start", BpmnElement::StartEvent)
+            .node("svc", BpmnElement::ServiceTask("noop".into()))
+            .node("end_a", BpmnElement::EndEvent)
+            .node("end_b", BpmnElement::EndEvent)
+            .flow("start", "svc")
+            .conditional_flow("svc", "end_a", "x == 1")
+            .conditional_flow("svc", "end_b", "x == 2")
+            .build()
+            .unwrap();
+
+        engine.deploy_definition(def);
+
+        let mut vars = HashMap::new();
+        vars.insert("x".into(), Value::Number(2.into()));
+        let inst_id = engine
+            .start_instance_with_variables("cond_svc", vars)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            *engine.get_instance_state(inst_id).unwrap(),
+            InstanceState::Completed
+        );
+        let log = engine.get_audit_log(inst_id).unwrap();
+        let end_entry = log.iter().find(|l| l.contains("Process completed")).unwrap();
+        assert!(end_entry.contains("end_b"), "Expected end_b path: {end_entry}");
     }
 
     #[tokio::test]

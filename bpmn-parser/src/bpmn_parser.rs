@@ -112,6 +112,12 @@ struct BpmnUserTask {
 }
 
 #[derive(Debug, Deserialize)]
+struct BpmnConditionExpression {
+    #[serde(rename = "$value")]
+    value: String,
+}
+
+#[derive(Debug, Deserialize)]
 struct BpmnSequenceFlow {
     #[serde(rename = "@id")]
     _id: String,
@@ -119,6 +125,8 @@ struct BpmnSequenceFlow {
     source_ref: String,
     #[serde(rename = "@targetRef")]
     target_ref: String,
+    #[serde(rename = "conditionExpression")]
+    condition_expression: Option<BpmnConditionExpression>,
 }
 
 /// Generic catch-all for BPMN elements we parse but only need the ID from.
@@ -221,7 +229,11 @@ pub fn parse_bpmn_xml(xml: &str) -> EngineResult<ProcessDefinition> {
 
     // 8. Process Sequence Flows
     for flow in defs.process.sequence_flows {
-        builder = builder.flow(flow.source_ref, flow.target_ref);
+        if let Some(cond) = flow.condition_expression {
+            builder = builder.conditional_flow(flow.source_ref, flow.target_ref, cond.value.trim());
+        } else {
+            builder = builder.flow(flow.source_ref, flow.target_ref);
+        }
     }
 
     builder.build()
@@ -254,9 +266,9 @@ mod tests {
         assert!(def.nodes.contains_key("ut1"));
         assert!(def.nodes.contains_key("end1"));
         
-        assert_eq!(def.flows.get("start1"), Some(&"svc1".to_string()));
-        assert_eq!(def.flows.get("svc1"), Some(&"ut1".to_string()));
-        assert_eq!(def.flows.get("ut1"), Some(&"end1".to_string()));
+        assert_eq!(def.next_node("start1"), Some("svc1"));
+        assert_eq!(def.next_node("svc1"), Some("ut1"));
+        assert_eq!(def.next_node("ut1"), Some("end1"));
         
         match def.nodes.get("svc1").unwrap() {
             BpmnElement::ServiceTask(h) => assert_eq!(h, "my_handler"),
@@ -267,6 +279,38 @@ mod tests {
             BpmnElement::UserTask(a) => assert_eq!(a, "alice"),
             _ => panic!("Expected UserTask"),
         }
+    }
+
+    #[test]
+    fn parse_conditional_flows() {
+        let xml = r#"
+            <definitions id="def1" xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL">
+                <process id="proc1">
+                    <startEvent id="start1" />
+                    <exclusiveGateway id="gw1" />
+                    <endEvent id="end1" />
+                    <endEvent id="end2" />
+                    
+                    <sequenceFlow id="f1" sourceRef="start1" targetRef="gw1" />
+                    
+                    <sequenceFlow id="f2" sourceRef="gw1" targetRef="end1">
+                        <conditionExpression xsi:type="tFormalExpression">amount &gt; 100</conditionExpression>
+                    </sequenceFlow>
+                    
+                    <sequenceFlow id="f3" sourceRef="gw1" targetRef="end2" />
+                </process>
+            </definitions>
+        "#;
+
+        let def = parse_bpmn_xml(xml).unwrap();
+        let flows = def.next_nodes("gw1");
+        assert_eq!(flows.len(), 2);
+        
+        let flow1 = flows.iter().find(|f| f.target == "end1").unwrap();
+        assert_eq!(flow1.condition, Some("amount > 100".to_string()));
+        
+        let flow2 = flows.iter().find(|f| f.target == "end2").unwrap();
+        assert_eq!(flow2.condition, None);
     }
 
     #[test]
@@ -316,8 +360,8 @@ mod tests {
         assert_eq!(def.id, "Process_1");
         assert_eq!(def.nodes.len(), 4);
         assert_eq!(def.flows.len(), 3);
-        assert_eq!(def.flows.get("StartEvent_1"), Some(&"ServiceTask_1".to_string()));
-        assert_eq!(def.flows.get("ServiceTask_1"), Some(&"UserTask_1".to_string()));
-        assert_eq!(def.flows.get("UserTask_1"), Some(&"EndEvent_1".to_string()));
+        assert_eq!(def.next_node("StartEvent_1"), Some("ServiceTask_1"));
+        assert_eq!(def.next_node("ServiceTask_1"), Some("UserTask_1"));
+        assert_eq!(def.next_node("UserTask_1"), Some("EndEvent_1"));
     }
 }
