@@ -12,11 +12,29 @@ Eine einbettbare BPMN 2.0 Workflow-Engine in Rust.
 ## Crates (Module)
 
 * `bpmn-parser`: Parst BPMN 2.0 XML-Definitionen in interne Rust-Strukturen.
-* `engine-core`: Die Hauptbibliothek der Workflow-Engine, die Token, die Ausführung von Zuständen und Tasks verarbeitet.
+* `engine-core`: Die Hauptbibliothek der Workflow-Engine — token-basierte Ausführung, Gateway-Routing mit Condition-Evaluator, Script-Engine (Execution Listeners), External-Task-Support und umfassendes Error-Handling via `EngineError` (thiserror). Tests sind in ein separates Modul (`tests.rs`) ausgelagert.
 * `persistence-nats`: (Optional) Bietet NATS-basierte Persistenz und JetStream-Event-Publishing.
-* `engine-server`: Ein eigenständiger, auf Axum basierender HTTP-Server, der REST-API-Endpunkte für die Engine bereitstellt.
+* `engine-server`: Ein Axum-basierter HTTP-Server mit REST-API. Nutzt einen typsicheren `AppError`-Enum für konsistente HTTP-Fehlercodes (400/404/409/500).
 * `desktop-tauri`: Eine Tauri-Desktop-Anwendung, die mit der Workflow-Engine interagiert.
 * `agent-orchestrator`: Ein Crate zur Orchestrierung von externen Agenten/Workern, die mit der Engine interagieren.
+
+## Unterstützte BPMN-Elemente
+
+| Element | Beschreibung |
+|---|---|
+| **StartEvent** | Einfacher Startpunkt — Prozess wird sofort gestartet. |
+| **TimerStartEvent** | Timer-gesteuerter Start nach einer konfigurierbaren Dauer. |
+| **EndEvent** | Endpunkt — Prozessinstanz wird als abgeschlossen markiert. |
+| **ServiceTask** | Führt einen registrierten async Handler aus (identifiziert per Name). |
+| **UserTask** | Erstellt einen Pending-Task, der extern abgeschlossen werden muss. |
+| **ExternalTask** | Tasks, die von Remote-Workern per fetch-and-lock abgearbeitet werden. |
+| **ExclusiveGateway (XOR)** | Genau ein ausgehender Pfad wird gewählt (Bedingungsauswertung). Optionaler Default-Flow. |
+| **InclusiveGateway (OR)** | Alle Pfade, deren Bedingung `true` ergibt, werden parallel verfolgt (Token-Forking). |
+
+### Zusätzliche Konzepte
+
+* **Conditional Sequence Flows** — Kanten können Bedingungsausdrücke tragen (z.B. `amount > 100`, `status == 'approved'`). Der integrierte Condition-Evaluator unterstützt `==`, `!=`, `>`, `>=`, `<`, `<=` sowie Truthy-Checks.
+* **Execution Listeners** — Nodes können Start- und End-Scripts besitzen, die Prozessvariablen lesen und mutieren (z.B. `x = x * 2; if x > 10 { result = "big" }`).
 
 ## Architektur
 
