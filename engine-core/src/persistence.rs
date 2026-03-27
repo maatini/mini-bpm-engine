@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 
-use crate::engine::{ProcessInstance, PendingUserTask};
+use crate::engine::{ProcessInstance, PendingUserTask, PendingServiceTask};
 use crate::error::EngineResult;
 use crate::model::{Token, ProcessDefinition};
 
@@ -34,4 +34,11 @@ pub trait WorkflowPersistence: Send + Sync {
     async fn delete_user_task(&self, task_id: uuid::Uuid) -> EngineResult<()>;
     /// Load all persisted pending user tasks.
     async fn list_user_tasks(&self) -> EngineResult<Vec<PendingUserTask>>;
+
+    /// Persist an service task.
+    async fn save_service_task(&self, task: &PendingServiceTask) -> EngineResult<()>;
+    /// Delete an service task.
+    async fn delete_service_task(&self, task_id: uuid::Uuid) -> EngineResult<()>;
+    /// Load all persisted service tasks.
+    async fn list_service_tasks(&self) -> EngineResult<Vec<PendingServiceTask>>;
 }

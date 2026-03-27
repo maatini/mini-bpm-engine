@@ -6,21 +6,26 @@
 use super::*;
 use crate::model::ProcessDefinitionBuilder;
 
+
+async fn complete_all_service_tasks(engine: &mut WorkflowEngine, worker: &str, vars: HashMap<String, Value>) {
+    let mut to_complete = Vec::new();
+    for task in &engine.pending_service_tasks {
+        to_complete.push((task.id, task.topic.clone()));
+    }
+    for (id, topic) in to_complete {
+        let _ = engine.fetch_and_lock_service_tasks(worker, 10, &[topic.clone()], 60000).await;
+        engine.complete_service_task(id, worker, vars.clone()).await.unwrap();
+    }
+}
+
 async fn setup_linear_engine() -> (WorkflowEngine, Uuid) {
     let mut engine = WorkflowEngine::new();
 
     // Register a simple service handler
-    engine.register_service_handler(
-        "validate",
-        Arc::new(|vars: &mut HashMap<String, Value>| {
-            vars.insert("validated".into(), Value::Bool(true));
-            Ok(())
-        }),
-    );
 
     let def = ProcessDefinitionBuilder::new("linear")
         .node("start", BpmnElement::StartEvent)
-        .node("svc", BpmnElement::ServiceTask("validate".into()))
+        .node("svc", BpmnElement::ServiceTask { topic: "validate".into() })
         .node("ut", BpmnElement::UserTask("alice".into()))
         .node("end", BpmnElement::EndEvent)
         .flow("start", "svc")
@@ -36,14 +41,10 @@ async fn setup_linear_engine() -> (WorkflowEngine, Uuid) {
 #[tokio::test]
 async fn conditional_routing_on_service_task() {
     let mut engine = WorkflowEngine::new();
-    engine.register_service_handler(
-        "noop",
-        Arc::new(|_vars: &mut HashMap<String, Value>| Ok(())),
-    );
 
     let def = ProcessDefinitionBuilder::new("cond_svc")
         .node("start", BpmnElement::StartEvent)
-        .node("svc", BpmnElement::ServiceTask("noop".into()))
+        .node("svc", BpmnElement::ServiceTask { topic: "noop".into() })
         .node("end_a", BpmnElement::EndEvent)
         .node("end_b", BpmnElement::EndEvent)
         .flow("start", "svc")
@@ -61,6 +62,8 @@ async fn conditional_routing_on_service_task() {
         .await
         .unwrap();
 
+    complete_all_service_tasks(&mut engine, "worker_1", HashMap::new()).await;
+
     assert_eq!(
         *engine.get_instance_state(inst_id).unwrap(),
         InstanceState::Completed
@@ -75,6 +78,8 @@ async fn start_instance_pauses_at_user_task() {
     let (mut engine, def_key) = setup_linear_engine().await;
     let inst_id = engine.start_instance(def_key).await.unwrap();
 
+    complete_all_service_tasks(&mut engine, "worker_1", HashMap::new()).await;
+
     assert_eq!(
         *engine.get_instance_state(inst_id).unwrap(),
         InstanceState::WaitingOnUserTask {
@@ -88,12 +93,15 @@ async fn start_instance_pauses_at_user_task() {
 async fn complete_user_task_reaches_end() {
     let (mut engine, def_key) = setup_linear_engine().await;
     let inst_id = engine.start_instance(def_key).await.unwrap();
+    complete_all_service_tasks(&mut engine, "worker", HashMap::new()).await;
 
     let task_id = engine.pending_user_tasks[0].task_id;
     engine
         .complete_user_task(task_id, HashMap::new())
         .await
         .unwrap();
+
+    complete_all_service_tasks(&mut engine, "worker_1", HashMap::new()).await;
 
     assert_eq!(
         *engine.get_instance_state(inst_id).unwrap(),
@@ -106,6 +114,7 @@ async fn complete_user_task_reaches_end() {
 async fn completing_wrong_task_gives_error() {
     let (mut engine, def_key) = setup_linear_engine().await;
     engine.start_instance(def_key).await.unwrap();
+    complete_all_service_tasks(&mut engine, "worker", HashMap::new()).await;
 
     let wrong_id = Uuid::new_v4();
     let result = engine
@@ -118,6 +127,10 @@ async fn completing_wrong_task_gives_error() {
 async fn service_handler_modifies_variables() {
     let (mut engine, def_key) = setup_linear_engine().await;
     engine.start_instance(def_key).await.unwrap();
+
+    let mut vars = HashMap::new();
+    vars.insert("validated".into(), Value::Bool(true));
+    complete_all_service_tasks(&mut engine, "worker_1", vars).await;
 
     // The token should have 'validated: true' from the service handler
     let pending = &engine.pending_user_tasks[0];
@@ -141,6 +154,8 @@ async fn timer_start_succeeds() {
 
     let def_key = engine.deploy_definition(def).await;
     let inst_id = engine.trigger_timer_start(def_key, dur).await.unwrap();
+
+    complete_all_service_tasks(&mut engine, "worker_1", HashMap::new()).await;
 
     assert_eq!(
         *engine.get_instance_state(inst_id).unwrap(),
@@ -195,28 +210,13 @@ async fn unknown_definition_gives_error() {
     ));
 }
 
-#[tokio::test]
-async fn missing_handler_gives_error() {
-    let mut engine = WorkflowEngine::new();
 
-    let def = ProcessDefinitionBuilder::new("p1")
-        .node("start", BpmnElement::StartEvent)
-        .node("svc", BpmnElement::ServiceTask("unknown_handler".into()))
-        .node("end", BpmnElement::EndEvent)
-        .flow("start", "svc")
-        .flow("svc", "end")
-        .build()
-        .unwrap();
-
-    let def_key = engine.deploy_definition(def).await;
-    let result = engine.start_instance(def_key).await;
-    assert!(matches!(result, Err(EngineError::HandlerNotFound(_))));
-}
 
 #[tokio::test]
 async fn audit_log_captures_all_steps() {
     let (mut engine, def_key) = setup_linear_engine().await;
     let inst_id = engine.start_instance(def_key).await.unwrap();
+    complete_all_service_tasks(&mut engine, "worker", HashMap::new()).await;
 
     let task_id = engine.pending_user_tasks[0].task_id;
     engine
@@ -288,10 +288,6 @@ fn condition_missing_variable() {
 #[tokio::test]
 async fn exclusive_gateway_takes_matching_path() {
     let mut engine = WorkflowEngine::new();
-    engine.register_service_handler(
-        "noop",
-        Arc::new(|_vars: &mut HashMap<String, Value>| Ok(())),
-    );
 
     // Start → XOR Gateway → (amount > 100 → high) / (default → low) → End
     let def = ProcessDefinitionBuilder::new("xor_test")
@@ -302,8 +298,8 @@ async fn exclusive_gateway_takes_matching_path() {
                 default: Some("low".into()),
             },
         )
-        .node("high", BpmnElement::ServiceTask("noop".into()))
-        .node("low", BpmnElement::ServiceTask("noop".into()))
+        .node("high", BpmnElement::ServiceTask { topic: "noop".into() })
+        .node("low", BpmnElement::ServiceTask { topic: "noop".into() })
         .node("end", BpmnElement::EndEvent)
         .flow("start", "gw")
         .conditional_flow("gw", "high", "amount > 100")
@@ -323,6 +319,8 @@ async fn exclusive_gateway_takes_matching_path() {
         .await
         .unwrap();
 
+    complete_all_service_tasks(&mut engine, "worker_1", HashMap::new()).await;
+
     assert_eq!(
         *engine.get_instance_state(inst_id).unwrap(),
         InstanceState::Completed
@@ -335,10 +333,6 @@ async fn exclusive_gateway_takes_matching_path() {
 #[tokio::test]
 async fn exclusive_gateway_uses_default_when_no_match() {
     let mut engine = WorkflowEngine::new();
-    engine.register_service_handler(
-        "noop",
-        Arc::new(|_vars: &mut HashMap<String, Value>| Ok(())),
-    );
 
     let def = ProcessDefinitionBuilder::new("xor_default")
         .node("start", BpmnElement::StartEvent)
@@ -348,8 +342,8 @@ async fn exclusive_gateway_uses_default_when_no_match() {
                 default: Some("low".into()),
             },
         )
-        .node("high", BpmnElement::ServiceTask("noop".into()))
-        .node("low", BpmnElement::ServiceTask("noop".into()))
+        .node("high", BpmnElement::ServiceTask { topic: "noop".into() })
+        .node("low", BpmnElement::ServiceTask { topic: "noop".into() })
         .node("end", BpmnElement::EndEvent)
         .flow("start", "gw")
         .conditional_flow("gw", "high", "amount > 100")
@@ -368,6 +362,8 @@ async fn exclusive_gateway_uses_default_when_no_match() {
         .start_instance_with_variables(def_key, vars)
         .await
         .unwrap();
+
+    complete_all_service_tasks(&mut engine, "worker_1", HashMap::new()).await;
 
     assert_eq!(
         *engine.get_instance_state(inst_id).unwrap(),
@@ -413,27 +409,13 @@ async fn exclusive_gateway_error_when_no_match_no_default() {
 #[tokio::test]
 async fn inclusive_gateway_forks_multiple_paths() {
     let mut engine = WorkflowEngine::new();
-    engine.register_service_handler(
-        "track_a",
-        Arc::new(|vars: &mut HashMap<String, Value>| {
-            vars.insert("path_a".into(), Value::Bool(true));
-            Ok(())
-        }),
-    );
-    engine.register_service_handler(
-        "track_b",
-        Arc::new(|vars: &mut HashMap<String, Value>| {
-            vars.insert("path_b".into(), Value::Bool(true));
-            Ok(())
-        }),
-    );
 
     // Start → Inclusive GW → (a > 0 → svc_a → end) / (b > 0 → svc_b → end)
     let def = ProcessDefinitionBuilder::new("or_test")
         .node("start", BpmnElement::StartEvent)
         .node("gw", BpmnElement::InclusiveGateway)
-        .node("svc_a", BpmnElement::ServiceTask("track_a".into()))
-        .node("svc_b", BpmnElement::ServiceTask("track_b".into()))
+        .node("svc_a", BpmnElement::ServiceTask { topic: "track_a".into() })
+        .node("svc_b", BpmnElement::ServiceTask { topic: "track_b".into() })
         .node("end", BpmnElement::EndEvent)
         .flow("start", "gw")
         .conditional_flow("gw", "svc_a", "a > 0")
@@ -454,6 +436,8 @@ async fn inclusive_gateway_forks_multiple_paths() {
         .await
         .unwrap();
 
+    complete_all_service_tasks(&mut engine, "worker_1", HashMap::new()).await;
+
     assert_eq!(
         *engine.get_instance_state(inst_id).unwrap(),
         InstanceState::Completed
@@ -469,16 +453,12 @@ async fn inclusive_gateway_forks_multiple_paths() {
 #[tokio::test]
 async fn inclusive_gateway_single_match_no_fork() {
     let mut engine = WorkflowEngine::new();
-    engine.register_service_handler(
-        "noop",
-        Arc::new(|_vars: &mut HashMap<String, Value>| Ok(())),
-    );
 
     let def = ProcessDefinitionBuilder::new("or_single")
         .node("start", BpmnElement::StartEvent)
         .node("gw", BpmnElement::InclusiveGateway)
-        .node("a", BpmnElement::ServiceTask("noop".into()))
-        .node("b", BpmnElement::ServiceTask("noop".into()))
+        .node("a", BpmnElement::ServiceTask { topic: "noop".into() })
+        .node("b", BpmnElement::ServiceTask { topic: "noop".into() })
         .node("end", BpmnElement::EndEvent)
         .flow("start", "gw")
         .conditional_flow("gw", "a", "x == 1")
@@ -497,6 +477,8 @@ async fn inclusive_gateway_single_match_no_fork() {
         .start_instance_with_variables(def_key, vars)
         .await
         .unwrap();
+
+    complete_all_service_tasks(&mut engine, "worker_1", HashMap::new()).await;
 
     assert_eq!(
         *engine.get_instance_state(inst_id).unwrap(),
@@ -574,6 +556,8 @@ async fn xor_gateway_positive_x_routes_to_user_task_1() {
         .await
         .unwrap();
 
+    complete_all_service_tasks(&mut engine, "worker_1", HashMap::new()).await;
+
     assert_eq!(
         *engine.get_instance_state(inst_id).unwrap(),
         InstanceState::Completed
@@ -615,6 +599,8 @@ async fn xor_gateway_negative_x_routes_to_user_task_2() {
         .await
         .unwrap();
 
+    complete_all_service_tasks(&mut engine, "worker_1", HashMap::new()).await;
+
     assert_eq!(
         *engine.get_instance_state(inst_id).unwrap(),
         InstanceState::Completed
@@ -646,6 +632,8 @@ async fn xor_gateway_zero_x_routes_to_user_task_2() {
         .await
         .unwrap();
 
+    complete_all_service_tasks(&mut engine, "worker_1", HashMap::new()).await;
+
     assert_eq!(
         *engine.get_instance_state(inst_id).unwrap(),
         InstanceState::Completed
@@ -675,6 +663,8 @@ async fn xor_gateway_user_task_merges_variables() {
         .await
         .unwrap();
 
+    complete_all_service_tasks(&mut engine, "worker_1", HashMap::new()).await;
+
     assert_eq!(
         *engine.get_instance_state(inst_id).unwrap(),
         InstanceState::Completed
@@ -697,7 +687,7 @@ async fn xor_gateway_user_task_merges_variables() {
 fn build_script_test_definition() -> ProcessDefinition {
     ProcessDefinitionBuilder::new("script_test")
         .node("start", BpmnElement::StartEvent)
-        .node("svc", BpmnElement::ServiceTask("calculate".into()))
+        .node("svc", BpmnElement::ServiceTask { topic: "calculate".into() })
         .node("end", BpmnElement::EndEvent)
         .flow("start", "svc")
         .flow("svc", "end")
@@ -711,11 +701,6 @@ async fn script_mutates_state_and_executes_logic() {
     let mut engine = WorkflowEngine::new();
     let def_key = engine.deploy_definition(build_script_test_definition()).await;
 
-    engine.register_service_handler(
-        "calculate",
-        Arc::new(|_| Ok(())),
-    );
-
     let mut vars = HashMap::new();
     vars.insert("x".into(), serde_json::json!(6));
 
@@ -724,12 +709,16 @@ async fn script_mutates_state_and_executes_logic() {
         .await
         .unwrap();
 
+    complete_all_service_tasks(&mut engine, "worker_1", HashMap::new()).await;
+
     assert_eq!(
         *engine.get_instance_state(inst_id).unwrap(),
         InstanceState::Completed
     );
 
     let details = engine.get_instance_details(inst_id).unwrap();
+
+    complete_all_service_tasks(&mut engine, "worker_1", HashMap::new()).await;
 
     assert_eq!(
         details.variables.get("x"),

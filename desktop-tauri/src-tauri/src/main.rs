@@ -42,7 +42,7 @@ struct MonitoringData {
     instances_running: usize,
     instances_completed: usize,
     pending_user_tasks: usize,
-    pending_external_tasks: usize,
+    pending_service_tasks: usize,
     nats_server: Option<NatsServerInfo>,
 }
 
@@ -533,7 +533,7 @@ async fn get_monitoring_data(state: tauri::State<'_, AppState>) -> Result<Monito
     let engine = state.engine.lock().await;
 
     let instances_running = engine.instances.values()
-        .filter(|i| matches!(i.state, InstanceState::Running | InstanceState::WaitingOnUserTask { .. } | InstanceState::WaitingOnExternalTask { .. }))
+        .filter(|i| matches!(i.state, InstanceState::Running | InstanceState::WaitingOnUserTask { .. } | InstanceState::WaitingOnServiceTask { .. }))
         .count();
     let instances_completed = engine.instances.values()
         .filter(|i| matches!(i.state, InstanceState::Completed))
@@ -567,7 +567,7 @@ async fn get_monitoring_data(state: tauri::State<'_, AppState>) -> Result<Monito
         instances_running,
         instances_completed,
         pending_user_tasks: engine.pending_user_tasks.len(),
-        pending_external_tasks: engine.pending_external_tasks.len(),
+        pending_service_tasks: engine.pending_service_tasks.len(),
         nats_server,
     })
 }
@@ -581,7 +581,7 @@ async fn get_monitoring_data(_state: tauri::State<'_, AppState>) -> Result<Monit
         instances_running: 0,
         instances_completed: 0,
         pending_user_tasks: 0,
-        pending_external_tasks: 0,
+        pending_service_tasks: 0,
         nats_server: None,
     })
 }
@@ -666,6 +666,17 @@ async fn restore_from_nats(
         }
         Err(e) => eprintln!("[mini-bpm] Failed to list user tasks: {:?}", e),
     }
+
+    match nats.list_service_tasks().await {
+        Ok(tasks) => {
+            let num = tasks.len();
+            for task in tasks {
+                engine.pending_service_tasks.push(task);
+            }
+            println!("[mini-bpm] Restored {} pending service task(s).", num);
+        }
+        Err(e) => eprintln!("[mini-bpm] Failed to list service tasks: {:?}", e),
+    }
 }
 
 fn main() {
@@ -714,7 +725,7 @@ fn main() {
     #[cfg(feature = "http-backend")]
     let initial_state = AppState {
         client: reqwest::Client::new(),
-        base_url: std::env::var("ENGINE_API_URL").unwrap_or_else(|_| "http://localhost:8080".to_string()),
+        base_url: std::env::var("ENGINE_API_URL").unwrap_or_else(|_| "http://localhost:8081".to_string()),
     };
 
     tauri::Builder::default()

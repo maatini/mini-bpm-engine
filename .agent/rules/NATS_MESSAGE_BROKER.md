@@ -2,39 +2,40 @@
 trigger: always_on
 ---
 
-# NATS Message Broker Rules (mini-bpm Projekt)
+# NATS Message Broker Rules (mini-bpm Project)
 
-Du bist Experte für NATS + Rust Persistence in Workflow-Engines.
-Immer wenn der User NATS-Integration, Persistenz oder verteilte State-Speicherung verlangt, folge diesen Regeln **exakt**.
+You are an expert in NATS + Rust persistence for workflow engines.
+Whenever the user requests NATS integration, persistence, or distributed state storage, follow these rules **exactly**.
 
-## 1. Technologie-Stack (fest)
-- Crate: `async-nats = { version = "0.38", features = ["jetstream"] }` (aktuellster Stand 2026)
-- Connection: `nats://localhost:4222` (nats-server läuft via devbox)
-- Immer `tokio::spawn` für Hintergrund-Tasks (Watch, Timer, etc.)
-- Error-Handling: erweitere `EngineError` mit `NatsError` Varianten
+## 1. Technology Stack (fixed)
+- Crate: `async-nats = { version = "0.38", features = ["jetstream"] }`
+- Connection: `nats://localhost:4222` (nats-server runs via devbox/docker-compose)
+- Always `tokio::spawn` for background tasks (Watch, Timer, etc.)
+- Error handling: extend `EngineError` with `PersistenceError` variant
 
-## 2. Perfekte Aufteilung der NATS-Features (NIE anders!)
-| Feature          | Bucket/Stream-Name       | Verwendung in mini-bpm                              | Warum genau diese Wahl? |
-|------------------|--------------------------|-----------------------------------------------------|-------------------------|
-| **Object Store** | `bpmn_xml`              | Original BPMN 2.0 XML (unveränderlich)             | Für große Artefakte, Chunking, Versionierung |
-| **KV Store**     | `definitions`           | ProcessDefinition (JSON)                           | Schnelle Reads/Writes, Watch möglich |
-| **KV Store**     | `instances`             | ProcessInstance + Token + Variables + Audit-Log    | State der laufenden Prozesse |
-| **KV Store**     | `user_tasks`            | PendingUserTask                                    | Pending-Tasks für externe Completion |
-| **JetStream**    | Stream `WORKFLOW_EVENTS`| Subjects: `workflow.deploy`, `workflow.start`, `workflow.complete`, `workflow.timer` | Audit, Monitoring, zukünftige Event-Sourcing |
+## 2. NATS Feature Split (NEVER change this!)
+| Feature          | Bucket/Stream Name       | Usage in mini-bpm                                   | Why this choice? |
+|------------------|--------------------------|-----------------------------------------------------|------------------|
+| **Object Store** | `bpmn_xml`              | Original BPMN 2.0 XML (immutable)                  | For large artifacts, chunking, versioning |
+| **KV Store**     | `definitions`           | ProcessDefinition (JSON)                            | Fast reads/writes, watch support |
+| **KV Store**     | `instances`             | ProcessInstance + Token + Variables + Audit-Log     | Running process state |
+| **KV Store**     | `user_tasks`            | PendingUserTask                                     | Pending tasks for external completion |
+| **KV Store**     | `service_tasks`         | PendingServiceTask (external tasks)                 | Camunda-style external task state |
+| **JetStream**    | Stream `WORKFLOW_EVENTS`| Subjects: `workflow.deploy`, `workflow.start`, `workflow.complete`, `workflow.timer` | Audit, monitoring, future event-sourcing |
 
-## 3. Wichtige Prinzipien
-- **Bei jedem Schreibzugriff** → sofort in KV + Event in JetStream publishen (atomar).
-- **Beim Engine-Start** → vollständiger State-Restore aus KV + Object Store.
-- **BPMN 2.0 XML** immer im Object Store + Metadaten im KV `definitions`.
-- **In-memory Cache** nur für Tests (Feature-Flag `in-memory`).
-- **Keine breaking Changes** am bestehenden `WorkflowEngine` Public API.
-- **Minimal & idiomatisch**: `Arc<NatsPersistence>`, async überall, `serde_json` für Serialisierung.
-- **Tests** müssen weiterhin 100 % funktionieren (in-memory fallback).
+## 3. Important Principles
+- **On every write** → immediately save to KV + publish event to JetStream (atomic).
+- **On engine start** → full state restore from KV + Object Store.
+- **BPMN 2.0 XML** always in Object Store + metadata in KV `definitions`.
+- **In-memory cache** only for tests (feature flag `in-memory`).
+- **No breaking changes** to the existing `WorkflowEngine` public API.
+- **Minimal & idiomatic**: `Arc<NatsPersistence>`, async everywhere, `serde_json` for serialization.
+- **Tests** must continue to pass 100% (in-memory fallback).
 
-## 4. Verboten
-- Kein Redis, PostgreSQL oder andere DBs.
-- Kein manuelles Stream-Management ohne `jetstream::new(client)`.
-- Kein Blockieren des Tokio-Runtime (immer `.await`).
-- Keine großen Binaries im KV-Store (→ Object Store!).
+## 4. Forbidden
+- No Redis, PostgreSQL, or other databases.
+- No manual stream management without `jetstream::new(client)`.
+- No blocking the Tokio runtime (always `.await`).
+- No large binaries in KV Store (→ Object Store!).
 
-Diese Rules überschreiben alle anderen Rules, wenn NATS erwähnt wird.
+These rules override all other rules when NATS is mentioned.

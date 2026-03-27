@@ -131,8 +131,7 @@ struct BpmnServiceTask {
     #[serde(rename = "@data-handler")]
     handler: Option<String>,
     /// Maatini type attribute: "external" means external task.
-    #[serde(rename = "@maatini:type")]
-    maatini_type: Option<String>,
+
     /// Topic name for external tasks.
     #[serde(rename = "@data-topic")]
     topic: Option<String>,
@@ -262,19 +261,14 @@ pub fn parse_bpmn_xml(xml: &str) -> EngineResult<ProcessDefinition> {
         builder = add_listeners(builder, &node_id, end.extension_elements);
     }
 
-    // 3. Process Service Tasks (may be external)
+    // 3. Process Service Tasks (All now use external fetching API via topics)
     for task in defs.process.service_tasks {
         let node_id = task.id.clone();
-        let is_external = task.maatini_type.as_deref() == Some("external")
-            || task.topic.is_some();
-
-        if is_external {
-            let topic = task.topic.unwrap_or_else(|| "default".into());
-            builder = builder.node(task.id, BpmnElement::ExternalTask { topic });
-        } else {
-            let handler = task.handler.unwrap_or_else(|| "default_handler".into());
-            builder = builder.node(task.id, BpmnElement::ServiceTask(handler));
-        }
+        // Fallback: use topic, then handler (backward compat), then node_id
+        let topic = task.topic
+            .or(task.handler)
+            .unwrap_or_else(|| task.id.clone());
+        builder = builder.node(task.id, BpmnElement::ServiceTask { topic });
         builder = add_listeners(builder, &node_id, task.extension_elements);
     }
 
@@ -299,8 +293,8 @@ pub fn parse_bpmn_xml(xml: &str) -> EngineResult<ProcessDefinition> {
 
     for task in all_generic_tasks {
         let node_id = task.id.clone();
-        let handler = task.name.unwrap_or_else(|| "default_handler".into());
-        builder = builder.node(task.id, BpmnElement::ServiceTask(handler));
+        let topic = task.name.unwrap_or_else(|| task.id.clone());
+        builder = builder.node(task.id, BpmnElement::ServiceTask { topic });
         builder = add_listeners(builder, &node_id, task.extension_elements);
     }
 
@@ -344,7 +338,7 @@ pub fn parse_bpmn_xml(xml: &str) -> EngineResult<ProcessDefinition> {
 
     for evt in all_intermediate {
         let node_id = evt.id.clone();
-        builder = builder.node(evt.id, BpmnElement::ServiceTask("event_passthrough".into()));
+        builder = builder.node(evt.id, BpmnElement::ServiceTask { topic: "event_passthrough".into() });
         builder = add_listeners(builder, &node_id, evt.extension_elements);
     }
 
@@ -392,7 +386,7 @@ mod tests {
         assert_eq!(def.next_node("ut1"), Some("end1"));
         
         match def.nodes.get("svc1").unwrap() {
-            BpmnElement::ServiceTask(h) => assert_eq!(h, "my_handler"),
+            BpmnElement::ServiceTask { topic } => assert_eq!(topic, "my_handler"),
             _ => panic!("Expected ServiceTask"),
         }
         

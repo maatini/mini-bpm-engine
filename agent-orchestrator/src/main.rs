@@ -34,21 +34,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 2. Deploy definition to Engine
     let def_key = engine.deploy_definition(definition).await;
 
-    // 3. Register service handler bindings
-    engine.register_service_handler("InitialProcessing", Arc::new(|vars| {
-        log::info!("  -> [ServiceTask] Executing 'InitialProcessing'");
-        vars.insert(
-            "processed".to_string(),
-            serde_json::Value::Bool(true),
-        );
-        Ok(())
-    }));
-
     // 4. Start instance
     log::info!("===========================================");
     log::info!("Starting Process_1...");
     let instance_id = engine.start_instance(def_key).await?;
     log::info!("Process instance started with ID: {}", instance_id);
+
+
+    // Give engine time to progress to the service task
+    sleep(Duration::from_millis(150)).await;
+
+    let svc_tasks = engine.fetch_and_lock_service_tasks("orchestrator", 1, &["InitialProcessing".to_string()], 10000).await;
+    for task in svc_tasks {
+        log::info!("  -> [ServiceTask] Completing '{}'", task.node_id);
+        let mut vars = std::collections::HashMap::new();
+        vars.insert("processed".to_string(), serde_json::Value::Bool(true));
+        engine.complete_service_task(task.id, "orchestrator", vars).await?;
+    }
 
     // Give engine time to progress to the user task...
     sleep(Duration::from_millis(150)).await;

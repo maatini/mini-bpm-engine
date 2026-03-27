@@ -5,7 +5,7 @@ use axum::{
     routing::{get, post, put, delete},
     Json, Router,
 };
-use engine_core::engine::{ExternalTaskItem, PendingUserTask, ProcessInstance, WorkflowEngine};
+use engine_core::engine::{PendingServiceTask, PendingUserTask, ProcessInstance, WorkflowEngine};
 use engine_core::error::EngineError;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -55,18 +55,18 @@ impl IntoResponse for AppError {
             Self::Engine(EngineError::NoSuchNode(id)) => {
                 (StatusCode::NOT_FOUND, format!("Node not found: {id}"))
             }
-            Self::Engine(EngineError::ExternalTaskNotFound(id)) => {
-                (StatusCode::NOT_FOUND, format!("External task not found: {id}"))
+            Self::Engine(EngineError::ServiceTaskNotFound(id)) => {
+                (StatusCode::NOT_FOUND, format!("Service task not found: {id}"))
             }
             // Conflict errors (409)
             Self::Engine(EngineError::TaskNotPending { task_id, actual_state }) => {
                 (StatusCode::CONFLICT, format!("Task '{task_id}' is not pending (state: {actual_state})"))
             }
-            Self::Engine(EngineError::ExternalTaskLocked { task_id, worker_id }) => {
+            Self::Engine(EngineError::ServiceTaskLocked { task_id, worker_id }) => {
                 (StatusCode::CONFLICT, format!("Task '{task_id}' locked by worker '{worker_id}'"))
             }
-            Self::Engine(EngineError::ExternalTaskNotLocked(id)) => {
-                (StatusCode::CONFLICT, format!("External task '{id}' is not locked"))
+            Self::Engine(EngineError::ServiceTaskNotLocked(id)) => {
+                (StatusCode::CONFLICT, format!("Service task '{id}' is not locked"))
             }
             Self::Engine(EngineError::AlreadyCompleted) => {
                 (StatusCode::CONFLICT, "Process instance already completed".to_string())
@@ -124,7 +124,7 @@ struct CompleteRequest {
 }
 
 // ---------------------------------------------------------------------------
-// External Task request/response types
+// Service Task request/response types
 // ---------------------------------------------------------------------------
 
 #[derive(Serialize, Deserialize)]
@@ -146,14 +146,14 @@ struct FetchAndLockRequest {
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct CompleteExternalTaskRequest {
+struct CompleteServiceTaskRequest {
     worker_id: String,
     variables: Option<HashMap<String, Value>>,
 }
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct FailExternalTaskRequest {
+struct FailServiceTaskRequest {
     worker_id: String,
     retries: Option<i32>,
     error_message: Option<String>,
@@ -187,7 +187,7 @@ pub fn build_app() -> Router {
 
     let cors = CorsLayer::new()
         .allow_origin(Any)
-        .allow_methods([Method::GET, Method::POST])
+        .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE])
         .allow_headers(Any);
 
     Router::new()
@@ -199,12 +199,12 @@ pub fn build_app() -> Router {
         .route("/api/instances/:id", get(get_instance).delete(delete_instance))
         .route("/api/definitions/:id", delete(delete_definition))
         .route("/api/instances/:id/variables", put(update_instance_variables))
-        // External Task endpoints
-        .route("/api/external-task/fetchAndLock", post(fetch_and_lock))
-        .route("/api/external-task/:id/complete", post(complete_external_task))
-        .route("/api/external-task/:id/failure", post(fail_external_task))
-        .route("/api/external-task/:id/extendLock", post(extend_lock))
-        .route("/api/external-task/:id/bpmnError", post(bpmn_error))
+        // Service Task endpoints
+        .route("/api/service-task/fetchAndLock", post(fetch_and_lock_service_tasks))
+        .route("/api/service-task/:id/complete", post(complete_service_task))
+        .route("/api/service-task/:id/failure", post(fail_service_task))
+        .route("/api/service-task/:id/extendLock", post(extend_lock))
+        .route("/api/service-task/:id/bpmnError", post(bpmn_error))
         .layer(cors)
         .with_state(state)
 }
@@ -336,17 +336,17 @@ async fn delete_definition(
 }
 
 // ---------------------------------------------------------------------------
-// External Task REST handlers
+// Service Task REST handlers
 // ---------------------------------------------------------------------------
 
-/// POST /api/external-task/fetchAndLock
+/// POST /api/service-task/fetchAndLock
 ///
 /// Long-polling variant: if `asyncResponseTimeout` is set, retries up to that
 /// duration (polling every 500ms).
-async fn fetch_and_lock(
+async fn fetch_and_lock_service_tasks(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<FetchAndLockRequest>,
-) -> Json<Vec<ExternalTaskItem>> {
+) -> Json<Vec<PendingServiceTask>> {
     let topics: Vec<String> = payload.topics.iter().map(|t| t.topic_name.clone()).collect();
     // Use the first topic's lock duration, or default 30s
     let lock_duration = payload.topics.first().map(|t| t.lock_duration).unwrap_or(30);
@@ -356,12 +356,12 @@ async fn fetch_and_lock(
     let start = tokio::time::Instant::now();
     loop {
         let mut engine = state.engine.lock().await;
-        let tasks = engine.fetch_and_lock(
+        let tasks = engine.fetch_and_lock_service_tasks(
             &payload.worker_id,
             payload.max_tasks,
             &topics,
             lock_duration,
-        );
+        ).await;
 
         if !tasks.is_empty() || timeout_ms == 0 {
             return Json(tasks);
@@ -378,44 +378,44 @@ async fn fetch_and_lock(
     }
 }
 
-/// POST /api/external-task/:id/complete
-async fn complete_external_task(
+/// POST /api/service-task/:id/complete
+async fn complete_service_task(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
-    Json(payload): Json<CompleteExternalTaskRequest>,
+    Json(payload): Json<CompleteServiceTaskRequest>,
 ) -> Result<impl IntoResponse, AppError> {
     let mut engine = state.engine.lock().await;
     let task_id = parse_uuid(&id)?;
     let vars = payload.variables.unwrap_or_default();
 
     engine
-        .complete_external_task(task_id, &payload.worker_id, vars)
+        .complete_service_task(task_id, &payload.worker_id, vars)
         .await?;
 
     Ok(StatusCode::NO_CONTENT)
 }
 
-/// POST /api/external-task/:id/failure
-async fn fail_external_task(
+/// POST /api/service-task/:id/failure
+async fn fail_service_task(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
-    Json(payload): Json<FailExternalTaskRequest>,
+    Json(payload): Json<FailServiceTaskRequest>,
 ) -> Result<impl IntoResponse, AppError> {
     let mut engine = state.engine.lock().await;
     let task_id = parse_uuid(&id)?;
 
-    engine.fail_external_task(
+    engine.fail_service_task(
         task_id,
         &payload.worker_id,
         payload.retries,
         payload.error_message,
         payload.error_details,
-    )?;
+    ).await?;
 
     Ok(StatusCode::NO_CONTENT)
 }
 
-/// POST /api/external-task/:id/extendLock
+/// POST /api/service-task/:id/extendLock
 async fn extend_lock(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
@@ -424,12 +424,12 @@ async fn extend_lock(
     let mut engine = state.engine.lock().await;
     let task_id = parse_uuid(&id)?;
 
-    engine.extend_lock(task_id, &payload.worker_id, payload.new_duration)?;
+    engine.extend_lock(task_id, &payload.worker_id, payload.new_duration).await?;
 
     Ok(StatusCode::NO_CONTENT)
 }
 
-/// POST /api/external-task/:id/bpmnError
+/// POST /api/service-task/:id/bpmnError
 async fn bpmn_error(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
@@ -438,7 +438,7 @@ async fn bpmn_error(
     let mut engine = state.engine.lock().await;
     let task_id = parse_uuid(&id)?;
 
-    engine.handle_bpmn_error(task_id, &payload.worker_id, &payload.error_code)?;
+    engine.handle_bpmn_error(task_id, &payload.worker_id, &payload.error_code).await?;
 
     Ok(StatusCode::NO_CONTENT)
 }

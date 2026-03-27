@@ -19,15 +19,33 @@ You are an expert Rust software engineer specialized in building reliable workfl
 Build a minimal, embeddable BPMN 2.0 Workflow Engine in Rust with:
 - StartEvent, TimerStartEvent
 - EndEvent
-- ServiceTask
+- ServiceTask (Camunda-style external task: fetch-and-lock pattern)
 - UserTask
+- ExclusiveGateway (XOR — condition-based routing with optional default flow)
+- InclusiveGateway (OR — token forking for all matching conditions)
+- Conditional Sequence Flows (condition expressions on edges)
+- Execution Listeners (Rhai scripts on start/end of nodes)
 
-Use token-based execution. Start with in-memory storage.
+Use token-based execution. In-memory for tests, NATS persistence for production.
 
 **Preferred Stack**
 - Tokio for async and timers
-- anyhow + thiserror
-- serde for BPMN XML (later)
-- tracing for logging
+- anyhow + thiserror for error handling
+- `log` crate for logging (not tracing)
+- `quick-xml` + serde for BPMN XML parsing (`bpmn-parser` crate)
+- `rhai` for embedded scripting (execution listeners)
+- `chrono` for timestamps
+- `axum` for REST API (`engine-server` crate)
+- `async-nats` with JetStream for persistence (`persistence-nats` crate)
+
+**Workspace Crates**
+| Crate | Purpose |
+|---|---|
+| `engine-core` | Pure state machine, token execution, gateway routing, condition evaluator, script runner |
+| `bpmn-parser` | Parses BPMN 2.0 XML → `ProcessDefinition` |
+| `persistence-nats` | Implements `WorkflowPersistence` trait via NATS KV/Object/JetStream |
+| `engine-server` | Axum HTTP REST API (deploy, start, complete, external tasks) |
+| `desktop-tauri` | Tauri desktop app with React/shadcn UI |
+| `agent-orchestrator` | External worker orchestration (stub) |
 
 Follow the rules in RUST_AGENT_RULES.md and BPMN_WORKFLOW_ENGINE.md strictly.

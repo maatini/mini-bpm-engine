@@ -40,25 +40,23 @@ pub enum EngineError {
     #[error("Timer mismatch: expected {expected}s, got {provided}s")]
     TimerMismatch { expected: u64, provided: u64 },
 
-    /// A required service handler is not registered.
-    #[error("No service handler registered for '{0}'")]
-    HandlerNotFound(String),
+
 
     /// No condition matched at a gateway node (and no default flow exists).
     #[error("No matching condition at gateway '{0}'")]
     NoMatchingCondition(String),
 
-    /// The requested external task does not exist.
-    #[error("External task not found: {0}")]
-    ExternalTaskNotFound(Uuid),
+    /// The requested service task does not exist.
+    #[error("Service task not found: {0}")]
+    ServiceTaskNotFound(Uuid),
 
-    /// The external task is locked by another worker.
-    #[error("External task '{task_id}' is locked by worker '{worker_id}'")]
-    ExternalTaskLocked { task_id: Uuid, worker_id: String },
+    /// The service task is locked by another worker.
+    #[error("Service task '{task_id}' is locked by worker '{worker_id}'")]
+    ServiceTaskLocked { task_id: Uuid, worker_id: String },
 
-    /// The external task is not currently locked (cannot complete/fail).
-    #[error("External task '{0}' is not locked")]
-    ExternalTaskNotLocked(Uuid),
+    /// The service task is not currently locked (cannot complete/fail).
+    #[error("Service task '{0}' is not locked")]
+    ServiceTaskNotLocked(Uuid),
 
     /// Cannot delete definition because it has instances.
     #[error("Cannot delete definition: {0} instances still exist")]

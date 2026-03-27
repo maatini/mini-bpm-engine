@@ -13,20 +13,9 @@ use crate::model::{BpmnElement, ListenerEvent, ProcessDefinition, Token};
 use crate::persistence::WorkflowPersistence;
 use crate::script_runner;
 
-// Sub-modules with additional `impl WorkflowEngine` blocks
-#[path = "external_task.rs"]
-mod external_task;
+#[path = "service_task.rs"]
+mod service_task;
 
-// ---------------------------------------------------------------------------
-// Service handler
-// ---------------------------------------------------------------------------
-
-/// Type alias for a service handler function.
-///
-/// Receives a mutable reference to the token's variables and returns a Result.
-/// For async work, wrap the handler in a `tokio::spawn` block.
-pub type ServiceHandlerFn =
-    Arc<dyn Fn(&mut HashMap<String, Value>) -> EngineResult<()> + Send + Sync>;
 
 // ---------------------------------------------------------------------------
 // Pending user task
@@ -47,9 +36,9 @@ pub struct PendingUserTask {
 // External task item (Camunda-style)
 // ---------------------------------------------------------------------------
 
-/// An external task that can be fetched and completed by remote workers.
+/// A service task that can be fetched and completed by remote workers.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ExternalTaskItem {
+pub struct PendingServiceTask {
     pub id: Uuid,
     pub instance_id: Uuid,
     pub definition_key: Uuid,
@@ -83,7 +72,7 @@ pub enum NextAction {
     /// The engine must pause — a user task is pending.
     WaitForUser(PendingUserTask),
     /// The engine must pause — an external task is pending.
-    WaitForExternalTask(ExternalTaskItem),
+    WaitForServiceTask(PendingServiceTask),
     /// The process reached an end event.
     Complete,
 }
@@ -97,7 +86,7 @@ pub enum NextAction {
 pub enum InstanceState {
     Running,
     WaitingOnUserTask { task_id: Uuid },
-    WaitingOnExternalTask { task_id: Uuid },
+    WaitingOnServiceTask { task_id: Uuid },
     Completed,
 }
 
@@ -155,9 +144,8 @@ fn resolve_next_target(
 pub struct WorkflowEngine {
     pub definitions: HashMap<Uuid, Arc<ProcessDefinition>>,
     pub instances: HashMap<Uuid, ProcessInstance>,
-    pub service_handlers: HashMap<String, ServiceHandlerFn>,
     pub pending_user_tasks: Vec<PendingUserTask>,
-    pub pending_external_tasks: Vec<ExternalTaskItem>,
+    pub pending_service_tasks: Vec<PendingServiceTask>,
     pub persistence: Option<Arc<dyn WorkflowPersistence>>,
     pub script_engine: rhai::Engine,
 }
@@ -169,9 +157,8 @@ impl WorkflowEngine {
         Self {
             definitions: HashMap::new(),
             instances: HashMap::new(),
-            service_handlers: HashMap::new(),
             pending_user_tasks: Vec::new(),
-            pending_external_tasks: Vec::new(),
+            pending_service_tasks: Vec::new(),
             persistence: None,
             script_engine: rhai::Engine::new(),
         }
@@ -222,6 +209,26 @@ impl WorkflowEngine {
         }
     }
 
+    /// Persists a pending service task to the KV store.
+    pub(crate) async fn persist_service_task(&self, task_id: Uuid) {
+        if let Some(p) = &self.persistence {
+            if let Some(task) = self.pending_service_tasks.iter().find(|t| t.id == task_id) {
+                if let Err(e) = p.save_service_task(task).await {
+                    log::error!("Failed to persist external task {}: {}", task_id, e);
+                }
+            }
+        }
+    }
+
+    /// Deletes a completed pending service task from the KV store.
+    pub(crate) async fn remove_persisted_service_task(&self, task_id: Uuid) {
+        if let Some(p) = &self.persistence {
+            if let Err(e) = p.delete_service_task(task_id).await {
+                log::error!("Failed to delete persisted external task {}: {}", task_id, e);
+            }
+        }
+    }
+
     // ----- deployment ------------------------------------------------------
 
     /// Deploys a process definition so instances can be started from it.
@@ -245,18 +252,6 @@ impl WorkflowEngine {
     }
 
     // ----- handler registration --------------------------------------------
-
-    /// Registers a service handler function for a given service-task name.
-    pub fn register_service_handler(
-        &mut self,
-        name: impl Into<String>,
-        handler: ServiceHandlerFn,
-    ) {
-        let name = name.into();
-        log::info!("Registered service handler '{name}'");
-        self.service_handlers.insert(name, handler);
-    }
-
     // ----- starting instances ----------------------------------------------
 
     /// Starts a new process instance from a deployed definition.
@@ -476,13 +471,14 @@ impl WorkflowEngine {
                     self.persist_user_task(task_id).await;
                     return Ok(());
                 }
-                NextAction::WaitForExternalTask(ext_task) => {
-                    let task_id = ext_task.id;
+                NextAction::WaitForServiceTask(svc_task) => {
+                    let task_id = svc_task.id;
                     if let Some(inst) = self.instances.get_mut(&instance_id) {
-                        inst.state = InstanceState::WaitingOnExternalTask { task_id };
+                        inst.state = InstanceState::WaitingOnServiceTask { task_id };
                     }
                     self.persist_instance(instance_id).await;
-                    self.pending_external_tasks.push(ext_task);
+                    self.pending_service_tasks.push(svc_task);
+                    self.persist_service_task(task_id).await;
                     return Ok(());
                 }
                 NextAction::Complete => {
@@ -585,35 +581,6 @@ impl WorkflowEngine {
                 Ok(NextAction::Complete)
             }
 
-            BpmnElement::ServiceTask(handler_name) => {
-                let handler = self
-                    .service_handlers
-                    .get(handler_name)
-                    .ok_or_else(|| EngineError::HandlerNotFound(handler_name.clone()))?
-                    .clone();
-
-                // Execute the handler
-                handler(&mut token.variables)?;
-
-                let inst = self.instances.get_mut(&instance_id)
-                    .ok_or(EngineError::NoSuchInstance(instance_id))?;
-                inst.audit_log.push(format!(
-                    "⚙ Executed service task '{current_id}' (handler: {handler_name})"
-                ));
-                log::info!(
-                    "Instance {instance_id}: executed service task '{current_id}' → '{handler_name}'"
-                );
-
-                let next = resolve_next_target(&def_clone, &current_id, &token.variables)?;
-                self.run_end_scripts(instance_id, token, &def_clone, &current_id)?;
-                let inst = self.instances.get_mut(&instance_id)
-                    .ok_or(EngineError::NoSuchInstance(instance_id))?;
-                inst.current_node = next.clone();
-                inst.variables = token.variables.clone();
-                token.current_node = next;
-                Ok(NextAction::Continue(token.clone()))
-            }
-
             BpmnElement::UserTask(assignee) => {
                 let pending = PendingUserTask {
                     task_id: Uuid::new_v4(),
@@ -639,8 +606,8 @@ impl WorkflowEngine {
                 Ok(NextAction::WaitForUser(pending))
             }
 
-            BpmnElement::ExternalTask { topic } => {
-                let ext_task = ExternalTaskItem {
+            BpmnElement::ServiceTask { topic } => {
+                let svc_task = PendingServiceTask {
                     id: Uuid::new_v4(),
                     instance_id,
                     definition_key: def_key,
@@ -659,15 +626,15 @@ impl WorkflowEngine {
                     .ok_or(EngineError::NoSuchInstance(instance_id))?;
                 inst.current_node = current_id.clone();
                 inst.audit_log.push(format!(
-                    "🔗 External task '{current_id}' created for topic '{topic}' — waiting (task_id: {})",
-                    ext_task.id
+                    "🔗 Service task '{current_id}' created for topic '{topic}' — waiting (task_id: {})",
+                    svc_task.id
                 ));
                 log::info!(
-                    "Instance {instance_id}: external task '{current_id}' pending for topic '{topic}' (task_id: {})",
-                    ext_task.id
+                    "Instance {instance_id}: service task '{current_id}' pending for topic '{topic}' (task_id: {})",
+                    svc_task.id
                 );
 
-                Ok(NextAction::WaitForExternalTask(ext_task))
+                Ok(NextAction::WaitForServiceTask(svc_task))
             }
 
             // ----- Exclusive Gateway (XOR) -----
@@ -864,9 +831,9 @@ impl WorkflowEngine {
         &self.pending_user_tasks
     }
 
-    /// Returns all pending external tasks (for debugging / admin).
-    pub fn get_external_tasks(&self) -> &[ExternalTaskItem] {
-        &self.pending_external_tasks
+    /// Returns all pending service tasks (for debugging / admin).
+    pub fn get_external_tasks(&self) -> &[PendingServiceTask] {
+        &self.pending_service_tasks
     }
 
     /// Returns a list of all process instances (cloned).
@@ -893,6 +860,10 @@ impl WorkflowEngine {
             for task in self.pending_user_tasks.iter().filter(|t| t.instance_id == instance_id) {
                 let _ = persistence.delete_user_task(task.task_id).await;
             }
+            // Delete associated service tasks from persistence
+            for task in self.pending_service_tasks.iter().filter(|t| t.instance_id == instance_id) {
+                let _ = persistence.delete_service_task(task.id).await;
+            }
             // Delete instance from persistence
             persistence.delete_instance(&instance_id.to_string()).await?;
         }
@@ -900,8 +871,8 @@ impl WorkflowEngine {
         // Clean up pending user tasks in memory
         self.pending_user_tasks.retain(|t| t.instance_id != instance_id);
         
-        // Clean up pending external tasks in memory
-        self.pending_external_tasks.retain(|t| t.instance_id != instance_id);
+        // Clean up pending service tasks in memory
+        self.pending_service_tasks.retain(|t| t.instance_id != instance_id);
 
         Ok(())
     }

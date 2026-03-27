@@ -4,7 +4,7 @@ use std::env;
 async fn main() -> anyhow::Result<()> {
     let app = engine_server::build_app();
 
-    let port = env::var("PORT").unwrap_or_else(|_| "8080".to_string());
+    let port = env::var("PORT").unwrap_or_else(|_| "8081".to_string());
     let addr = format!("0.0.0.0:{}", port);
     println!("Server starting on http://{}", addr);
 

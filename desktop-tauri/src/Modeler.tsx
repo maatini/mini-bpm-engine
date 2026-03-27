@@ -87,10 +87,28 @@ export function Modeler({ onDeploy, onStart, onNewDiagram, onOpenFile, initialXm
       });
       
       modelerRef.current = modeler;
-      // Import the initial XML or a default empty diagram
-      const xmlToLoad = initialXml || generateEmptyBpmn();
+      // Import the initial XML or a saved diagram, or a default empty diagram
+      const savedXml = localStorage.getItem('minibpm_last_workflow');
+      const xmlToLoad = initialXml || savedXml || generateEmptyBpmn();
       modeler.importXML(xmlToLoad);
       lastImportedXmlRef.current = initialXml || null;
+      
+      modeler.on('commandStack.changed', async () => {
+        try {
+          const { xml } = await modeler.saveXML({ format: true });
+          if (xml) localStorage.setItem('minibpm_last_workflow', xml);
+        } catch (e) { }
+      });
+      
+      modeler.on('import.done', async ({ error }: any) => {
+        if (!error) {
+          try {
+            const { xml } = await modeler.saveXML({ format: true });
+            if (xml) localStorage.setItem('minibpm_last_workflow', xml);
+          } catch (e) { }
+        }
+      });
+
       
       return () => { 
         if (modelerRef.current) {

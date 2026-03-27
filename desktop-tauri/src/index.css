@@ -344,3 +344,44 @@ h2 { margin: 20px; }
   min-height: 80px;
   background-color: #f8fafc;
 }
+
+/* Variables Table */
+.variables-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8px;
+  font-size: 0.85rem;
+}
+.variables-table th, .variables-table td {
+  border: 1px solid var(--border-color);
+  padding: 6px 8px;
+  text-align: left;
+}
+.variables-table th {
+  background-color: #f1f5f9;
+  font-weight: 600;
+  color: #334155;
+}
+.var-input, .var-select {
+  width: 100%;
+  padding: 4px 6px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-size: 0.85rem;
+  box-sizing: border-box;
+  background-color: #ffffff;
+}
+.var-input:focus, .var-select:focus, .var-checkbox:focus, .vars-textarea:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+}
+.var-checkbox {
+  margin: 4px;
+  cursor: pointer;
+}
+.var-input[readonly] {
+  background-color: #f8fafc;
+  color: #64748b;
+  cursor: not-allowed;
+}

@@ -39,12 +39,10 @@ pub enum BpmnElement {
     TimerStartEvent(Duration),
     /// An end event — the process terminates here.
     EndEvent,
-    /// A service task that invokes a registered async handler by name.
-    ServiceTask(String),
+    /// A service task that pauses the workflow and must be fetched and completed by remote workers.
+    ServiceTask { topic: String },
     /// A user task assigned to a specific role or user.
     UserTask(String),
-    /// An external task that can be fetched and completed by remote workers.
-    ExternalTask { topic: String },
     /// An exclusive gateway (XOR) — exactly one outgoing path is taken based
     /// on condition evaluation. An optional `default` flow is followed when
     /// no condition matches.
@@ -362,7 +360,7 @@ mod tests {
     fn valid_definition_with_builder() {
         let def = ProcessDefinitionBuilder::new("p1")
             .node("start", BpmnElement::StartEvent)
-            .node("svc", BpmnElement::ServiceTask("do_it".into()))
+            .node("svc", BpmnElement::ServiceTask { topic: "do_it".into() })
             .node("end", BpmnElement::EndEvent)
             .flow("start", "svc")
             .flow("svc", "end")
@@ -405,7 +403,7 @@ mod tests {
     fn rejects_node_without_outgoing_flow() {
         let def = ProcessDefinitionBuilder::new("p1")
             .node("start", BpmnElement::StartEvent)
-            .node("orphan", BpmnElement::ServiceTask("noop".into()))
+            .node("orphan", BpmnElement::ServiceTask { topic: "noop".into() })
             .node("end", BpmnElement::EndEvent)
             .flow("start", "end")
             .build();
@@ -419,14 +417,14 @@ mod tests {
     fn find_node_and_next_work() {
         let def = ProcessDefinitionBuilder::new("p1")
             .node("start", BpmnElement::StartEvent)
-            .node("svc", BpmnElement::ServiceTask("action".into()))
+            .node("svc", BpmnElement::ServiceTask { topic: "action".into() })
             .node("end", BpmnElement::EndEvent)
             .flow("start", "svc")
             .flow("svc", "end")
             .build()
             .unwrap();
 
-        assert_eq!(def.get_node("svc"), Some(&BpmnElement::ServiceTask("action".into())));
+        assert_eq!(def.get_node("svc"), Some(&BpmnElement::ServiceTask { topic: "action".into() }));
         assert_eq!(def.next_node("start"), Some("svc"));
         assert_eq!(def.next_node("end"), None);
     }

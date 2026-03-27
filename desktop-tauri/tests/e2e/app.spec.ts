@@ -615,12 +615,20 @@ test.describe('mini-bpm Desktop App – E2E', () => {
     await expect(detail.getByText('Process started')).toBeVisible();
     await expect(detail.getByText('Executed service task')).toBeVisible();
 
-    // Variables JSON (now in editable textarea)
-    const textarea = detail.locator('.vars-textarea');
-    await expect(textarea).toBeVisible();
-    const textareaValue = await textarea.inputValue();
-    expect(textareaValue).toContain('"validated": true');
-    expect(textareaValue).toContain('"score": 95');
+    // Variables Table
+    const varTable = detail.locator('.variables-table');
+    const tbody = varTable.locator('tbody');
+    await expect(tbody).toBeVisible();
+
+    // Check 'validated' (Boolean)
+    const validatedRow = tbody.locator('tr').nth(1);
+    await expect(validatedRow.locator('input').first()).toHaveValue('validated');
+    await expect(validatedRow.locator('.var-checkbox')).toBeChecked();
+
+    // Check 'score' (Number)
+    const scoreRow = tbody.locator('tr').nth(0);
+    await expect(scoreRow.locator('input').first()).toHaveValue('score');
+    await expect(scoreRow.locator('input[type="number"]')).toHaveValue('95');
 
     // Close button
     await detail.locator('button', { hasText: 'Close' }).click();
@@ -957,15 +965,32 @@ test.describe('mini-bpm Desktop App – E2E', () => {
     const detail = page.locator('.instance-detail');
     await expect(detail).toBeVisible({ timeout: 5_000 });
 
-    // Verify current variables in textarea
-    const textarea = detail.locator('.vars-textarea');
-    await expect(textarea).toBeVisible();
-    const initial = await textarea.inputValue();
-    expect(initial).toContain('"status": "new"');
-    expect(initial).toContain('"priority": 1');
+    // Verify current variables in table
+    const varTable = detail.locator('.variables-table');
+    const tbody = varTable.locator('tbody');
+    await expect(tbody).toBeVisible();
+    
+    // Check initial values
+    const priorityRow = tbody.locator('tr').nth(0);
+    await expect(priorityRow.locator('input').first()).toHaveValue('priority');
+    await expect(priorityRow.locator('input[type="number"]')).toHaveValue('1');
+    
+    const statusRow = tbody.locator('tr').nth(1);
+    await expect(statusRow.locator('input').first()).toHaveValue('status');
+    await expect(statusRow.locator('input').nth(1)).toHaveValue('new');
 
-    // Edit variables: update status, delete priority (null), add a new key
-    await textarea.fill('{"status": "in-progress", "priority": null, "assignee": "alice"}');
+    // Edit variables: update status
+    await statusRow.locator('input').nth(1).fill('in-progress');
+    
+    // delete priority
+    await priorityRow.locator('button[title="Delete Variable"]').click();
+
+    // add a new key ('assignee': 'alice')
+    await detail.locator('button', { hasText: '+ Add Variable' }).click();
+    const newRow = tbody.locator('tr').last();
+    await newRow.locator('input').first().fill('assignee');
+    await newRow.locator('select').selectOption('String');
+    await newRow.locator('input').nth(1).fill('alice');
 
     // Click Save Variables
     const alerts = await collectAlerts(page, async () => {
@@ -974,12 +999,12 @@ test.describe('mini-bpm Desktop App – E2E', () => {
     expect(alerts.length).toBe(1);
     expect(alerts[0]).toContain('Variables saved successfully');
 
-    // After save, the textarea should show the updated variables
-    // (priority should be removed, status updated, assignee added)
-    const updated = await textarea.inputValue();
-    expect(updated).toContain('"status": "in-progress"');
-    expect(updated).toContain('"assignee": "alice"');
-    expect(updated).not.toContain('"priority"');
+    // After save, verify table state (assignee = 0, status = 1)
+    await expect(tbody.locator('tr').nth(0).locator('input').first()).toHaveValue('assignee');
+    await expect(tbody.locator('tr').nth(0).locator('input').nth(1)).toHaveValue('alice');
+    await expect(tbody.locator('tr').nth(1).locator('input').first()).toHaveValue('status');
+    await expect(tbody.locator('tr').nth(1).locator('input').nth(1)).toHaveValue('in-progress');
+    await expect(tbody.locator('tr')).toHaveCount(2);
   });
   // ---- 20. Complex Workflow: Script + XOR Gateway --------------------------
 
@@ -1056,9 +1081,16 @@ test.describe('mini-bpm Desktop App – E2E', () => {
     await activeNode.click();
 
     // 5. Prüfe Variables
-    const varsText = await detail.locator('.vars-textarea').inputValue();
-    expect(varsText).toContain('"score": 85');
-    expect(varsText).toContain('"status": "processed"');
+    const varTableComplex = detail.locator('.variables-table');
+    const tbodyComplex = varTableComplex.locator('tbody');
+    
+    const scoreRowComplex = tbodyComplex.locator('tr').nth(0); // 'score' is 0, 'status' is 1
+    await expect(scoreRowComplex.locator('input').first()).toHaveValue('score');
+    await expect(scoreRowComplex.locator('input[type="number"]')).toHaveValue('85');
+    
+    const statusRowComplex = tbodyComplex.locator('tr').nth(1);
+    await expect(statusRowComplex.locator('input').first()).toHaveValue('status');
+    await expect(statusRowComplex.locator('input').nth(1)).toHaveValue('processed');
 
     // 6. Prüfe Audit-Log
     await expect(detail.getByText("Executed end script on 'ServiceTask_Script'")).toBeVisible();
