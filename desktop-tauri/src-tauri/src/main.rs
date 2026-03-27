@@ -16,13 +16,46 @@ use uuid::Uuid;
 use std::collections::HashMap;
 
 #[cfg(not(feature = "http-backend"))]
-use engine_core::engine::{WorkflowEngine, ProcessInstance, PendingUserTask};
+use engine_core::engine::{WorkflowEngine, ProcessInstance, PendingUserTask, InstanceState};
 #[cfg(not(feature = "http-backend"))]
 use engine_core::model::{ProcessDefinitionBuilder, BpmnElement};
 #[cfg(not(feature = "http-backend"))]
 use bpmn_parser::parse_bpmn_xml;
 #[cfg(not(feature = "http-backend"))]
-use persistence_nats::NatsPersistence;
+use persistence_nats::{NatsPersistence, NatsInfo};
+
+/// Information about the active backend, returned to the UI.
+#[derive(serde::Serialize, Clone)]
+struct BackendInfo {
+    backend_type: String,
+    nats_url: Option<String>,
+    connected: bool,
+}
+
+/// Engine + NATS metrics returned to the Monitoring page.
+#[derive(serde::Serialize, Clone)]
+struct MonitoringData {
+    definitions_count: usize,
+    instances_total: usize,
+    instances_running: usize,
+    instances_completed: usize,
+    pending_user_tasks: usize,
+    pending_external_tasks: usize,
+    nats_server: Option<NatsServerInfo>,
+}
+
+/// NATS server and JetStream account information.
+#[derive(serde::Serialize, Clone)]
+struct NatsServerInfo {
+    server_name: String,
+    version: String,
+    host: String,
+    port: u16,
+    memory_bytes: u64,
+    storage_bytes: u64,
+    streams: usize,
+    consumers: usize,
+}
 
 /// Lightweight summary of a deployed process definition.
 #[cfg(not(feature = "http-backend"))]
@@ -38,7 +71,9 @@ struct AppState {
     /// Stores the original BPMN XML keyed by definition ID (in-memory fallback).
     deployed_xml: Arc<Mutex<HashMap<String, String>>>,
     /// Optional NATS persistence for the bpmn_xml Object Store.
-    nats: Option<Arc<NatsPersistence>>,
+    nats: Arc<Mutex<Option<Arc<NatsPersistence>>>>,
+    /// The NATS URL used (or attempted) for display in the UI.
+    nats_url: Arc<Mutex<String>>,
 }
 
 #[cfg(feature = "http-backend")]
@@ -80,10 +115,13 @@ async fn deploy_definition(state: tauri::State<'_, AppState>, xml: String, _name
     let def_id = def.id.clone();
 
     // Persist XML: prefer NATS Object Store, fall back to in-memory.
-    if let Some(nats) = &state.nats {
-        nats.save_bpmn_xml(&def_id, &xml)
-            .await
-            .map_err(|e| format!("NATS save XML failed: {:?}", e))?;
+    {
+        let nats_guard = state.nats.lock().await;
+        if let Some(nats) = nats_guard.as_ref() {
+            nats.save_bpmn_xml(&def_id, &xml)
+                .await
+                .map_err(|e| format!("NATS save XML failed: {:?}", e))?;
+        }
     }
     // Always keep in-memory copy for fast reads.
     state.deployed_xml.lock().await.insert(def_id.clone(), xml);
@@ -326,11 +364,14 @@ async fn get_definition_xml(state: tauri::State<'_, AppState>, definition_id: St
     }
 
     // Fall back to NATS Object Store.
-    if let Some(nats) = &state.nats {
-        return nats
-            .load_bpmn_xml(&definition_id)
-            .await
-            .map_err(|e| format!("{:?}", e));
+    {
+        let nats_guard = state.nats.lock().await;
+        if let Some(nats) = nats_guard.as_ref() {
+            return nats
+                .load_bpmn_xml(&definition_id)
+                .await
+                .map_err(|e| format!("{:?}", e));
+        }
     }
 
     Err(format!("No XML found for definition '{}'", definition_id))
@@ -348,12 +389,157 @@ async fn get_definition_xml(state: tauri::State<'_, AppState>, definition_id: St
     Ok(xml)
 }
 
+// ---------------------------------------------------------------------------
+// Backend info & switching
+// ---------------------------------------------------------------------------
+
+#[tauri::command]
+#[cfg(not(feature = "http-backend"))]
+async fn get_backend_info(state: tauri::State<'_, AppState>) -> Result<BackendInfo, String> {
+    let nats_guard = state.nats.lock().await;
+    let url = state.nats_url.lock().await.clone();
+    if nats_guard.is_some() {
+        Ok(BackendInfo {
+            backend_type: "nats".into(),
+            nats_url: Some(url),
+            connected: true,
+        })
+    } else {
+        Ok(BackendInfo {
+            backend_type: "in-memory".into(),
+            nats_url: Some(url),
+            connected: false,
+        })
+    }
+}
+
+#[tauri::command]
+#[cfg(feature = "http-backend")]
+async fn get_backend_info(_state: tauri::State<'_, AppState>) -> Result<BackendInfo, String> {
+    Ok(BackendInfo {
+        backend_type: "http".into(),
+        nats_url: None,
+        connected: true,
+    })
+}
+
+#[tauri::command]
+#[cfg(not(feature = "http-backend"))]
+async fn switch_backend(
+    state: tauri::State<'_, AppState>,
+    backend_type: String,
+    nats_url: Option<String>,
+) -> Result<BackendInfo, String> {
+    match backend_type.as_str() {
+        "nats" => {
+            let url = nats_url.unwrap_or_else(|| "nats://localhost:4222".into());
+            let persistence = NatsPersistence::connect(&url, "WORKFLOW_EVENTS")
+                .await
+                .map_err(|e| format!("Failed to connect to NATS at '{}': {}", url, e))?;
+            *state.nats.lock().await = Some(Arc::new(persistence));
+            *state.nats_url.lock().await = url.clone();
+            Ok(BackendInfo {
+                backend_type: "nats".into(),
+                nats_url: Some(url),
+                connected: true,
+            })
+        }
+        "in-memory" => {
+            *state.nats.lock().await = None;
+            let url = state.nats_url.lock().await.clone();
+            Ok(BackendInfo {
+                backend_type: "in-memory".into(),
+                nats_url: Some(url),
+                connected: false,
+            })
+        }
+        other => Err(format!("Unknown backend type: '{}'. Use 'nats' or 'in-memory'.", other)),
+    }
+}
+
+#[tauri::command]
+#[cfg(feature = "http-backend")]
+async fn switch_backend(
+    _state: tauri::State<'_, AppState>,
+    _backend_type: String,
+    _nats_url: Option<String>,
+) -> Result<BackendInfo, String> {
+    Err("Backend switching is not supported in HTTP mode.".into())
+}
+
+// ---------------------------------------------------------------------------
+// Monitoring data
+// ---------------------------------------------------------------------------
+
+#[tauri::command]
+#[cfg(not(feature = "http-backend"))]
+async fn get_monitoring_data(state: tauri::State<'_, AppState>) -> Result<MonitoringData, String> {
+    let engine = state.engine.lock().await;
+
+    let instances_running = engine.instances.values()
+        .filter(|i| matches!(i.state, InstanceState::Running | InstanceState::WaitingOnUserTask { .. } | InstanceState::WaitingOnExternalTask { .. }))
+        .count();
+    let instances_completed = engine.instances.values()
+        .filter(|i| matches!(i.state, InstanceState::Completed))
+        .count();
+
+    // Query NATS info if connected.
+    let nats_server = {
+        let nats_guard = state.nats.lock().await;
+        if let Some(nats) = nats_guard.as_ref() {
+            match nats.get_nats_info().await {
+                Ok(info) => Some(NatsServerInfo {
+                    server_name: info.server_name,
+                    version: info.version,
+                    host: info.host,
+                    port: info.port,
+                    memory_bytes: info.js_memory_bytes,
+                    storage_bytes: info.js_storage_bytes,
+                    streams: info.js_streams,
+                    consumers: info.js_consumers,
+                }),
+                Err(_) => None,
+            }
+        } else {
+            None
+        }
+    };
+
+    Ok(MonitoringData {
+        definitions_count: engine.definitions.len(),
+        instances_total: engine.instances.len(),
+        instances_running,
+        instances_completed,
+        pending_user_tasks: engine.pending_user_tasks.len(),
+        pending_external_tasks: engine.pending_external_tasks.len(),
+        nats_server,
+    })
+}
+
+#[tauri::command]
+#[cfg(feature = "http-backend")]
+async fn get_monitoring_data(_state: tauri::State<'_, AppState>) -> Result<MonitoringData, String> {
+    Ok(MonitoringData {
+        definitions_count: 0,
+        instances_total: 0,
+        instances_running: 0,
+        instances_completed: 0,
+        pending_user_tasks: 0,
+        pending_external_tasks: 0,
+        nats_server: None,
+    })
+}
+
 fn main() {
     // Attempt NATS connection (non-blocking, graceful fallback).
     #[cfg(not(feature = "http-backend"))]
+    let default_nats_url = "nats://localhost:4222".to_string();
+
+    #[cfg(not(feature = "http-backend"))]
     let nats_persistence: Option<Arc<NatsPersistence>> = {
+        let url = default_nats_url.clone();
         tauri::async_runtime::block_on(async {
-            match NatsPersistence::connect("nats://localhost:4222", "WORKFLOW_EVENTS").await {
+            match NatsPersistence::connect(&url, "WORKFLOW_EVENTS").await {
                 Ok(p) => {
                     println!("[mini-bpm] Connected to NATS.");
                     Some(Arc::new(p))
@@ -370,7 +556,8 @@ fn main() {
     let initial_state = AppState {
         engine: Arc::new(Mutex::new(WorkflowEngine::new())),
         deployed_xml: Arc::new(Mutex::new(HashMap::new())),
-        nats: nats_persistence,
+        nats: Arc::new(Mutex::new(nats_persistence)),
+        nats_url: Arc::new(Mutex::new(default_nats_url)),
     };
 
     #[cfg(feature = "http-backend")]
@@ -391,7 +578,10 @@ fn main() {
             get_instance_details,
             update_instance_variables,
             list_definitions,
-            get_definition_xml
+            get_definition_xml,
+            get_backend_info,
+            switch_backend,
+            get_monitoring_data
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

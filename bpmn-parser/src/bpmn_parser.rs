@@ -5,7 +5,32 @@ use quick_xml::de::from_str;
 use serde::Deserialize;
 
 use engine_core::error::{EngineError, EngineResult};
-use engine_core::model::{BpmnElement, ProcessDefinition, ProcessDefinitionBuilder};
+use engine_core::model::{BpmnElement, ListenerEvent, ProcessDefinition, ProcessDefinitionBuilder};
+
+#[derive(Debug, Deserialize)]
+struct BpmnExtensionElements {
+    #[serde(rename = "executionListener", default)]
+    execution_listeners: Vec<BpmnExecutionListener>,
+}
+
+#[derive(Debug, Deserialize)]
+struct BpmnExecutionListener {
+    #[serde(rename = "@event")]
+    event: String,
+    
+    #[serde(rename = "script")]
+    script: Option<BpmnScript>,
+}
+
+#[derive(Debug, Deserialize)]
+struct BpmnScript {
+    #[serde(rename = "@scriptFormat")]
+    #[allow(dead_code)]
+    script_format: String,
+    
+    #[serde(rename = "$value")]
+    content: String,
+}
 
 #[derive(Debug, Deserialize)]
 struct BpmnDefinitions {
@@ -19,6 +44,9 @@ struct BpmnDefinitions {
 struct BpmnProcess {
     #[serde(rename = "@id")]
     id: String,
+    
+    #[serde(rename = "extensionElements")]
+    extension_elements: Option<BpmnExtensionElements>,
     
     #[serde(rename = "startEvent", default)]
     start_events: Vec<BpmnStartEvent>,
@@ -74,6 +102,8 @@ struct BpmnProcess {
 struct BpmnStartEvent {
     #[serde(rename = "@id")]
     id: String,
+    #[serde(rename = "extensionElements")]
+    extension_elements: Option<BpmnExtensionElements>,
     #[serde(rename = "timerEventDefinition")]
     timer_event_definition: Option<BpmnTimerEventDefinition>,
 }
@@ -88,12 +118,16 @@ struct BpmnTimerEventDefinition {
 struct BpmnEndEvent {
     #[serde(rename = "@id")]
     id: String,
+    #[serde(rename = "extensionElements")]
+    extension_elements: Option<BpmnExtensionElements>,
 }
 
 #[derive(Debug, Deserialize)]
 struct BpmnServiceTask {
     #[serde(rename = "@id")]
     id: String,
+    #[serde(rename = "extensionElements")]
+    extension_elements: Option<BpmnExtensionElements>,
     #[serde(rename = "@data-handler")]
     handler: Option<String>,
     /// Maatini type attribute: "external" means external task.
@@ -108,6 +142,8 @@ struct BpmnServiceTask {
 struct BpmnUserTask {
     #[serde(rename = "@id")]
     id: String,
+    #[serde(rename = "extensionElements")]
+    extension_elements: Option<BpmnExtensionElements>,
     #[serde(rename = "@data-assignee")]
     assignee: Option<String>,
 }
@@ -135,6 +171,8 @@ struct BpmnSequenceFlow {
 struct BpmnGenericTask {
     #[serde(rename = "@id")]
     id: String,
+    #[serde(rename = "extensionElements")]
+    extension_elements: Option<BpmnExtensionElements>,
     /// Optional name attribute (bpmn-js sometimes sets this).
     #[serde(rename = "@name", default)]
     name: Option<String>,
@@ -145,6 +183,8 @@ struct BpmnGenericTask {
 struct BpmnExclusiveGateway {
     #[serde(rename = "@id")]
     id: String,
+    #[serde(rename = "extensionElements")]
+    extension_elements: Option<BpmnExtensionElements>,
     /// Per BPMN spec: the ID of the default outgoing sequence flow.
     #[serde(rename = "@default", default)]
     default: Option<String>,
@@ -155,6 +195,29 @@ struct BpmnExclusiveGateway {
 struct BpmnGateway {
     #[serde(rename = "@id")]
     id: String,
+    #[serde(rename = "extensionElements")]
+    extension_elements: Option<BpmnExtensionElements>,
+}
+
+/// Helper to attach parsed listeners to the builder
+fn add_listeners(
+    mut builder: ProcessDefinitionBuilder,
+    node_id: &str,
+    ext_elements: Option<BpmnExtensionElements>,
+) -> ProcessDefinitionBuilder {
+    if let Some(exts) = ext_elements {
+        for l in exts.execution_listeners {
+            let evt = match l.event.as_str() {
+                "start" => ListenerEvent::Start,
+                "end" => ListenerEvent::End,
+                _ => continue,
+            };
+            if let Some(s) = l.script {
+                builder = builder.listener(node_id, evt, s.content.trim());
+            }
+        }
+    }
+    builder
 }
 
 /// Parses a subset of BPMN 2.0 XML and builds a `ProcessDefinition`.
@@ -167,10 +230,14 @@ pub fn parse_bpmn_xml(xml: &str) -> EngineResult<ProcessDefinition> {
     })?;
 
     let process_id = defs.process.id.clone();
-    let mut builder = ProcessDefinitionBuilder::new(process_id);
+    let mut builder = ProcessDefinitionBuilder::new(process_id.clone());
+
+    // Process-level listeners
+    builder = add_listeners(builder, &process_id, defs.process.extension_elements);
 
     // 1. Process Start Events
     for start in defs.process.start_events {
+        let node_id = start.id.clone();
         if let Some(timer) = start.timer_event_definition {
             // Parse duration from PTnHnS
             // Very basic implementation: just looking for "PT{secs}S"
@@ -185,15 +252,19 @@ pub fn parse_bpmn_xml(xml: &str) -> EngineResult<ProcessDefinition> {
         } else {
             builder = builder.node(start.id, BpmnElement::StartEvent);
         }
+        builder = add_listeners(builder, &node_id, start.extension_elements);
     }
 
     // 2. Process End Events
     for end in defs.process.end_events {
+        let node_id = end.id.clone();
         builder = builder.node(end.id, BpmnElement::EndEvent);
+        builder = add_listeners(builder, &node_id, end.extension_elements);
     }
 
     // 3. Process Service Tasks (may be external)
     for task in defs.process.service_tasks {
+        let node_id = task.id.clone();
         let is_external = task.maatini_type.as_deref() == Some("external")
             || task.topic.is_some();
 
@@ -204,12 +275,15 @@ pub fn parse_bpmn_xml(xml: &str) -> EngineResult<ProcessDefinition> {
             let handler = task.handler.unwrap_or_else(|| "default_handler".into());
             builder = builder.node(task.id, BpmnElement::ServiceTask(handler));
         }
+        builder = add_listeners(builder, &node_id, task.extension_elements);
     }
 
     // 4. Process User Tasks
     for task in defs.process.user_tasks {
+        let node_id = task.id.clone();
         let assignee = task.assignee.unwrap_or_else(|| "unassigned".into());
         builder = builder.node(task.id, BpmnElement::UserTask(assignee));
+        builder = add_listeners(builder, &node_id, task.extension_elements);
     }
 
     // 5. Generic tasks (bpmn-js default task element)
@@ -224,8 +298,10 @@ pub fn parse_bpmn_xml(xml: &str) -> EngineResult<ProcessDefinition> {
         .chain(defs.process.call_activities);
 
     for task in all_generic_tasks {
+        let node_id = task.id.clone();
         let handler = task.name.unwrap_or_else(|| "default_handler".into());
         builder = builder.node(task.id, BpmnElement::ServiceTask(handler));
+        builder = add_listeners(builder, &node_id, task.extension_elements);
     }
 
     // 6. Build a flow lookup (flow-ID → target-ref) for resolving the
@@ -239,21 +315,27 @@ pub fn parse_bpmn_xml(xml: &str) -> EngineResult<ProcessDefinition> {
 
     // 6a. Exclusive gateways — resolve `default` flow ID → target node ID
     for gw in defs.process.exclusive_gateways {
+        let node_id = gw.id.clone();
         let default_target = gw.default.and_then(|flow_id| flow_lookup.get(&flow_id).cloned());
         builder = builder.node(
             gw.id,
             BpmnElement::ExclusiveGateway { default: default_target },
         );
+        builder = add_listeners(builder, &node_id, gw.extension_elements);
     }
 
     // 6b. Inclusive gateways
     for gw in defs.process.inclusive_gateways {
+        let node_id = gw.id.clone();
         builder = builder.node(gw.id, BpmnElement::InclusiveGateway);
+        builder = add_listeners(builder, &node_id, gw.extension_elements);
     }
 
     // 6c. Parallel gateways — map to InclusiveGateway (temporary)
     for gw in defs.process.parallel_gateways {
+        let node_id = gw.id.clone();
         builder = builder.node(gw.id, BpmnElement::InclusiveGateway);
+        builder = add_listeners(builder, &node_id, gw.extension_elements);
     }
 
     // 7. Intermediate events — treated as pass-through nodes.
@@ -261,7 +343,9 @@ pub fn parse_bpmn_xml(xml: &str) -> EngineResult<ProcessDefinition> {
         .chain(defs.process.intermediate_catch_events);
 
     for evt in all_intermediate {
+        let node_id = evt.id.clone();
         builder = builder.node(evt.id, BpmnElement::ServiceTask("event_passthrough".into()));
+        builder = add_listeners(builder, &node_id, evt.extension_elements);
     }
 
     // 8. Process Sequence Flows
@@ -450,5 +534,55 @@ mod tests {
         assert_eq!(def.next_node("StartEvent_1"), Some("ServiceTask_1"));
         assert_eq!(def.next_node("ServiceTask_1"), Some("UserTask_1"));
         assert_eq!(def.next_node("UserTask_1"), Some("EndEvent_1"));
+    }
+
+    #[test]
+    fn test_parse_execution_listeners_and_scripts() {
+        let xml = r#"
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_1">
+  <bpmn:process id="Process_1" isExecutable="true">
+    <bpmn:extensionElements>
+      <bpmn:executionListener event="start">
+        <bpmn:script scriptFormat="rhai">
+          print("Process Started");
+        </bpmn:script>
+      </bpmn:executionListener>
+    </bpmn:extensionElements>
+    
+    <bpmn:startEvent id="Start_1" />
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="Start_1" targetRef="Task_1" />
+    
+    <bpmn:serviceTask id="Task_1">
+      <bpmn:extensionElements>
+        <bpmn:executionListener event="end">
+          <bpmn:script scriptFormat="rhai">
+            print("Task Ended");
+          </bpmn:script>
+        </bpmn:executionListener>
+      </bpmn:extensionElements>
+    </bpmn:serviceTask>
+    
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Task_1" targetRef="End_1" />
+    <bpmn:endEvent id="End_1" />
+  </bpmn:process>
+</bpmn:definitions>
+"#;
+        let p = parse_bpmn_xml(xml).expect("Should parse");
+        
+        let mut process_listeners = p.listeners.get("Process_1").cloned().unwrap_or_default();
+        process_listeners.sort_by_key(|l| match l.event {
+            ListenerEvent::Start => 1,
+            ListenerEvent::End => 2,
+        });
+        
+        assert_eq!(process_listeners.len(), 1);
+        assert!(matches!(process_listeners[0].event, ListenerEvent::Start));
+        assert_eq!(process_listeners[0].script, "print(\"Process Started\");");
+
+        let task_listeners = p.listeners.get("Task_1").cloned().unwrap_or_default();
+        assert_eq!(task_listeners.len(), 1);
+        assert!(matches!(task_listeners[0].event, ListenerEvent::End));
+        assert_eq!(task_listeners[0].script, "print(\"Task Ended\");");
     }
 }

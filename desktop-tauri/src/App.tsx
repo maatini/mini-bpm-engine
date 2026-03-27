@@ -1,14 +1,21 @@
 import { useState, useEffect } from 'react'
-import { deployDefinition, startInstance, getPendingTasks, completeTask, type PendingUserTask } from './lib/tauri'
+import { deployDefinition, startInstance, getPendingTasks, completeTask, getBackendInfo, type PendingUserTask, type BackendInfo } from './lib/tauri'
 import { Modeler } from './Modeler'
 import { Instances } from './Instances'
 import { DeployedProcesses } from './DeployedProcesses'
+import { Settings } from './Settings'
+import { Monitoring } from './Monitoring'
 
 function App() {
   const [activeTab, setActiveTab] = useState('modeler')
   const [tasks, setTasks] = useState<PendingUserTask[]>([])
   const [defId, setDefId] = useState<string>('')
   const [viewXml, setViewXml] = useState<string | null>(null)
+  const [backendInfo, setBackendInfo] = useState<BackendInfo | null>(null)
+
+  useEffect(() => {
+    getBackendInfo().then(setBackendInfo).catch(console.error)
+  }, [])
 
   useEffect(() => {
     if (activeTab === 'tasks') {
@@ -86,6 +93,19 @@ function App() {
         <div className={`nav-item ${activeTab === 'instances' ? 'active' : ''}`} onClick={() => setActiveTab('instances')}>
           Instances
         </div>
+        <div className={`nav-item ${activeTab === 'monitoring' ? 'active' : ''}`} onClick={() => setActiveTab('monitoring')}>
+          📊 Monitoring
+        </div>
+        <div className={`nav-item ${activeTab === 'settings' ? 'active' : ''}`} onClick={() => setActiveTab('settings')}>
+          ⚙ Settings
+        </div>
+
+        {/* Sidebar footer: backend badge */}
+        <div className="sidebar-footer">
+          <span className={`backend-badge ${backendInfo?.backend_type === 'nats' ? 'backend-nats' : 'backend-inmemory'}`}>
+            {backendInfo ? (backendInfo.backend_type === 'nats' ? '● NATS' : '● In-Memory') : '…'}
+          </span>
+        </div>
       </div>
       
       <div className="main-content">
@@ -119,6 +139,14 @@ function App() {
 
         {activeTab === 'instances' && (
           <Instances />
+        )}
+
+        {activeTab === 'monitoring' && (
+          <Monitoring />
+        )}
+
+        {activeTab === 'settings' && (
+          <Settings onBackendChange={(info) => setBackendInfo(info)} />
         )}
       </div>
     </div>

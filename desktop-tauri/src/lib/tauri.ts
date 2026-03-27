@@ -61,3 +61,50 @@ export async function listDefinitions(): Promise<DefinitionInfo[]> {
 export async function getDefinitionXml(definitionId: string): Promise<string> {
   return invoke('get_definition_xml', { definitionId });
 }
+
+// ---------------------------------------------------------------------------
+// Backend info & switching
+// ---------------------------------------------------------------------------
+
+export interface BackendInfo {
+  backend_type: 'in-memory' | 'nats' | 'http';
+  nats_url: string | null;
+  connected: boolean;
+}
+
+export async function getBackendInfo(): Promise<BackendInfo> {
+  return invoke('get_backend_info');
+}
+
+export async function switchBackend(backendType: string, natsUrl?: string): Promise<BackendInfo> {
+  return invoke('switch_backend', { backendType, natsUrl: natsUrl ?? null });
+}
+
+// ---------------------------------------------------------------------------
+// Monitoring
+// ---------------------------------------------------------------------------
+
+export interface NatsServerInfo {
+  server_name: string;
+  version: string;
+  host: string;
+  port: number;
+  memory_bytes: number;
+  storage_bytes: number;
+  streams: number;
+  consumers: number;
+}
+
+export interface MonitoringData {
+  definitions_count: number;
+  instances_total: number;
+  instances_running: number;
+  instances_completed: number;
+  pending_user_tasks: number;
+  pending_external_tasks: number;
+  nats_server: NatsServerInfo | null;
+}
+
+export async function getMonitoringData(): Promise<MonitoringData> {
+  return invoke('get_monitoring_data');
+}

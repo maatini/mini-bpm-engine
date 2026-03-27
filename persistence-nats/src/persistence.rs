@@ -9,10 +9,28 @@ use engine_core::model::Token;
 
 use async_trait::async_trait;
 use engine_core::persistence::WorkflowPersistence;
+use serde::Serialize;
+
+/// Information about the connected NATS server and JetStream account.
+#[derive(Debug, Clone, Serialize)]
+pub struct NatsInfo {
+    pub server_name: String,
+    pub version: String,
+    pub host: String,
+    pub port: u16,
+    pub max_payload: usize,
+    /// JetStream memory usage in bytes.
+    pub js_memory_bytes: u64,
+    /// JetStream file storage usage in bytes.
+    pub js_storage_bytes: u64,
+    /// Number of active JetStream streams.
+    pub js_streams: usize,
+    /// Number of active JetStream consumers.
+    pub js_consumers: usize,
+}
 
 #[derive(Clone)]
 pub struct NatsPersistence {
-    #[allow(dead_code)]
     client: Client,
     js: Context,
     stream_name: String,
@@ -90,6 +108,28 @@ impl NatsPersistence {
 
         String::from_utf8(data).map_err(|e| {
             EngineError::PersistenceError(format!("BPMN XML is not valid UTF-8: {}", e))
+        })
+    }
+
+    /// Returns monitoring information about the connected NATS server
+    /// and JetStream account.
+    pub async fn get_nats_info(&self) -> EngineResult<NatsInfo> {
+        let si = self.client.server_info();
+
+        let account = self.js.query_account().await.map_err(|e| {
+            EngineError::PersistenceError(format!("Failed to query JetStream account: {}", e))
+        })?;
+
+        Ok(NatsInfo {
+            server_name: si.server_name.clone(),
+            version: si.version.clone(),
+            host: si.host.clone(),
+            port: si.port,
+            max_payload: si.max_payload,
+            js_memory_bytes: account.memory,
+            js_storage_bytes: account.storage,
+            js_streams: account.streams,
+            js_consumers: account.consumers,
         })
     }
 }

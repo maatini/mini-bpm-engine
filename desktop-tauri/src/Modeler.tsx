@@ -13,10 +13,12 @@ import 'bpmn-js/dist/assets/bpmn-font/css/bpmn-embedded.css';
 import '@bpmn-io/properties-panel/assets/properties-panel.css';
 
 import { CustomPropertiesProvider } from './ConditionPropertiesProvider';
+import { ScriptPropertiesProvider } from './ScriptPropertiesProvider';
 
 const customProviderModule = {
-  __init__: ['customPropertiesProvider'],
-  customPropertiesProvider: ['type', CustomPropertiesProvider]
+  __init__: ['customPropertiesProvider', 'scriptPropertiesProvider'],
+  customPropertiesProvider: ['type', CustomPropertiesProvider],
+  scriptPropertiesProvider: ['type', ScriptPropertiesProvider]
 };
 
 
