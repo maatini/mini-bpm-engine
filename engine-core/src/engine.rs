@@ -110,7 +110,7 @@ pub enum InstanceState {
 pub struct ProcessInstance {
     pub id: Uuid,
     pub definition_key: Uuid,
-    pub business_key: Uuid,
+    pub business_key: String,
     pub state: InstanceState,
     pub current_node: String,
     pub audit_log: Vec<String>,
@@ -274,7 +274,7 @@ impl WorkflowEngine {
     pub async fn start_instance_with_variables(
         &mut self,
         definition_key: Uuid,
-        variables: HashMap<String, Value>,
+        mut variables: HashMap<String, Value>,
     ) -> EngineResult<Uuid> {
         let def = self
             .definitions
@@ -292,7 +292,11 @@ impl WorkflowEngine {
         }
 
         let instance_id = Uuid::new_v4();
-        let business_key = Uuid::new_v4();
+        let business_key = variables
+            .remove("business_key")
+            .and_then(|v| v.as_str().map(String::from))
+            .unwrap_or_else(|| Uuid::new_v4().to_string());
+
         let instance = ProcessInstance {
             id: instance_id,
             definition_key,
@@ -359,7 +363,7 @@ impl WorkflowEngine {
 
         let start_id = start_id.to_string();
         let instance_id = Uuid::new_v4();
-        let business_key = Uuid::new_v4();
+        let business_key = Uuid::new_v4().to_string();
         let instance = ProcessInstance {
             id: instance_id,
             definition_key,
@@ -871,11 +875,67 @@ impl WorkflowEngine {
     }
 
     /// Returns full details for a single process instance.
-    pub fn get_instance_details(&self, instance_id: Uuid) -> EngineResult<ProcessInstance> {
+    pub fn get_instance_details(&self, id: Uuid) -> EngineResult<ProcessInstance> {
         self.instances
-            .get(&instance_id)
+            .get(&id)
             .cloned()
-            .ok_or(EngineError::NoSuchInstance(instance_id))
+            .ok_or(EngineError::NoSuchInstance(id))
+    }
+
+    /// Deletes a process instance and cleans up associated pending tasks.
+    pub async fn delete_instance(&mut self, instance_id: Uuid) -> EngineResult<()> {
+        if self.instances.remove(&instance_id).is_none() {
+            return Err(EngineError::NoSuchInstance(instance_id));
+        }
+
+        if let Some(ref persistence) = self.persistence {
+            // Delete associated user tasks from persistence
+            for task in self.pending_user_tasks.iter().filter(|t| t.instance_id == instance_id) {
+                let _ = persistence.delete_user_task(task.task_id).await;
+            }
+            // Delete instance from persistence
+            persistence.delete_instance(&instance_id.to_string()).await?;
+        }
+
+        // Clean up pending user tasks in memory
+        self.pending_user_tasks.retain(|t| t.instance_id != instance_id);
+        
+        // Clean up pending external tasks in memory
+        self.pending_external_tasks.retain(|t| t.instance_id != instance_id);
+
+        Ok(())
+    }
+
+    /// Deletes a process definition. 
+    /// If cascade is true, deletes all associated process instances first.
+    pub async fn delete_definition(&mut self, definition_key: Uuid, cascade: bool) -> EngineResult<()> {
+        if !self.definitions.contains_key(&definition_key) {
+            return Err(EngineError::NoSuchDefinition(definition_key));
+        }
+
+        // Check for instances
+        let associated_instances: Vec<Uuid> = self.instances.values()
+            .filter(|i| i.definition_key == definition_key)
+            .map(|i| i.id)
+            .collect();
+
+        if !associated_instances.is_empty() {
+            if !cascade {
+                return Err(EngineError::DefinitionHasInstances(associated_instances.len()));
+            }
+            // Cascade delete instances
+            for instance_id in associated_instances {
+                self.delete_instance(instance_id).await?;
+            }
+        }
+
+        self.definitions.remove(&definition_key);
+
+        if let Some(ref persistence) = self.persistence {
+            persistence.delete_definition(&definition_key.to_string()).await?;
+        }
+
+        Ok(())
     }
 
     /// Updates variables on a running process instance.

@@ -17,10 +17,16 @@ pub trait WorkflowPersistence: Send + Sync {
     /// Load all persisted process instances.
     async fn list_instances(&self) -> EngineResult<Vec<ProcessInstance>>;
 
+    /// Delete a process instance.
+    async fn delete_instance(&self, id: &str) -> EngineResult<()>;
+
     /// Persist a process definition metadata (JSON).
     async fn save_definition(&self, definition: &ProcessDefinition) -> EngineResult<()>;
     /// Load all persisted process definitions.
     async fn list_definitions(&self) -> EngineResult<Vec<ProcessDefinition>>;
+
+    /// Delete a process definition.
+    async fn delete_definition(&self, key: &str) -> EngineResult<()>;
 
     /// Persist a pending user task.
     async fn save_user_task(&self, task: &PendingUserTask) -> EngineResult<()>;

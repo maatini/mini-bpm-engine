@@ -278,6 +278,21 @@ impl WorkflowPersistence for NatsPersistence {
         Ok(instances)
     }
 
+    async fn delete_instance(&self, id: &str) -> EngineResult<()> {
+        let store = self.js.get_key_value("instances").await.map_err(|e| {
+            EngineError::PersistenceError(format!("Failed to get instances KV: {}", e))
+        })?;
+
+        store
+            .delete(id)
+            .await
+            .map_err(|e| {
+                EngineError::PersistenceError(format!("Failed to delete instance from KV: {}", e))
+            })?;
+
+        Ok(())
+    }
+
     async fn save_definition(&self, definition: &ProcessDefinition) -> EngineResult<()> {
         let store = self.js.get_key_value("definitions").await.map_err(|e| {
             EngineError::PersistenceError(format!("Failed to get definitions KV: {}", e))
@@ -327,6 +342,27 @@ impl WorkflowPersistence for NatsPersistence {
         }
 
         Ok(defs)
+    }
+
+    async fn delete_definition(&self, key: &str) -> EngineResult<()> {
+        let store = self.js.get_key_value("definitions").await.map_err(|e| {
+            EngineError::PersistenceError(format!("Failed to get definitions KV: {}", e))
+        })?;
+
+        store
+            .delete(key)
+            .await
+            .map_err(|e| {
+                EngineError::PersistenceError(format!("Failed to delete definition from KV: {}", e))
+            })?;
+
+        let obj_store = self.js.get_object_store("bpmn_xml").await.map_err(|e| {
+            EngineError::PersistenceError(format!("Failed to get bpmn_xml Object Store: {}", e))
+        })?;
+        
+        let _ = obj_store.delete(key).await;
+
+        Ok(())
     }
 
     async fn save_user_task(&self, task: &PendingUserTask) -> EngineResult<()> {

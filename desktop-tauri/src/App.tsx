@@ -5,9 +5,11 @@ import { Instances } from './Instances'
 import { DeployedProcesses } from './DeployedProcesses'
 import { Settings } from './Settings'
 import { Monitoring } from './Monitoring'
+import { PenTool, Database, ListTodo, Layers, BarChart2, Settings as SettingsIcon } from 'lucide-react'
 
 function App() {
-  const [activeTab, setActiveTab] = useState('modeler')
+  const [activeTab, setActiveTab] = useState('definitions')
+  const [selectedInstanceId, setSelectedInstanceId] = useState<string | null>(null)
   const [tasks, setTasks] = useState<PendingUserTask[]>([])
   const [defId, setDefId] = useState<string>('')
   const [viewXml, setViewXml] = useState<string | null>(null)
@@ -87,23 +89,23 @@ function App() {
     <div className="app-container">
       <div className="sidebar">
         <div className="sidebar-header">Mini BPM</div>
-        <div className={`nav-item ${activeTab === 'modeler' ? 'active' : ''}`} onClick={() => setActiveTab('modeler')}>
-          BPMN Modeler
+        <div className={`nav-item ${activeTab === 'modeler' ? 'active' : ''}`} onClick={() => setActiveTab('modeler')} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <PenTool size={18} /> BPMN Modeler
         </div>
-        <div className={`nav-item ${activeTab === 'definitions' ? 'active' : ''}`} onClick={() => setActiveTab('definitions')}>
-          Deployed Processes
+        <div className={`nav-item ${activeTab === 'definitions' ? 'active' : ''}`} onClick={() => setActiveTab('definitions')} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Database size={18} /> Deployed Processes
         </div>
-        <div className={`nav-item ${activeTab === 'tasks' ? 'active' : ''}`} onClick={() => setActiveTab('tasks')}>
-          Pending Tasks
+        <div className={`nav-item ${activeTab === 'tasks' ? 'active' : ''}`} onClick={() => setActiveTab('tasks')} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <ListTodo size={18} /> Pending Tasks
         </div>
-        <div className={`nav-item ${activeTab === 'instances' ? 'active' : ''}`} onClick={() => setActiveTab('instances')}>
-          Instances
+        <div className={`nav-item ${activeTab === 'instances' ? 'active' : ''}`} onClick={() => { setSelectedInstanceId(null); setActiveTab('instances'); }} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Layers size={18} /> Instances
         </div>
-        <div className={`nav-item ${activeTab === 'monitoring' ? 'active' : ''}`} onClick={() => setActiveTab('monitoring')}>
-          📊 Monitoring
+        <div className={`nav-item ${activeTab === 'monitoring' ? 'active' : ''}`} onClick={() => setActiveTab('monitoring')} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <BarChart2 size={18} /> Monitoring
         </div>
-        <div className={`nav-item ${activeTab === 'settings' ? 'active' : ''}`} onClick={() => setActiveTab('settings')}>
-          ⚙ Settings
+        <div className={`nav-item ${activeTab === 'settings' ? 'active' : ''}`} onClick={() => setActiveTab('settings')} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <SettingsIcon size={18} /> Settings
         </div>
 
         {/* Sidebar footer: backend badge */}
@@ -120,7 +122,10 @@ function App() {
         )}
 
         {activeTab === 'definitions' && (
-          <DeployedProcesses onView={handleViewDefinition} />
+          <DeployedProcesses 
+            onView={handleViewDefinition} 
+            onViewInstance={(id) => { setSelectedInstanceId(id); setActiveTab('instances'); }}
+          />
         )}
 
         {activeTab === 'tasks' && (
@@ -144,7 +149,7 @@ function App() {
         )}
 
         {activeTab === 'instances' && (
-          <Instances />
+          <Instances selectedInstanceId={selectedInstanceId} />
         )}
 
         {activeTab === 'monitoring' && (

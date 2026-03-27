@@ -2,7 +2,7 @@ use axum::{
     extract::{Path, State},
     http::{Method, StatusCode},
     response::IntoResponse,
-    routing::{get, post, put},
+    routing::{get, post, put, delete},
     Json, Router,
 };
 use engine_core::engine::{ExternalTaskItem, PendingUserTask, ProcessInstance, WorkflowEngine};
@@ -196,7 +196,8 @@ pub fn build_app() -> Router {
         .route("/api/tasks", get(get_tasks))
         .route("/api/complete/:id", post(complete_task))
         .route("/api/instances", get(list_instances))
-        .route("/api/instances/:id", get(get_instance))
+        .route("/api/instances/:id", get(get_instance).delete(delete_instance))
+        .route("/api/definitions/:id", delete(delete_definition))
         .route("/api/instances/:id/variables", put(update_instance_variables))
         // External Task endpoints
         .route("/api/external-task/fetchAndLock", post(fetch_and_lock))
@@ -302,6 +303,36 @@ async fn update_instance_variables(
     engine.update_instance_variables(instance_id, payload.variables)?;
 
     Ok((StatusCode::OK, Json(serde_json::json!({ "status": "ok" }))))
+}
+
+async fn delete_instance(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, AppError> {
+    let mut engine = state.engine.lock().await;
+    let instance_id = parse_uuid(&id)?;
+
+    engine.delete_instance(instance_id).await?;
+
+    Ok(StatusCode::NO_CONTENT)
+}
+
+#[derive(Deserialize)]
+struct DeleteDefinitionQuery {
+    cascade: Option<bool>,
+}
+
+async fn delete_definition(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+    axum::extract::Query(query): axum::extract::Query<DeleteDefinitionQuery>,
+) -> Result<impl IntoResponse, AppError> {
+    let mut engine = state.engine.lock().await;
+    let def_key = parse_uuid(&id)?;
+
+    engine.delete_definition(def_key, query.cascade.unwrap_or(false)).await?;
+
+    Ok(StatusCode::NO_CONTENT)
 }
 
 // ---------------------------------------------------------------------------

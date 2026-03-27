@@ -60,6 +60,10 @@ pub enum EngineError {
     #[error("External task '{0}' is not locked")]
     ExternalTaskNotLocked(Uuid),
 
+    /// Cannot delete definition because it has instances.
+    #[error("Cannot delete definition: {0} instances still exist")]
+    DefinitionHasInstances(usize),
+
     #[error("Persistence error: {0}")]
     PersistenceError(String),
 

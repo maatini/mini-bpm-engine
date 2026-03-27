@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import { listInstances, getInstanceDetails, getPendingTasks, updateInstanceVariables, getDefinitionXml, type ProcessInstance, type PendingUserTask } from './lib/tauri';
+import { listInstances, getInstanceDetails, getPendingTasks, updateInstanceVariables, getDefinitionXml, deleteInstance, type ProcessInstance, type PendingUserTask } from './lib/tauri';
 import { InstanceViewer } from './InstanceViewer';
+import { RefreshCw, Activity, CheckCircle, Clock, Trash } from 'lucide-react';
 
 // Helper to render the instance state as a readable string
 function stateLabel(state: ProcessInstance['state']): string {
@@ -17,7 +18,7 @@ function stateBadgeClass(state: ProcessInstance['state']): string {
   return 'state-badge state-waiting';
 }
 
-export function Instances() {
+export function Instances({ selectedInstanceId }: { selectedInstanceId?: string | null }) {
   const [instances, setInstances] = useState<ProcessInstance[]>([]);
 
   const [loading, setLoading] = useState(true);
@@ -46,7 +47,7 @@ export function Instances() {
     fetchInstances();
   }, [fetchInstances]);
 
-  const handleSelect = async (inst: ProcessInstance) => {
+  const handleSelect = useCallback(async (inst: ProcessInstance) => {
     setDetailLoading(true);
     setDefinitionXml(null);
     setShowNodeDetails(false);
@@ -84,7 +85,7 @@ export function Instances() {
     } finally {
       setDetailLoading(false);
     }
-  };
+  }, []);
 
   const handleSaveVariables = async () => {
     if (!selected) return;
@@ -116,11 +117,34 @@ export function Instances() {
     setShowNodeDetails(false);
   };
 
+  const handleDelete = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    if (!window.confirm("Are you sure you want to delete this process instance?")) return;
+    try {
+      await deleteInstance(id);
+      if (selected?.id === id) {
+        handleClose();
+      }
+      fetchInstances();
+    } catch (err) {
+      alert("Failed to delete instance: " + err);
+    }
+  };
+
+  useEffect(() => {
+    if (selectedInstanceId && instances.length > 0 && (!selected || selected.id !== selectedInstanceId)) {
+      const inst = instances.find(i => i.id === selectedInstanceId);
+      if (inst) {
+        handleSelect(inst);
+      }
+    }
+  }, [selectedInstanceId, instances, selected, handleSelect]);
+
   return (
     <div>
       <h2>Instances</h2>
       <div className="header-actions">
-        <button className="button" onClick={fetchInstances}>Refresh</button>
+        <button className="button" onClick={fetchInstances} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><RefreshCw size={16} /> Refresh</button>
       </div>
 
       {loading && <div style={{ margin: 20 }}>Loading instances...</div>}
@@ -137,10 +161,25 @@ export function Instances() {
           onClick={() => handleSelect(inst)}
         >
           <div className="card-title">
-            <span className={stateBadgeClass(inst.state)}>{stateLabel(inst.state)}</span>
+            <span className={stateBadgeClass(inst.state)}>
+              {inst.state === 'Running' && <Activity size={12} style={{marginRight: 4}} />}
+              {inst.state === 'Completed' && <CheckCircle size={12} style={{marginRight: 4}} />}
+              {typeof inst.state === 'object' && <Clock size={12} style={{marginRight: 4}} />}
+              {stateLabel(inst.state)}
+            </span>
             {' '}Instance: {inst.id.substring(0, 8)}…
+            <button
+              style={{ marginLeft: 'auto', background: 'transparent', color: '#ef4444', border: 'none', padding: '4px', cursor: 'pointer' }}
+              onClick={(e) => handleDelete(e, inst.id)}
+              title="Delete Instance"
+            >
+              <Trash size={16} />
+            </button>
           </div>
-          <div>Definition: {inst.definition_key.substring(0, 8)}…</div>
+          <div style={{ marginTop: '6px', fontSize: '0.9rem', color: '#1e293b', fontWeight: 500 }}>
+            Business Key: {inst.business_key}
+          </div>
+          <div style={{ marginTop: '4px' }}>Definition: {inst.definition_key.substring(0, 8)}…</div>
           <div>Current Node: {inst.current_node}</div>
         </div>
       ))}
@@ -150,7 +189,12 @@ export function Instances() {
         <div className="instance-detail card">
           <div className="card-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span>Instance Details: {selected.id.substring(0, 8)}…</span>
-            <button className="button" onClick={handleClose} style={{ background: '#64748b', fontSize: '0.85rem', padding: '4px 10px' }}>Close</button>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button className="button" onClick={(e) => handleDelete(e, selected.id)} style={{ background: '#ef4444', fontSize: '0.85rem', padding: '4px 10px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <Trash size={14} /> Delete
+              </button>
+              <button className="button" onClick={handleClose} style={{ background: '#64748b', fontSize: '0.85rem', padding: '4px 10px' }}>Close</button>
+            </div>
           </div>
 
           {detailLoading ? (
@@ -160,6 +204,9 @@ export function Instances() {
               <div style={{ marginBottom: 12 }}>
                 <strong>State:</strong>{' '}
                 <span className={stateBadgeClass(selected.state)}>{stateLabel(selected.state)}</span>
+              </div>
+              <div style={{ marginBottom: 12 }}>
+                <strong>Business Key:</strong> {selected.business_key}
               </div>
               <div style={{ marginBottom: 12 }}>
                 <strong>Definition:</strong> {selected.definition_key}

@@ -211,6 +211,34 @@ async function injectTauriMock(
               break;
             }
 
+            case 'delete_instance': {
+              const instId = args.instanceId as string;
+              mockState.processInstances = mockState.processInstances.filter((i: any) => i.id !== instId);
+              mockState.instances = mockState.instances.filter((i: any) => i !== instId);
+              resolve(null);
+              break;
+            }
+
+            case 'delete_definition': {
+              const defId = args.definitionId as string;
+              const cascade = args.cascade as boolean;
+              
+              const relatedInstances = mockState.processInstances.filter((i: any) => i.definition_key === defId);
+              if (relatedInstances.length > 0 && !cascade) {
+                reject('Cannot delete definition: instances still exist');
+                break;
+              }
+              
+              if (cascade) {
+                mockState.processInstances = mockState.processInstances.filter((i: any) => i.definition_key !== defId);
+              }
+              
+              mockState.deployedDefs = mockState.deployedDefs.filter((id: any) => id !== defId);
+              delete mockState.deployedXml[defId];
+              resolve(null);
+              break;
+            }
+
             // Tauri built-in dialog/save
             case 'plugin:dialog|save': {
               // Return a fake file path so writeTextFile can proceed
@@ -292,7 +320,7 @@ test.describe('mini-bpm Desktop App – E2E', () => {
   test('should load the BPMN modeler with canvas and properties panel', async ({ page }) => {
     await injectTauriMock(page);
     await page.goto('/');
-
+    await page.locator('.nav-item', { hasText: 'BPMN Modeler' }).click();
     const canvas = page.locator('.canvas');
     await expect(canvas).toBeVisible({ timeout: 10_000 });
 
@@ -322,6 +350,7 @@ test.describe('mini-bpm Desktop App – E2E', () => {
   test('should deploy a BPMN process and show success alert', async ({ page }) => {
     await injectTauriMock(page);
     await page.goto('/');
+    await page.locator('.nav-item', { hasText: 'BPMN Modeler' }).click();
 
     // Wait for modeler to load
     await expect(page.locator('.bjs-container')).toBeVisible({ timeout: 10_000 });
@@ -340,6 +369,7 @@ test.describe('mini-bpm Desktop App – E2E', () => {
   test('should show warning when starting without deploying first', async ({ page }) => {
     await injectTauriMock(page);
     await page.goto('/');
+    await page.locator('.nav-item', { hasText: 'BPMN Modeler' }).click();
     await expect(page.locator('.bjs-container')).toBeVisible({ timeout: 10_000 });
 
     const alerts = await collectAlerts(page, async () => {
@@ -358,6 +388,7 @@ test.describe('mini-bpm Desktop App – E2E', () => {
   test('should start an instance after deploying and show success alert', async ({ page }) => {
     await injectTauriMock(page);
     await page.goto('/');
+    await page.locator('.nav-item', { hasText: 'BPMN Modeler' }).click();
     await expect(page.locator('.bjs-container')).toBeVisible({ timeout: 10_000 });
 
     // Deploy first
@@ -471,6 +502,7 @@ test.describe('mini-bpm Desktop App – E2E', () => {
   test('full workflow: deploy, start, view tasks, complete', async ({ page }) => {
     await injectTauriMock(page);
     await page.goto('/');
+    await page.locator('.nav-item', { hasText: 'BPMN Modeler' }).click();
     await expect(page.locator('.bjs-container')).toBeVisible({ timeout: 10_000 });
 
     // Step 1: Deploy
@@ -627,6 +659,49 @@ test.describe('mini-bpm Desktop App – E2E', () => {
     await expect(cards.nth(1).getByText('Definition: approval-flow')).toBeVisible();
   });
 
+  // ---- 13.5 Deployed Processes – instances mapping & navigation --------------
+
+  test('should display running instances under a deployed process and navigate on click', async ({ page }) => {
+    await injectTauriMock(page, {
+      deployedDefs: ['mapping-test-def'],
+      deployedXml: {
+        'mapping-test-def': '<bpmn>mapping</bpmn>',
+      },
+      processInstances: [
+        {
+          id: 'inst-mapped-001',
+          definition_key: 'mapping-test-def',
+          business_key: 'MyTestBusinessKey',
+          state: 'Running',
+          current_node: 'StartEvent_1',
+          audit_log: [],
+          variables: { business_key: 'MyTestBusinessKey' },
+        },
+      ],
+    });
+    await page.goto('/');
+
+    // 1. Navigate to Deployed Processes
+    await page.locator('.nav-item', { hasText: 'Deployed Processes' }).click();
+
+    // 2. The definition card should show "Running Instances" and the mapped instance
+    const defCard = page.locator('.card').filter({ hasText: 'Definition: mapping-test-def' });
+    await expect(defCard).toBeVisible({ timeout: 5_000 });
+    await expect(defCard.getByText('Running Instances')).toBeVisible();
+
+    // The business key fallback logic we implemented should prefer the business_key variable
+    const instanceButton = defCard.locator('ul button', { hasText: 'MyTestBusinessKey' });
+    await expect(instanceButton).toBeVisible();
+
+    // 3. Click the instance
+    await instanceButton.click();
+
+    // 4. It should switch to the Instances tab and open the detailed view of "inst-mapped-001"
+    const detailPanel = page.locator('.instance-detail');
+    await expect(detailPanel).toBeVisible({ timeout: 5_000 });
+    await expect(detailPanel.getByText('Instance Details: inst-map')).toBeVisible();
+  });
+
   // ---- 14. Deployed Processes – download button ---------------------------
 
   test('should click Download BPMN without error', async ({ page }) => {
@@ -652,6 +727,7 @@ test.describe('mini-bpm Desktop App – E2E', () => {
   test('should show deployed definition after deploying from modeler', async ({ page }) => {
     await injectTauriMock(page);
     await page.goto('/');
+    await page.locator('.nav-item', { hasText: 'BPMN Modeler' }).click();
     await expect(page.locator('.bjs-container')).toBeVisible({ timeout: 10_000 });
 
     // Deploy a process first
@@ -750,11 +826,83 @@ test.describe('mini-bpm Desktop App – E2E', () => {
     expect(warnAlerts[0]).toContain('Please deploy a process first');
   });
 
-  // ---- 18. Start Instance with custom variables --------------------------
+  // ---- 18. Delete Instance -----------------------------------------------
+
+  test('should delete an instance from the instance list', async ({ page }) => {
+    await injectTauriMock(page, {
+      processInstances: [
+        {
+          id: 'inst-to-delete',
+          definition_key: 'def-1',
+          business_key: 'bk-1',
+          state: 'Running',
+          current_node: 'node-1',
+          audit_log: [],
+          variables: {},
+        },
+      ],
+    });
+    
+    // Auto-accept the window.confirm dialog
+    page.on('dialog', dialog => dialog.accept());
+    
+    await page.goto('/');
+    await page.locator('.nav-item', { hasText: 'Instances' }).click();
+    
+    // Card should exist
+    const card = page.locator('.card', { hasText: 'inst-to-' });
+    await expect(card).toBeVisible();
+    
+    // Click Delete button on the card list
+    await card.locator('button[title="Delete Instance"]').click();
+    
+    // Instance should disappear
+    await expect(card).not.toBeVisible();
+    await expect(page.getByText('No instances found.')).toBeVisible();
+  });
+
+  // ---- 19. Delete Definition ---------------------------------------------
+
+  test('should delete a definition and cascade instances', async ({ page }) => {
+    await injectTauriMock(page, {
+      deployedDefs: ['def-to-delete'],
+      deployedXml: { 'def-to-delete': '<bpmn/>' },
+      processInstances: [
+        {
+          id: 'inst-related',
+          definition_key: 'def-to-delete',
+          business_key: 'bk-rel',
+          state: 'Running',
+          current_node: 'n1',
+          audit_log: [],
+          variables: {},
+        }
+      ]
+    });
+    
+    // Auto-accept cascade confirmation dialog
+    page.on('dialog', dialog => dialog.accept());
+    
+    await page.goto('/');
+    await page.locator('.nav-item', { hasText: 'Deployed Processes' }).click();
+    
+    const card = page.locator('.card', { hasText: 'Definition: def-to-delete' });
+    await expect(card).toBeVisible();
+    
+    // Click Delete Definition
+    await card.locator('button[title="Delete Definition"]').click();
+    
+    // Definition should disappear
+    await expect(card).not.toBeVisible();
+    await expect(page.getByText('No deployed processes.')).toBeVisible();
+  });
+
+  // ---- 20. Start Instance with custom variables --------------------------
 
   test('should start an instance with custom variables', async ({ page }) => {
     await injectTauriMock(page);
     await page.goto('/');
+    await page.locator('.nav-item', { hasText: 'BPMN Modeler' }).click();
     await expect(page.locator('.bjs-container')).toBeVisible({ timeout: 10_000 });
 
     // Deploy first
@@ -872,6 +1020,7 @@ test.describe('mini-bpm Desktop App – E2E', () => {
     });
     
     await page.goto('/');
+    await page.locator('.nav-item', { hasText: 'BPMN Modeler' }).click();
     await expect(page.locator('.bjs-container')).toBeVisible({ timeout: 10_000 });
 
     // 1. "Lade das oben beschriebene BPMN-XML"
@@ -944,6 +1093,7 @@ test.describe('mini-bpm Desktop App – E2E', () => {
 
     await injectTauriMock(page, { openFileXml: fileXml });
     await page.goto('/');
+    await page.locator('.nav-item', { hasText: 'BPMN Modeler' }).click();
     await expect(page.locator('.bjs-container')).toBeVisible({ timeout: 10_000 });
 
     // Click "Open File" – the mock dialog returns a path, read_bpmn_file returns XML

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { open } from '@tauri-apps/api/dialog';
 import { readBpmnFile } from './lib/tauri';
+import { FilePlus, FolderOpen, UploadCloud, Play } from 'lucide-react';
 
 // Make sure to ignore TS types for modules that might not have types
 // @ts-ignore
@@ -65,6 +66,7 @@ export function Modeler({ onDeploy, onStart, onNewDiagram, onOpenFile, initialXm
   // Track the last imported XML to avoid redundant re-imports
   const lastImportedXmlRef = useRef<string | null>(null);
   const [showVarsDialog, setShowVarsDialog] = useState(false);
+  const [businessKey, setBusinessKey] = useState('');
   const [varsJson, setVarsJson] = useState('{}');
 
   useEffect(() => {
@@ -148,6 +150,7 @@ export function Modeler({ onDeploy, onStart, onNewDiagram, onOpenFile, initialXm
 
   const handleStartClick = () => {
     setVarsJson('{}');
+    setBusinessKey('');
     setShowVarsDialog(true);
   };
 
@@ -158,6 +161,11 @@ export function Modeler({ onDeploy, onStart, onNewDiagram, onOpenFile, initialXm
         alert('Variables must be a JSON object (e.g. {"key": "value"}).');
         return;
       }
+      
+      if (businessKey.trim() !== '') {
+        parsed.business_key = businessKey.trim();
+      }
+      
       setShowVarsDialog(false);
       onStart(parsed);
     } catch {
@@ -168,10 +176,10 @@ export function Modeler({ onDeploy, onStart, onNewDiagram, onOpenFile, initialXm
   return (
     <>
       <div className="header-actions">
-        <button className="button" onClick={handleNewDiagram}>New Diagram</button>
-        <button className="button" onClick={handleOpenFile}>Open File</button>
-        <button className="button" onClick={handleDeploy}>Deploy Process</button>
-        <button className="button" onClick={handleStartClick} style={{backgroundColor: '#10b981'}}>Start Instance</button>
+        <button className="button" onClick={handleNewDiagram} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><FilePlus size={16} /> New Diagram</button>
+        <button className="button" onClick={handleOpenFile} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><FolderOpen size={16} /> Open File</button>
+        <button className="button" onClick={handleDeploy} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><UploadCloud size={16} /> Deploy Process</button>
+        <button className="button" onClick={handleStartClick} style={{ backgroundColor: '#10b981', display: 'flex', alignItems: 'center', gap: '6px' }}><Play size={16} /> Start Instance</button>
       </div>
       <div className="modeler-container">
         <div className="canvas" ref={containerRef} />
@@ -181,7 +189,22 @@ export function Modeler({ onDeploy, onStart, onNewDiagram, onOpenFile, initialXm
       {showVarsDialog && (
         <div className="vars-dialog-overlay" onClick={() => setShowVarsDialog(false)}>
           <div className="vars-dialog" onClick={(e) => e.stopPropagation()}>
-            <h3>Process Variables</h3>
+            <h3>Start Process Instance</h3>
+            
+            <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.9rem', color: '#475569', fontWeight: 500 }}>
+              Business Key (optional)
+            </label>
+            <input
+              type="text"
+              value={businessKey}
+              onChange={(e) => setBusinessKey(e.target.value)}
+              placeholder="e.g. ORDER-1000"
+              style={{ width: '100%', padding: '8px', marginBottom: '16px', border: '1px solid #cbd5e1', borderRadius: '4px', fontFamily: 'inherit', fontSize: '0.9rem' }}
+            />
+
+            <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.9rem', color: '#475569', fontWeight: 500 }}>
+              Process Variables
+            </label>
             <p style={{fontSize: '0.85rem', color: '#888', margin: '0 0 8px'}}>Optional JSON object, e.g. {'{"orderId": "123"}'}</p>
             <textarea
               className="vars-textarea"

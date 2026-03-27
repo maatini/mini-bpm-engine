@@ -743,3 +743,46 @@ async fn script_mutates_state_and_executes_logic() {
         "script logic should set result"
     );
 }
+
+#[tokio::test]
+async fn test_delete_instance() {
+    let mut engine = WorkflowEngine::new();
+    let def = ProcessDefinitionBuilder::new("test")
+        .node("start", BpmnElement::StartEvent)
+        .node("end", BpmnElement::EndEvent)
+        .flow("start", "end")
+        .build()
+        .unwrap();
+
+    let key = engine.deploy_definition(def).await;
+    let instance_id = engine.start_instance(key).await.unwrap();
+    assert_eq!(engine.instances.len(), 1);
+
+    engine.delete_instance(instance_id).await.unwrap();
+    
+    assert_eq!(engine.instances.len(), 0);
+    assert!(engine.get_instance_details(instance_id).is_err());
+}
+
+#[tokio::test]
+async fn test_delete_definition_cascade() {
+    let mut engine = WorkflowEngine::new();
+    let def = ProcessDefinitionBuilder::new("test")
+        .node("start", BpmnElement::StartEvent)
+        .node("end", BpmnElement::EndEvent)
+        .flow("start", "end")
+        .build()
+        .unwrap();
+
+    let key = engine.deploy_definition(def).await;
+    let _id1 = engine.start_instance(key).await.unwrap();
+    let _id2 = engine.start_instance(key).await.unwrap();
+    
+    let err = engine.delete_definition(key, false).await.unwrap_err();
+    assert!(matches!(err, crate::error::EngineError::DefinitionHasInstances(2)));
+
+    engine.delete_definition(key, true).await.unwrap();
+    
+    assert_eq!(engine.definitions.len(), 0);
+    assert_eq!(engine.instances.len(), 0);
+}

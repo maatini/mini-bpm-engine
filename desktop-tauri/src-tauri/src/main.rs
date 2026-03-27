@@ -326,6 +326,26 @@ async fn update_instance_variables(
     Ok(())
 }
 
+#[tauri::command]
+#[cfg(not(feature = "http-backend"))]
+async fn delete_instance(state: tauri::State<'_, AppState>, instance_id: String) -> Result<(), String> {
+    let mut engine = state.engine.lock().await;
+    let id = Uuid::parse_str(&instance_id).map_err(|e| e.to_string())?;
+    engine.delete_instance(id).await.map_err(|e| format!("{:?}", e))
+}
+
+#[tauri::command]
+#[cfg(feature = "http-backend")]
+async fn delete_instance(state: tauri::State<'_, AppState>, instance_id: String) -> Result<(), String> {
+    let url = format!("{}/api/instances/{}", state.base_url, instance_id);
+    let res = state.client.delete(&url).send().await.map_err(|e| e.to_string())?;
+    
+    if !res.status().is_success() {
+        return Err(format!("Delete instance failed: {}", res.status()));
+    }
+    Ok(())
+}
+
 // ---------------------------------------------------------------------------
 // Definitions listing + XML download
 // ---------------------------------------------------------------------------
@@ -393,6 +413,33 @@ async fn get_definition_xml(state: tauri::State<'_, AppState>, definition_id: St
     }
     let xml = res.text().await.map_err(|e| e.to_string())?;
     Ok(xml)
+}
+
+#[tauri::command]
+#[cfg(not(feature = "http-backend"))]
+async fn delete_definition(state: tauri::State<'_, AppState>, definition_id: String, cascade: bool) -> Result<(), String> {
+    let mut engine = state.engine.lock().await;
+    let id = Uuid::parse_str(&definition_id).map_err(|e| e.to_string())?;
+    let key_str = id.to_string();
+
+    engine.delete_definition(id, cascade).await.map_err(|e| format!("{:?}", e))?;
+
+    // Also remove from in-memory XML cache
+    state.deployed_xml.lock().await.remove(&key_str);
+
+    Ok(())
+}
+
+#[tauri::command]
+#[cfg(feature = "http-backend")]
+async fn delete_definition(state: tauri::State<'_, AppState>, definition_id: String, cascade: bool) -> Result<(), String> {
+    let url = format!("{}/api/definitions/{}?cascade={}", state.base_url, definition_id, cascade);
+    let res = state.client.delete(&url).send().await.map_err(|e| e.to_string())?;
+    
+    if !res.status().is_success() {
+        return Err(format!("Delete definition failed: {}", res.status()));
+    }
+    Ok(())
 }
 
 // ---------------------------------------------------------------------------
@@ -582,7 +629,10 @@ async fn restore_from_nats(
     for nats_key in ids {
         match nats.load_bpmn_xml(&nats_key).await {
             Ok(xml) => match parse_bpmn_xml(&xml) {
-                Ok(def) => {
+                Ok(mut def) => {
+                    if let Ok(old_uuid) = Uuid::parse_str(&nats_key) {
+                        def.key = old_uuid;
+                    }
                     let key = engine.deploy_definition(def).await;
                     deployed_xml.insert(key.to_string(), xml);
                     println!("[mini-bpm] Restored definition (key: {})", key);
@@ -678,6 +728,8 @@ fn main() {
             list_instances,
             get_instance_details,
             update_instance_variables,
+            delete_instance,
+            delete_definition,
             list_definitions,
             get_definition_xml,
             get_backend_info,

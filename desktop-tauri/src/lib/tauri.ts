@@ -64,6 +64,14 @@ export async function getDefinitionXml(definitionId: string): Promise<string> {
   return invoke('get_definition_xml', { definitionId });
 }
 
+export async function deleteInstance(instanceId: string): Promise<void> {
+  return invoke('delete_instance', { instanceId });
+}
+
+export async function deleteDefinition(definitionId: string, cascade: boolean = false): Promise<void> {
+  return invoke('delete_definition', { definitionId, cascade });
+}
+
 // ---------------------------------------------------------------------------
 // Backend info & switching
 // ---------------------------------------------------------------------------

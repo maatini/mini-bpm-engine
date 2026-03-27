@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { getBackendInfo, switchBackend, type BackendInfo } from './lib/tauri'
+import { Server, Cpu } from 'lucide-react'
 
 interface SettingsProps {
   onBackendChange?: (info: BackendInfo) => void
@@ -79,15 +80,17 @@ export function Settings({ onBackendChange }: SettingsProps) {
             className="button"
             onClick={() => handleSwitch('nats')}
             disabled={loading || info?.backend_type === 'nats'}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
           >
-            Connect to NATS
+            <Server size={16} /> Connect to NATS
           </button>
           <button
             className="button-secondary"
             onClick={() => handleSwitch('in-memory')}
             disabled={loading || info?.backend_type === 'in-memory'}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
           >
-            Switch to In-Memory
+            <Cpu size={16} /> Switch to In-Memory
           </button>
         </div>
 

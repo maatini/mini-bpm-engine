@@ -13,7 +13,7 @@ Eine einbettbare BPMN 2.0 Workflow-Engine in Rust.
 
 * `bpmn-parser`: Parst BPMN 2.0 XML-Definitionen in interne Rust-Strukturen.
 * `engine-core`: Die Hauptbibliothek der Workflow-Engine — token-basierte Ausführung, Gateway-Routing mit Condition-Evaluator, Script-Engine (Execution Listeners), External-Task-Support und umfassendes Error-Handling via `EngineError` (thiserror). Tests sind in ein separates Modul (`tests.rs`) ausgelagert.
-* `persistence-nats`: (Optional) Bietet NATS-basierte Persistenz und JetStream-Event-Publishing.
+* `persistence-nats`: (Optional) Bietet NATS-basierte Persistenz. Nutzt JetStream KV-Stores für Instanzen, Definitionen und Pending-Tasks, sowie einen Object Store (`bpmn_xml`) für die originalen BPMN-Dateien. Darüber hinaus wird ein Event-Sourcing-Ansatz via JetStream Publishing unterstützt.
 * `engine-server`: Ein Axum-basierter HTTP-Server mit REST-API. Nutzt einen typsicheren `AppError`-Enum für konsistente HTTP-Fehlercodes (400/404/409/500).
 * `desktop-tauri`: Eine Tauri-Desktop-Anwendung, die mit der Workflow-Engine interagiert.
 * `agent-orchestrator`: Ein Crate zur Orchestrierung von externen Agenten/Workern, die mit der Engine interagieren.
@@ -98,6 +98,8 @@ Der Server lauscht standardmäßig auf `http://localhost:8080`.
 * `GET /api/instances` - Alle Prozessinstanzen auflisten
 * `GET /api/instances/:id` - Details einer einzelnen Instanz abrufen
 * `PUT /api/instances/:id/variables` - Variablen einer Prozessinstanz aktualisieren
+* `DELETE /api/instances/:id` - Eine Prozessinstanz löschen
+* `DELETE /api/definitions/:id` - Eine Prozessdefinition löschen (Query `?cascade=true` zum Mitlöschen aller zugehörigen Instanzen)
 
 #### Externe Tasks (External Tasks)
 * `POST /api/external-task/fetchAndLock` - Tasks für Worker abrufen und sperren (inkl. Long-Polling)
@@ -124,9 +126,9 @@ Die `mini-bpm-desktop` Anwendung kann in zwei Modi ausgeführt werden:
 ### Tauri-Kommandos
 Das Frontend der Desktop-Anwendung nutzt folgende Tauri-Kommandos zur Interaktion mit dem Backend:
 * Deployment & Start: `deploy_definition`, `deploy_simple_process`, `start_instance`
-* Instanzen: `list_instances`, `get_instance_details`, `update_instance_variables`
+* Instanzen: `list_instances`, `get_instance_details`, `update_instance_variables`, `delete_instance`
 * Tasks: `get_pending_tasks`, `complete_task`
-* Definitionen: `list_definitions`, `get_definition_xml`
+* Definitionen: `list_definitions`, `get_definition_xml`, `delete_definition`
 
 ## Docker Compose
 
