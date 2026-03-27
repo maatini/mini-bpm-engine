@@ -8,10 +8,15 @@
     "natscli@latest",
     "nodejs@latest"
   ],
+  "env": {
+    "NATS_URL": "nats://localhost:4222",
+    "ENGINE_API_URL": "http://localhost:8081"
+  },
   "shell": {
     "init_hook": [
       "rustup default stable 2>/dev/null",
-      "echo '🦀 Rust toolchain ready: '$(rustc --version)"
+      "echo '🦀 Rust toolchain ready: '$(rustc --version)",
+      "echo '🚀 Mini BPM Workspace ready!'"
     ],
     "scripts": {
       "build": [
@@ -26,32 +31,32 @@
       "test": [
         "cargo test --workspace"
       ],
-      "run": [
-        "cargo run --workspace"
-      ],
       "nats:up": [
-        "docker compose up -d"
+        "docker compose up -d nats"
       ],
       "nats:down": [
         "docker compose down"
       ],
-      "nats:logs": [
-        "docker compose logs -f nats"
+      "engine:run": [
+        "cargo run -p engine-server"
+      ],
+      "engine:docker": [
+        "docker compose up -d"
+      ],
+      "ui:dev": [
+        "cd desktop-tauri && npm install && npm run tauri dev"
+      ],
+      "dev": [
+        "echo 'Use the following commands to develop:'",
+        "echo '1. Start nats & engine-server via Docker: devbox run engine:docker'",
+        "echo '2. OR Start engine-server locally:        devbox run engine:run (requires devbox run nats:up)'",
+        "echo '3. Start Tauri Desktop UI:                devbox run ui:dev'"
       ],
       "test:nats": [
         "devbox run nats:up",
         "sleep 2",
         "cargo test --workspace",
         "devbox run nats:down"
-      ],
-      "test:nats:ci": [
-        "devbox run nats:up",
-        "sleep 5",
-        "cargo test --workspace -- --ignored",
-        "devbox run nats:down"
-      ],
-      "ui:dev": [
-        "cd desktop-tauri && npm install && npm run tauri dev"
       ],
       "test:e2e:ui": [
         "cd desktop-tauri && npm run test:e2e"

@@ -1181,6 +1181,8 @@ dependencies = [
  "axum",
  "bpmn-parser",
  "engine-core",
+ "env_logger",
+ "log",
  "persistence-nats",
  "reqwest 0.12.28",
  "serde",
@@ -2680,9 +2682,6 @@ checksum = "6877bb514081ee2a7ff5ef9de3281f14a4dd4bceac4c09388074a6b5df8a139a"
 name = "mini-bpm-desktop"
 version = "0.1.0"
 dependencies = [
- "bpmn-parser",
- "engine-core",
- "persistence-nats",
  "reqwest 0.11.27",
  "serde",
  "serde_json",

@@ -5,7 +5,7 @@ use axum::{
     routing::{get, post, put, delete},
     Json, Router,
 };
-use engine_core::engine::{PendingServiceTask, PendingUserTask, ProcessInstance, WorkflowEngine};
+use engine_core::engine::{PendingServiceTask, PendingUserTask, ProcessInstance, WorkflowEngine, InstanceState};
 use engine_core::error::EngineError;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -15,6 +15,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use tower_http::cors::{Any, CorsLayer};
 use uuid::Uuid;
+use persistence_nats::NatsPersistence;
 
 // ---------------------------------------------------------------------------
 // Centralized error type – maps EngineError to proper HTTP status codes
@@ -93,6 +94,39 @@ fn parse_uuid(raw: &str) -> Result<Uuid, AppError> {
 
 struct AppState {
     engine: Arc<Mutex<WorkflowEngine>>,
+    nats: Option<Arc<NatsPersistence>>,
+    deployed_xml: Arc<Mutex<HashMap<String, String>>>,
+    nats_url: String, // Store URL for /api/info
+}
+
+#[derive(Serialize)]
+struct BackendInfo {
+    backend_type: String,
+    nats_url: Option<String>,
+    connected: bool,
+}
+
+#[derive(Serialize)]
+struct NatsServerInfo {
+    server_name: String,
+    version: String,
+    host: String,
+    port: u16,
+    memory_bytes: u64,
+    storage_bytes: u64,
+    streams: usize,
+    consumers: usize,
+}
+
+#[derive(Serialize)]
+struct MonitoringData {
+    definitions_count: usize,
+    instances_total: usize,
+    instances_running: usize,
+    instances_completed: usize,
+    pending_user_tasks: usize,
+    pending_service_tasks: usize,
+    nats_server: Option<NatsServerInfo>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -179,10 +213,21 @@ struct BpmnErrorRequest {
 /// Exposed as `pub` so integration tests can create the app without
 /// starting a full server binary.
 pub fn build_app() -> Router {
-    let engine = WorkflowEngine::new();
+    build_app_with_engine(Arc::new(Mutex::new(WorkflowEngine::new())), None, HashMap::new())
+}
 
+pub fn build_app_with_engine(
+    engine: Arc<Mutex<WorkflowEngine>>,
+    nats: Option<Arc<NatsPersistence>>,
+    xml_cache: HashMap<String, String>,
+) -> Router {
+    let nats_url = std::env::var("NATS_URL").unwrap_or_else(|_| "nats://localhost:4222".to_string());
+    
     let state = Arc::new(AppState {
-        engine: Arc::new(Mutex::new(engine)),
+        engine,
+        nats,
+        deployed_xml: Arc::new(Mutex::new(xml_cache)),
+        nats_url,
     });
 
     let cors = CorsLayer::new()
@@ -197,8 +242,12 @@ pub fn build_app() -> Router {
         .route("/api/complete/:id", post(complete_task))
         .route("/api/instances", get(list_instances))
         .route("/api/instances/:id", get(get_instance).delete(delete_instance))
+        .route("/api/definitions", get(list_definitions))
+        .route("/api/definitions/:id/xml", get(get_definition_xml))
         .route("/api/definitions/:id", delete(delete_definition))
         .route("/api/instances/:id/variables", put(update_instance_variables))
+        .route("/api/info", get(get_backend_info))
+        .route("/api/monitoring", get(get_monitoring_data))
         // Service Task endpoints
         .route("/api/service-tasks", get(get_service_tasks))
         .route("/api/service-task/fetchAndLock", post(fetch_and_lock_service_tasks))
@@ -224,8 +273,59 @@ async fn deploy_definition(
         .map_err(|e| AppError::BadRequest(format!("Invalid BPMN XML: {e:?}")))?;
 
     let key = engine.deploy_definition(def).await;
+    let key_str = key.to_string();
 
-    Ok(Json(DeployResponse { definition_key: key.to_string() }))
+    if let Some(nats) = &state.nats {
+        if let Err(e) = nats.save_bpmn_xml(&key_str, &payload.xml).await {
+            log::error!("Failed to save BPMN XML to NATS: {:?}", e);
+        }
+    }
+    state.deployed_xml.lock().await.insert(key_str.clone(), payload.xml.clone());
+
+    Ok(Json(DeployResponse { definition_key: key_str }))
+}
+
+#[derive(Serialize)]
+struct DefinitionInfo {
+    key: String,
+    bpmn_id: String,
+    node_count: usize,
+}
+
+async fn list_definitions(
+    State(state): State<Arc<AppState>>,
+) -> Json<Vec<DefinitionInfo>> {
+    let engine = state.engine.lock().await;
+    let defs: Vec<DefinitionInfo> = engine
+        .definitions
+        .iter()
+        .map(|(key, def)| DefinitionInfo {
+            key: key.to_string(),
+            bpmn_id: def.id.clone(),
+            node_count: def.nodes.len(),
+        })
+        .collect();
+    Json(defs)
+}
+
+async fn get_definition_xml(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+) -> Result<String, AppError> {
+    {
+        let xml_store = state.deployed_xml.lock().await;
+        if let Some(xml) = xml_store.get(&id) {
+            return Ok(xml.clone());
+        }
+    }
+
+    if let Some(nats) = &state.nats {
+        if let Ok(xml) = nats.load_bpmn_xml(&id).await {
+            return Ok(xml);
+        }
+    }
+
+    Err(AppError::BadRequest(format!("No XML found for definition '{id}'")))
 }
 
 async fn start_instance(
@@ -341,6 +441,8 @@ async fn delete_definition(
 
     engine.delete_definition(def_key, query.cascade.unwrap_or(false)).await?;
 
+    state.deployed_xml.lock().await.remove(&id);
+
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -452,3 +554,65 @@ async fn bpmn_error(
     Ok(StatusCode::NO_CONTENT)
 }
 
+// ---------------------------------------------------------------------------
+// Info & Monitoring
+// ---------------------------------------------------------------------------
+
+async fn get_backend_info(
+    State(state): State<Arc<AppState>>,
+) -> Json<BackendInfo> {
+    if state.nats.is_some() {
+        Json(BackendInfo {
+            backend_type: "nats".to_string(),
+            nats_url: Some(state.nats_url.clone()),
+            connected: true,
+        })
+    } else {
+        Json(BackendInfo {
+            backend_type: "in-memory".to_string(),
+            nats_url: Some(state.nats_url.clone()),
+            connected: false,
+        })
+    }
+}
+
+async fn get_monitoring_data(
+    State(state): State<Arc<AppState>>,
+) -> Json<MonitoringData> {
+    let engine = state.engine.lock().await;
+
+    let instances_running = engine.instances.values()
+        .filter(|i| matches!(i.state, InstanceState::Running | InstanceState::WaitingOnUserTask { .. } | InstanceState::WaitingOnServiceTask { .. }))
+        .count();
+    let instances_completed = engine.instances.values()
+        .filter(|i| matches!(i.state, InstanceState::Completed))
+        .count();
+
+    let nats_server = if let Some(ref nats) = state.nats {
+        match nats.get_nats_info().await {
+            Ok(info) => Some(NatsServerInfo {
+                server_name: info.server_name,
+                version: info.version,
+                host: info.host,
+                port: info.port,
+                memory_bytes: info.js_memory_bytes,
+                storage_bytes: info.js_storage_bytes,
+                streams: info.js_streams,
+                consumers: info.js_consumers,
+            }),
+            Err(_) => None,
+        }
+    } else {
+        None
+    };
+
+    Json(MonitoringData {
+        definitions_count: engine.definitions.len(),
+        instances_total: engine.instances.len(),
+        instances_running,
+        instances_completed,
+        pending_user_tasks: engine.pending_user_tasks.len(),
+        pending_service_tasks: engine.pending_service_tasks.len(),
+        nats_server,
+    })
+}

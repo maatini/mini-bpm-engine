@@ -7,5 +7,6 @@ FROM debian:bookworm-slim
 WORKDIR /app
 COPY --from=builder /app/target/release/engine-server /usr/local/bin/
 ENV PORT=8081
+ENV NATS_URL=nats://nats:4222
 EXPOSE 8081
 CMD ["engine-server"]

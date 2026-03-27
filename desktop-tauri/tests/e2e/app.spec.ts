@@ -25,6 +25,7 @@ interface MockState {
     assignee: string;
     created_at: string;
   }>;
+  pendingServiceTasks: any[];
   completedTasks: string[];
   processInstances: Array<{
     id: string;
@@ -43,6 +44,7 @@ const DEFAULT_MOCK_STATE: MockState = {
   instances: [],
   openFileXml: null,
   pendingTasks: [],
+  pendingServiceTasks: [],
   completedTasks: [],
   processInstances: [],
 };
@@ -145,6 +147,16 @@ async function injectTauriMock(
 
             case 'get_pending_tasks': {
               resolve(mockState.pendingTasks);
+              break;
+            }
+
+            case 'get_pending_service_tasks': {
+              resolve(mockState.pendingServiceTasks);
+              break;
+            }
+
+            case 'complete_service_task': {
+              resolve(null);
               break;
             }
 
@@ -339,7 +351,7 @@ test.describe('mini-bpm Desktop App – E2E', () => {
     await page.locator('.nav-item', { hasText: 'Pending Tasks' }).click();
 
     // Verify empty-state message
-    await expect(page.getByText('No pending tasks.')).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByText('No pending user tasks.')).toBeVisible({ timeout: 5_000 });
 
     // Verify Refresh button exists
     await expect(page.locator('button', { hasText: 'Refresh' })).toBeVisible();
@@ -468,7 +480,7 @@ test.describe('mini-bpm Desktop App – E2E', () => {
     expect(alerts[0]).toBe('Task completed!');
 
     // After completion, the task list should refresh and show empty state
-    await expect(page.getByText('No pending tasks.')).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByText('No pending user tasks.')).toBeVisible({ timeout: 5_000 });
   });
 
   // ---- 7. Refresh Tasks -------------------------------------------------
@@ -522,7 +534,7 @@ test.describe('mini-bpm Desktop App – E2E', () => {
     await page.locator('.nav-item', { hasText: 'Pending Tasks' }).click();
     // The default BPMN XML from the modeler only has a StartEvent (no userTask),
     // so no tasks seeded — verify empty state
-    await expect(page.getByText('No pending tasks.')).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByText('No pending user tasks.')).toBeVisible({ timeout: 5_000 });
 
     // Step 4: Navigate back to modeler
     await page.locator('.nav-item', { hasText: 'BPMN Modeler' }).click();

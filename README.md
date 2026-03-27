@@ -68,8 +68,7 @@ flowchart TD
     end
 
     %% Connections
-    UI -- "HTTP (Optionally)" --> Axum
-    UI -- "Embedded Mode" --> Engine
+    UI -- "HTTP REST API" --> Axum
     Agent -- "HTTP Fetch/Lock" --> Axum
     Axum -- "Calls" --> Engine
     Engine -- "Parses" --> Parser
@@ -110,18 +109,14 @@ Der Server lauscht standardmäßig auf `http://localhost:8081`.
 
 ## Ausführen der Desktop-Anwendung
 
-Die `mini-bpm-desktop` Anwendung kann in zwei Modi ausgeführt werden:
+Die `mini-bpm-desktop` Anwendung fungiert als leichtgewichtiger "Thin Client", der sich ausschließlich über HTTP mit der `engine-server` Instanz verbindet. Sie baut keine eigene NATS-Verbindung auf und besitzt keine eingebettete Engine mehr.
 
-1. **Eingebettete Engine (Standard)**: Die App führt ihre eigene In-Memory (oder NATS-gestützte) `WorkflowEngine` innerhalb des Tauri-Backends aus.
-   ```bash
-   cargo run -p mini-bpm-desktop
-   ```
+```bash
+# Starten für das Development (erfordert Node.js und npm)
+cd desktop-tauri && npm install && npm run tauri dev
+```
 
-2. **HTTP-Backend**: Die App verbindet sich über HTTP mit der `engine-server` Instanz.
-   ```bash
-   cargo run -p mini-bpm-desktop --features http-backend
-   ```
-   *Hinweis: Stelle sicher, dass `engine-server` läuft, bevor die App in diesem Modus gestartet wird. Du kannst den API-Endpunkt über die Umgebungsvariable `ENGINE_API_URL` konfigurieren.*
+*Hinweis: Stelle sicher, dass `engine-server` läuft, bevor die App gestartet wird. Du kannst den API-Endpunkt über die Umgebungsvariable `ENGINE_API_URL` konfigurieren.*
 
 ### Tauri-Kommandos
 Das Frontend der Desktop-Anwendung nutzt folgende Tauri-Kommandos zur Interaktion mit dem Backend:
