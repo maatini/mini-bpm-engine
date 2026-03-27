@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
+import { open } from '@tauri-apps/api/dialog';
+import { readBpmnFile } from './lib/tauri';
 
 // Make sure to ignore TS types for modules that might not have types
 // @ts-ignore
@@ -26,25 +28,37 @@ interface ModelerProps {
   onDeploy: (xml: string) => Promise<void>;
   onStart: (variables: Record<string, unknown>) => void;
   onNewDiagram: () => void;
+  onOpenFile: () => void;
   initialXml?: string | null;
 }
 
+// Generates a unique process ID like "process-a1b2c3d4"
+function generateProcessId(): string {
+  const hex = Array.from(crypto.getRandomValues(new Uint8Array(4)))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+  return `process-${hex}`;
+}
+
 // Default empty BPMN diagram shown when no definition is loaded
-const EMPTY_BPMN = `<?xml version="1.0" encoding="UTF-8"?>
+function generateEmptyBpmn(): string {
+  const pid = generateProcessId();
+  return `<?xml version="1.0" encoding="UTF-8"?>
 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
-  <bpmn:process id="Process_1" isExecutable="true">
+  <bpmn:process id="${pid}" isExecutable="true">
     <bpmn:startEvent id="StartEvent_1"/>
   </bpmn:process>
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
-    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Process_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="${pid}">
       <bpmndi:BPMNShape id="_BPMNShape_StartEvent_2" bpmnElement="StartEvent_1">
         <dc:Bounds x="150" y="100" width="36" height="36" />
       </bpmndi:BPMNShape>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>
 </bpmn:definitions>`;
+}
 
-export function Modeler({ onDeploy, onStart, onNewDiagram, initialXml }: ModelerProps) {
+export function Modeler({ onDeploy, onStart, onNewDiagram, onOpenFile, initialXml }: ModelerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const propertiesRef = useRef<HTMLDivElement>(null);
   const modelerRef = useRef<any>(null);
@@ -72,7 +86,7 @@ export function Modeler({ onDeploy, onStart, onNewDiagram, initialXml }: Modeler
       
       modelerRef.current = modeler;
       // Import the initial XML or a default empty diagram
-      const xmlToLoad = initialXml || EMPTY_BPMN;
+      const xmlToLoad = initialXml || generateEmptyBpmn();
       modeler.importXML(xmlToLoad);
       lastImportedXmlRef.current = initialXml || null;
       
@@ -96,11 +110,29 @@ export function Modeler({ onDeploy, onStart, onNewDiagram, initialXml }: Modeler
   const handleNewDiagram = async () => {
     if (!modelerRef.current) return;
     try {
-      await modelerRef.current.importXML(EMPTY_BPMN);
+      await modelerRef.current.importXML(generateEmptyBpmn());
       lastImportedXmlRef.current = null;
       onNewDiagram();
     } catch (e) {
       console.error("Failed to create new diagram", e);
+    }
+  };
+
+  const handleOpenFile = async () => {
+    try {
+      const selected = await open({
+        filters: [{ name: 'BPMN', extensions: ['bpmn', 'xml'] }],
+        multiple: false,
+      });
+      if (!selected || Array.isArray(selected)) return;
+      const xml = await readBpmnFile(selected);
+      if (modelerRef.current) {
+        await modelerRef.current.importXML(xml);
+        lastImportedXmlRef.current = xml;
+      }
+      onOpenFile();
+    } catch (e) {
+      alert('Failed to open BPMN file: ' + e);
     }
   };
 
@@ -137,6 +169,7 @@ export function Modeler({ onDeploy, onStart, onNewDiagram, initialXml }: Modeler
     <>
       <div className="header-actions">
         <button className="button" onClick={handleNewDiagram}>New Diagram</button>
+        <button className="button" onClick={handleOpenFile}>Open File</button>
         <button className="button" onClick={handleDeploy}>Deploy Process</button>
         <button className="button" onClick={handleStartClick} style={{backgroundColor: '#10b981'}}>Start Instance</button>
       </div>

@@ -33,7 +33,7 @@ export function DeployedProcesses({ onView }: { onView: (xml: string) => void })
       const xml = await getDefinitionXml(defId);
       // Use Tauri native save dialog + fs write
       const filePath = await save({
-        defaultPath: `${defId}.bpmn`,
+        defaultPath: `definition-${defId.substring(0, 8)}.bpmn`,
         filters: [{ name: 'BPMN', extensions: ['bpmn', 'xml'] }],
       });
       if (filePath) {
@@ -72,25 +72,25 @@ export function DeployedProcesses({ onView }: { onView: (xml: string) => void })
       )}
 
       {definitions.map(def => (
-        <div key={def.id} className="card">
-          <div className="card-title">Definition: {def.id}</div>
+        <div key={def.key} className="card">
+          <div className="card-title">Definition: {def.bpmn_id}</div>
           <div className="def-card-meta">
             <span>Nodes: {def.node_count}</span>
           </div>
           <div className="def-card-actions">
             <button
               className="button"
-              onClick={() => handleView(def.id)}
-              disabled={viewingId === def.id}
+              onClick={() => handleView(def.key)}
+              disabled={viewingId === def.key}
             >
-              {viewingId === def.id ? 'Loading...' : 'View in Modeler'}
+              {viewingId === def.key ? 'Loading...' : 'View in Modeler'}
             </button>
             <button
               className="button button-secondary"
-              onClick={() => handleDownload(def.id)}
-              disabled={downloading === def.id}
+              onClick={() => handleDownload(def.key)}
+              disabled={downloading === def.key}
             >
-              {downloading === def.id ? 'Downloading...' : 'Download BPMN'}
+              {downloading === def.key ? 'Downloading...' : 'Download BPMN'}
             </button>
           </div>
         </div>

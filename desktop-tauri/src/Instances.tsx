@@ -55,7 +55,7 @@ export function Instances() {
       setSelected(details);
       
       try {
-        const xml = await getDefinitionXml(details.definition_id);
+        const xml = await getDefinitionXml(details.definition_key);
         setDefinitionXml(xml);
       } catch (xmlError) {
         console.error("Failed to fetch layout XML:", xmlError);
@@ -140,7 +140,7 @@ export function Instances() {
             <span className={stateBadgeClass(inst.state)}>{stateLabel(inst.state)}</span>
             {' '}Instance: {inst.id.substring(0, 8)}…
           </div>
-          <div>Definition: {inst.definition_id}</div>
+          <div>Definition: {inst.definition_key.substring(0, 8)}…</div>
           <div>Current Node: {inst.current_node}</div>
         </div>
       ))}
@@ -162,7 +162,7 @@ export function Instances() {
                 <span className={stateBadgeClass(selected.state)}>{stateLabel(selected.state)}</span>
               </div>
               <div style={{ marginBottom: 12 }}>
-                <strong>Definition:</strong> {selected.definition_id}
+                <strong>Definition:</strong> {selected.definition_key}
               </div>
 
               {definitionXml && (

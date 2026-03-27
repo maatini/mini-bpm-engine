@@ -6,7 +6,7 @@
 use super::*;
 use crate::model::ProcessDefinitionBuilder;
 
-fn setup_linear_engine() -> (WorkflowEngine, String) {
+async fn setup_linear_engine() -> (WorkflowEngine, Uuid) {
     let mut engine = WorkflowEngine::new();
 
     // Register a simple service handler
@@ -29,9 +29,8 @@ fn setup_linear_engine() -> (WorkflowEngine, String) {
         .build()
         .unwrap();
 
-    let def_id = def.id.clone();
-    engine.deploy_definition(def);
-    (engine, def_id)
+    let def_key = engine.deploy_definition(def).await;
+    (engine, def_key)
 }
 
 #[tokio::test]
@@ -53,12 +52,12 @@ async fn conditional_routing_on_service_task() {
         .build()
         .unwrap();
 
-    engine.deploy_definition(def);
+    let def_key = engine.deploy_definition(def).await;
 
     let mut vars = HashMap::new();
     vars.insert("x".into(), Value::Number(2.into()));
     let inst_id = engine
-        .start_instance_with_variables("cond_svc", vars)
+        .start_instance_with_variables(def_key, vars)
         .await
         .unwrap();
 
@@ -73,8 +72,8 @@ async fn conditional_routing_on_service_task() {
 
 #[tokio::test]
 async fn start_instance_pauses_at_user_task() {
-    let (mut engine, def_id) = setup_linear_engine();
-    let inst_id = engine.start_instance(&def_id).await.unwrap();
+    let (mut engine, def_key) = setup_linear_engine().await;
+    let inst_id = engine.start_instance(def_key).await.unwrap();
 
     assert_eq!(
         *engine.get_instance_state(inst_id).unwrap(),
@@ -87,8 +86,8 @@ async fn start_instance_pauses_at_user_task() {
 
 #[tokio::test]
 async fn complete_user_task_reaches_end() {
-    let (mut engine, def_id) = setup_linear_engine();
-    let inst_id = engine.start_instance(&def_id).await.unwrap();
+    let (mut engine, def_key) = setup_linear_engine().await;
+    let inst_id = engine.start_instance(def_key).await.unwrap();
 
     let task_id = engine.pending_user_tasks[0].task_id;
     engine
@@ -105,8 +104,8 @@ async fn complete_user_task_reaches_end() {
 
 #[tokio::test]
 async fn completing_wrong_task_gives_error() {
-    let (mut engine, def_id) = setup_linear_engine();
-    engine.start_instance(&def_id).await.unwrap();
+    let (mut engine, def_key) = setup_linear_engine().await;
+    engine.start_instance(def_key).await.unwrap();
 
     let wrong_id = Uuid::new_v4();
     let result = engine
@@ -117,8 +116,8 @@ async fn completing_wrong_task_gives_error() {
 
 #[tokio::test]
 async fn service_handler_modifies_variables() {
-    let (mut engine, def_id) = setup_linear_engine();
-    engine.start_instance(&def_id).await.unwrap();
+    let (mut engine, def_key) = setup_linear_engine().await;
+    engine.start_instance(def_key).await.unwrap();
 
     // The token should have 'validated: true' from the service handler
     let pending = &engine.pending_user_tasks[0];
@@ -140,8 +139,8 @@ async fn timer_start_succeeds() {
         .build()
         .unwrap();
 
-    engine.deploy_definition(def);
-    let inst_id = engine.trigger_timer_start("timer_proc", dur).await.unwrap();
+    let def_key = engine.deploy_definition(def).await;
+    let inst_id = engine.trigger_timer_start(def_key, dur).await.unwrap();
 
     assert_eq!(
         *engine.get_instance_state(inst_id).unwrap(),
@@ -160,9 +159,9 @@ async fn timer_mismatch_gives_error() {
         .build()
         .unwrap();
 
-    engine.deploy_definition(def);
+    let def_key = engine.deploy_definition(def).await;
     let result = engine
-        .trigger_timer_start("timer_proc", Duration::from_secs(30))
+        .trigger_timer_start(def_key, Duration::from_secs(30))
         .await;
     assert!(matches!(result, Err(EngineError::TimerMismatch { .. })));
 }
@@ -178,8 +177,8 @@ async fn plain_start_rejects_timer_def() {
         .build()
         .unwrap();
 
-    engine.deploy_definition(def);
-    let result = engine.start_instance("timer_proc").await;
+    let def_key = engine.deploy_definition(def).await;
+    let result = engine.start_instance(def_key).await;
     assert!(matches!(
         result,
         Err(EngineError::InvalidDefinition(msg)) if msg.contains("timer")
@@ -189,7 +188,7 @@ async fn plain_start_rejects_timer_def() {
 #[tokio::test]
 async fn unknown_definition_gives_error() {
     let mut engine = WorkflowEngine::new();
-    let result = engine.start_instance("nonexistent").await;
+    let result = engine.start_instance(Uuid::new_v4()).await;
     assert!(matches!(
         result,
         Err(EngineError::NoSuchDefinition(_))
@@ -209,15 +208,15 @@ async fn missing_handler_gives_error() {
         .build()
         .unwrap();
 
-    engine.deploy_definition(def);
-    let result = engine.start_instance("p1").await;
+    let def_key = engine.deploy_definition(def).await;
+    let result = engine.start_instance(def_key).await;
     assert!(matches!(result, Err(EngineError::HandlerNotFound(_))));
 }
 
 #[tokio::test]
 async fn audit_log_captures_all_steps() {
-    let (mut engine, def_id) = setup_linear_engine();
-    let inst_id = engine.start_instance(&def_id).await.unwrap();
+    let (mut engine, def_key) = setup_linear_engine().await;
+    let inst_id = engine.start_instance(def_key).await.unwrap();
 
     let task_id = engine.pending_user_tasks[0].task_id;
     engine
@@ -314,13 +313,13 @@ async fn exclusive_gateway_takes_matching_path() {
         .build()
         .unwrap();
 
-    engine.deploy_definition(def);
+    let def_key = engine.deploy_definition(def).await;
 
     // amount = 500 → should take the "high" path
     let mut vars = HashMap::new();
     vars.insert("amount".into(), Value::Number(500.into()));
     let inst_id = engine
-        .start_instance_with_variables("xor_test", vars)
+        .start_instance_with_variables(def_key, vars)
         .await
         .unwrap();
 
@@ -360,13 +359,13 @@ async fn exclusive_gateway_uses_default_when_no_match() {
         .build()
         .unwrap();
 
-    engine.deploy_definition(def);
+    let def_key = engine.deploy_definition(def).await;
 
     // amount = 50 → no condition matches → should use default "low"
     let mut vars = HashMap::new();
     vars.insert("amount".into(), Value::Number(50.into()));
     let inst_id = engine
-        .start_instance_with_variables("xor_default", vars)
+        .start_instance_with_variables(def_key, vars)
         .await
         .unwrap();
 
@@ -397,10 +396,10 @@ async fn exclusive_gateway_error_when_no_match_no_default() {
         .build()
         .unwrap();
 
-    engine.deploy_definition(def);
+    let def_key = engine.deploy_definition(def).await;
 
     // No variables at all → no condition matches → error
-    let result = engine.start_instance("xor_fail").await;
+    let result = engine.start_instance(def_key).await;
     assert!(
         matches!(result, Err(EngineError::NoMatchingCondition(_))),
         "Expected NoMatchingCondition, got: {result:?}"
@@ -444,14 +443,14 @@ async fn inclusive_gateway_forks_multiple_paths() {
         .build()
         .unwrap();
 
-    engine.deploy_definition(def);
+    let def_key = engine.deploy_definition(def).await;
 
     // Both conditions true → both paths should fire
     let mut vars = HashMap::new();
     vars.insert("a".into(), Value::Number(10.into()));
     vars.insert("b".into(), Value::Number(20.into()));
     let inst_id = engine
-        .start_instance_with_variables("or_test", vars)
+        .start_instance_with_variables(def_key, vars)
         .await
         .unwrap();
 
@@ -489,13 +488,13 @@ async fn inclusive_gateway_single_match_no_fork() {
         .build()
         .unwrap();
 
-    engine.deploy_definition(def);
+    let def_key = engine.deploy_definition(def).await;
 
     // Only x == 1 → single match → Continue (not ContinueMultiple)
     let mut vars = HashMap::new();
     vars.insert("x".into(), Value::Number(1.into()));
     let inst_id = engine
-        .start_instance_with_variables("or_single", vars)
+        .start_instance_with_variables(def_key, vars)
         .await
         .unwrap();
 
@@ -539,13 +538,13 @@ fn build_xor_user_task_definition() -> ProcessDefinition {
 #[tokio::test]
 async fn xor_gateway_positive_x_routes_to_user_task_1() {
     let mut engine = WorkflowEngine::new();
-    engine.deploy_definition(build_xor_user_task_definition());
+    let def_key = engine.deploy_definition(build_xor_user_task_definition()).await;
 
     // x = 5 → condition "x > 0" matches → user-task-1
     let mut vars = HashMap::new();
     vars.insert("x".into(), Value::Number(5.into()));
     let inst_id = engine
-        .start_instance_with_variables("xor_user_tasks", vars)
+        .start_instance_with_variables(def_key, vars)
         .await
         .unwrap();
 
@@ -585,13 +584,13 @@ async fn xor_gateway_positive_x_routes_to_user_task_1() {
 #[tokio::test]
 async fn xor_gateway_negative_x_routes_to_user_task_2() {
     let mut engine = WorkflowEngine::new();
-    engine.deploy_definition(build_xor_user_task_definition());
+    let def_key = engine.deploy_definition(build_xor_user_task_definition()).await;
 
     // x = -3 → condition "x > 0" does NOT match → default → user-task-2
     let mut vars = HashMap::new();
     vars.insert("x".into(), Value::Number((-3).into()));
     let inst_id = engine
-        .start_instance_with_variables("xor_user_tasks", vars)
+        .start_instance_with_variables(def_key, vars)
         .await
         .unwrap();
 
@@ -625,13 +624,13 @@ async fn xor_gateway_negative_x_routes_to_user_task_2() {
 #[tokio::test]
 async fn xor_gateway_zero_x_routes_to_user_task_2() {
     let mut engine = WorkflowEngine::new();
-    engine.deploy_definition(build_xor_user_task_definition());
+    let def_key = engine.deploy_definition(build_xor_user_task_definition()).await;
 
     // x = 0 → boundary: "x > 0" is false → default → user-task-2
     let mut vars = HashMap::new();
     vars.insert("x".into(), Value::Number(0.into()));
     let inst_id = engine
-        .start_instance_with_variables("xor_user_tasks", vars)
+        .start_instance_with_variables(def_key, vars)
         .await
         .unwrap();
 
@@ -656,13 +655,13 @@ async fn xor_gateway_zero_x_routes_to_user_task_2() {
 #[tokio::test]
 async fn xor_gateway_user_task_merges_variables() {
     let mut engine = WorkflowEngine::new();
-    engine.deploy_definition(build_xor_user_task_definition());
+    let def_key = engine.deploy_definition(build_xor_user_task_definition()).await;
 
     // x = 10 → user-task-1
     let mut vars = HashMap::new();
     vars.insert("x".into(), Value::Number(10.into()));
     let inst_id = engine
-        .start_instance_with_variables("xor_user_tasks", vars)
+        .start_instance_with_variables(def_key, vars)
         .await
         .unwrap();
 
@@ -696,45 +695,21 @@ async fn xor_gateway_user_task_merges_variables() {
 }
 
 fn build_script_test_definition() -> ProcessDefinition {
-    let mut def = ProcessDefinition {
-        id: "script_test".into(),
-        nodes: HashMap::new(),
-        flows: HashMap::new(),
-        listeners: HashMap::new(),
-    };
-
-    def.nodes.insert("start".into(), BpmnElement::StartEvent);
-    def.nodes.insert("svc".into(), BpmnElement::ServiceTask("calculate".into()));
-    def.nodes.insert("end".into(), BpmnElement::EndEvent);
-
-    def.flows.insert(
-        "start".into(),
-        vec![crate::model::SequenceFlow {
-            target: "svc".into(),
-            condition: None,
-        }],
-    );
-    def.flows.insert(
-        "svc".into(),
-        vec![crate::model::SequenceFlow {
-            target: "end".into(),
-            condition: None,
-        }],
-    );
-
-    let listeners = vec![crate::model::ExecutionListener {
-        event: ListenerEvent::Start,
-        script: "x = x * 2; let result = \"small\"; if x > 10 { result = \"big\" }".into(),
-    }];
-    def.listeners.insert("svc".into(), listeners);
-
-    def
+    ProcessDefinitionBuilder::new("script_test")
+        .node("start", BpmnElement::StartEvent)
+        .node("svc", BpmnElement::ServiceTask("calculate".into()))
+        .node("end", BpmnElement::EndEvent)
+        .flow("start", "svc")
+        .flow("svc", "end")
+        .listener("svc", ListenerEvent::Start, "x = x * 2; let result = \"small\"; if x > 10 { result = \"big\" }")
+        .build()
+        .unwrap()
 }
 
 #[tokio::test]
 async fn script_mutates_state_and_executes_logic() {
     let mut engine = WorkflowEngine::new();
-    engine.deploy_definition(build_script_test_definition());
+    let def_key = engine.deploy_definition(build_script_test_definition()).await;
 
     engine.register_service_handler(
         "calculate",
@@ -745,7 +720,7 @@ async fn script_mutates_state_and_executes_logic() {
     vars.insert("x".into(), serde_json::json!(6));
 
     let inst_id = engine
-        .start_instance_with_variables("script_test", vars)
+        .start_instance_with_variables(def_key, vars)
         .await
         .unwrap();
 

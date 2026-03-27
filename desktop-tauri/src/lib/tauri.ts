@@ -10,7 +10,8 @@ export interface PendingUserTask {
 
 export interface ProcessInstance {
   id: string;
-  definition_id: string;
+  definition_key: string;
+  business_key: string;
   state: 'Running' | 'Completed' | { WaitingOnUserTask: { task_id: string } };
   current_node: string;
   audit_log: string[];
@@ -50,7 +51,8 @@ export async function updateInstanceVariables(instanceId: string, variables: Rec
 }
 
 export interface DefinitionInfo {
-  id: string;
+  key: string;
+  bpmn_id: string;
   node_count: number;
 }
 
@@ -107,4 +109,12 @@ export interface MonitoringData {
 
 export async function getMonitoringData(): Promise<MonitoringData> {
   return invoke('get_monitoring_data');
+}
+
+// ---------------------------------------------------------------------------
+// Read BPMN file from local filesystem
+// ---------------------------------------------------------------------------
+
+export async function readBpmnFile(path: string): Promise<string> {
+  return invoke('read_bpmn_file', { path });
 }

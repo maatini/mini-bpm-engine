@@ -3,9 +3,9 @@ use async_nats::jetstream::object_store::Config as ObjectStoreConfig;
 use async_nats::Client;
 use futures::StreamExt;
 use std::collections::HashMap;
-
+use engine_core::engine::{ProcessInstance, PendingUserTask};
 use engine_core::error::{EngineError, EngineResult};
-use engine_core::model::Token;
+use engine_core::model::{Token, ProcessDefinition};
 
 use async_trait::async_trait;
 use engine_core::persistence::WorkflowPersistence;
@@ -59,6 +59,33 @@ impl NatsPersistence {
             .create_object_store(ObjectStoreConfig {
                 bucket: "bpmn_xml".to_string(),
                 description: Some("Original BPMN 2.0 XML artifacts".to_string()),
+                ..Default::default()
+            })
+            .await;
+
+        // Ensure the instances KV bucket exists (per NATS rules).
+        let _ = js
+            .create_key_value(async_nats::jetstream::kv::Config {
+                bucket: "instances".to_string(),
+                description: "ProcessInstance state (JSON)".to_string(),
+                ..Default::default()
+            })
+            .await;
+
+        // Ensure the definitions KV bucket exists (per NATS rules).
+        let _ = js
+            .create_key_value(async_nats::jetstream::kv::Config {
+                bucket: "definitions".to_string(),
+                description: "ProcessDefinition metadata (JSON)".to_string(),
+                ..Default::default()
+            })
+            .await;
+
+        // Ensure the user_tasks KV bucket exists (per NATS rules).
+        let _ = js
+            .create_key_value(async_nats::jetstream::kv::Config {
+                bucket: "user_tasks".to_string(),
+                description: "PendingUserTask objects (JSON)".to_string(),
                 ..Default::default()
             })
             .await;
@@ -132,6 +159,24 @@ impl NatsPersistence {
             js_consumers: account.consumers,
         })
     }
+    /// Lists all definition IDs currently stored in the `bpmn_xml` Object Store.
+    pub async fn list_bpmn_xml_ids(&self) -> EngineResult<Vec<String>> {
+        let store = self.js.get_object_store("bpmn_xml").await.map_err(|e| {
+            EngineError::PersistenceError(format!("Failed to get bpmn_xml Object Store: {}", e))
+        })?;
+
+        let mut list = store.list().await.map_err(|e| {
+            EngineError::PersistenceError(format!("Failed to list bpmn_xml objects: {}", e))
+        })?;
+
+        let mut ids = Vec::new();
+        while let Some(info) = list.next().await {
+            if let Ok(info) = info {
+                ids.push(info.name);
+            }
+        }
+        Ok(ids)
+    }
 }
 
 #[async_trait]
@@ -180,6 +225,174 @@ impl WorkflowPersistence for NatsPersistence {
         }
         
         Ok(token_map.into_values().collect())
+    }
+
+    async fn save_instance(&self, instance: &ProcessInstance) -> EngineResult<()> {
+        let store = self.js.get_key_value("instances").await.map_err(|e| {
+            EngineError::PersistenceError(format!("Failed to get instances KV: {}", e))
+        })?;
+
+        let json = serde_json::to_vec(instance).map_err(|e| {
+            EngineError::PersistenceError(format!("Failed to serialize instance: {}", e))
+        })?;
+
+        store
+            .put(instance.id.to_string(), json.into())
+            .await
+            .map_err(|e| {
+                EngineError::PersistenceError(format!("Failed to put instance to KV: {}", e))
+            })?;
+
+        Ok(())
+    }
+
+    async fn list_instances(&self) -> EngineResult<Vec<ProcessInstance>> {
+        let store = self.js.get_key_value("instances").await.map_err(|e| {
+            EngineError::PersistenceError(format!("Failed to get instances KV: {}", e))
+        })?;
+
+        let mut keys = store.keys().await.map_err(|e| {
+            EngineError::PersistenceError(format!("Failed to list instance keys: {}", e))
+        });
+
+        let mut instances = Vec::new();
+        while let Ok(ref mut stream) = keys {
+            match stream.next().await {
+                Some(Ok(key)) => {
+                    match store.get(&key).await {
+                        Ok(Some(entry)) => {
+                            match serde_json::from_slice::<ProcessInstance>(&entry) {
+                                Ok(inst) => instances.push(inst),
+                                Err(e) => log::warn!("Failed to deserialize instance '{}': {}", key, e),
+                            }
+                        }
+                        Ok(None) => {}
+                        Err(e) => log::warn!("Failed to get instance '{}': {}", key, e),
+                    }
+                }
+                Some(Err(e)) => log::warn!("Failed to stream instance key: {}", e),
+                None => break,
+            }
+        }
+
+        Ok(instances)
+    }
+
+    async fn save_definition(&self, definition: &ProcessDefinition) -> EngineResult<()> {
+        let store = self.js.get_key_value("definitions").await.map_err(|e| {
+            EngineError::PersistenceError(format!("Failed to get definitions KV: {}", e))
+        })?;
+
+        let json = serde_json::to_vec(definition).map_err(|e| {
+            EngineError::PersistenceError(format!("Failed to serialize definition: {}", e))
+        })?;
+
+        store
+            .put(definition.key.to_string(), json.into())
+            .await
+            .map_err(|e| {
+                EngineError::PersistenceError(format!("Failed to put definition to KV: {}", e))
+            })?;
+
+        Ok(())
+    }
+
+    async fn list_definitions(&self) -> EngineResult<Vec<ProcessDefinition>> {
+        let store = self.js.get_key_value("definitions").await.map_err(|e| {
+            EngineError::PersistenceError(format!("Failed to get definitions KV: {}", e))
+        })?;
+
+        let mut keys = store.keys().await.map_err(|e| {
+            EngineError::PersistenceError(format!("Failed to list definition keys: {}", e))
+        });
+
+        let mut defs = Vec::new();
+        while let Ok(ref mut stream) = keys {
+            match stream.next().await {
+                Some(Ok(key)) => {
+                    match store.get(&key).await {
+                        Ok(Some(entry)) => {
+                            match serde_json::from_slice::<ProcessDefinition>(&entry) {
+                                Ok(def) => defs.push(def),
+                                Err(e) => log::warn!("Failed to deserialize definition '{}': {}", key, e),
+                            }
+                        }
+                        Ok(None) => {}
+                        Err(e) => log::warn!("Failed to get definition '{}': {}", key, e),
+                    }
+                }
+                Some(Err(e)) => log::warn!("Failed to stream definition key: {}", e),
+                None => break,
+            }
+        }
+
+        Ok(defs)
+    }
+
+    async fn save_user_task(&self, task: &PendingUserTask) -> EngineResult<()> {
+        let store = self.js.get_key_value("user_tasks").await.map_err(|e| {
+            EngineError::PersistenceError(format!("Failed to get user_tasks KV: {}", e))
+        })?;
+
+        let json = serde_json::to_vec(task).map_err(|e| {
+            EngineError::PersistenceError(format!("Failed to serialize user task: {}", e))
+        })?;
+
+        store
+            .put(task.task_id.to_string(), json.into())
+            .await
+            .map_err(|e| {
+                EngineError::PersistenceError(format!("Failed to put user task to KV: {}", e))
+            })?;
+
+        Ok(())
+    }
+
+    async fn delete_user_task(&self, task_id: uuid::Uuid) -> EngineResult<()> {
+        let store = self.js.get_key_value("user_tasks").await.map_err(|e| {
+            EngineError::PersistenceError(format!("Failed to get user_tasks KV: {}", e))
+        })?;
+
+        store
+            .delete(task_id.to_string())
+            .await
+            .map_err(|e| {
+                EngineError::PersistenceError(format!("Failed to delete user task from KV: {}", e))
+            })?;
+
+        Ok(())
+    }
+
+    async fn list_user_tasks(&self) -> EngineResult<Vec<PendingUserTask>> {
+        let store = self.js.get_key_value("user_tasks").await.map_err(|e| {
+            EngineError::PersistenceError(format!("Failed to get user_tasks KV: {}", e))
+        })?;
+
+        let mut keys = store.keys().await.map_err(|e| {
+            EngineError::PersistenceError(format!("Failed to list user task keys: {}", e))
+        });
+
+        let mut tasks = Vec::new();
+        while let Ok(ref mut stream) = keys {
+            match stream.next().await {
+                Some(Ok(key)) => {
+                    match store.get(&key).await {
+                        Ok(Some(entry)) => {
+                            match serde_json::from_slice::<PendingUserTask>(&entry) {
+                                Ok(task) => tasks.push(task),
+                                Err(e) => log::warn!("Failed to deserialize user task '{}': {}", key, e),
+                            }
+                        }
+                        Ok(None) => {}
+                        Err(e) => log::warn!("Failed to get user task '{}': {}", key, e),
+                    }
+                }
+                Some(Err(e)) => log::warn!("Failed to stream user task key: {}", e),
+                None => break,
+            }
+        }
+
+        Ok(tasks)
     }
 }
 

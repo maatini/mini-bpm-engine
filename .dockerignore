@@ -1,0 +1,57 @@
+# =============================================================================
+# .dockerignore – keep the Docker build context small and fast
+# =============================================================================
+
+# Rust build artifacts (massive – always rebuilt inside the container)
+target/
+**/target/
+
+# Git history
+.git/
+.github/
+
+# Node.js / Frontend (not needed for engine-server)
+node_modules/
+**/node_modules/
+desktop-tauri/dist/
+desktop-tauri/src-tauri/target/
+desktop-tauri/src-tauri/gen/
+desktop-tauri/src-tauri/bundle/
+desktop-tauri/src-tauri/WixTools/
+
+# Devbox / Nix
+.devbox/
+
+# Agent / AI files
+.agent/
+.gemini/
+AGENT_GUIDELINES.md
+
+# IDE & OS artifacts
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Environment & Secrets
+.env
+.env.*
+
+# Logs
+*.log
+
+# Docker-compose (not needed in image)
+docker-compose.yaml
+docker-compose.yml
+docker-compose.override.yml
+
+# Documentation & assets (not needed for build)
+readme-assets/
+*.md
+!README.md
+
+# Example files
+example.bpmn
+
+# Rust backup files
+**/*.rs.bk

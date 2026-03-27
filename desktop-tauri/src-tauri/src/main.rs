@@ -22,7 +22,9 @@ use engine_core::model::{ProcessDefinitionBuilder, BpmnElement};
 #[cfg(not(feature = "http-backend"))]
 use bpmn_parser::parse_bpmn_xml;
 #[cfg(not(feature = "http-backend"))]
-use persistence_nats::{NatsPersistence, NatsInfo};
+use persistence_nats::NatsPersistence;
+#[cfg(not(feature = "http-backend"))]
+use engine_core::WorkflowPersistence;
 
 /// Information about the active backend, returned to the UI.
 #[derive(serde::Serialize, Clone)]
@@ -61,7 +63,8 @@ struct NatsServerInfo {
 #[cfg(not(feature = "http-backend"))]
 #[derive(serde::Serialize, Clone)]
 struct DefinitionInfo {
-    id: String,
+    key: String,
+    bpmn_id: String,
     node_count: usize,
 }
 
@@ -96,8 +99,8 @@ async fn deploy_simple_process(state: tauri::State<'_, AppState>) -> Result<Stri
         .build()
         .map_err(|e| format!("{:?}", e))?;
 
-    engine.deploy_definition(def);
-    Ok("Deployed 'simple' process".into())
+    let key = engine.deploy_definition(def).await;
+    Ok(format!("Deployed 'simple' process (key: {})", key))
 }
 
 #[tauri::command]
@@ -112,22 +115,23 @@ async fn deploy_definition(state: tauri::State<'_, AppState>, xml: String, _name
     let mut engine = state.engine.lock().await;
 
     let def = parse_bpmn_xml(&xml).map_err(|e| format!("{:?}", e))?;
-    let def_id = def.id.clone();
+
+    let key = engine.deploy_definition(def).await;
+    let key_str = key.to_string();
 
     // Persist XML: prefer NATS Object Store, fall back to in-memory.
     {
         let nats_guard = state.nats.lock().await;
         if let Some(nats) = nats_guard.as_ref() {
-            nats.save_bpmn_xml(&def_id, &xml)
+            nats.save_bpmn_xml(&key_str, &xml)
                 .await
                 .map_err(|e| format!("NATS save XML failed: {:?}", e))?;
         }
     }
     // Always keep in-memory copy for fast reads.
-    state.deployed_xml.lock().await.insert(def_id.clone(), xml);
+    state.deployed_xml.lock().await.insert(key_str.clone(), xml);
 
-    engine.deploy_definition(def);
-    Ok(def_id)
+    Ok(key_str)
 }
 
 #[tauri::command]
@@ -150,19 +154,20 @@ async fn deploy_definition(state: tauri::State<'_, AppState>, xml: String, name:
     }
     
     let data: serde_json::Value = res.json().await.map_err(|e| e.to_string())?;
-    let def_id = data["definition_id"].as_str().unwrap_or("").to_string();
-    Ok(def_id)
+    let def_key = data["definition_key"].as_str().unwrap_or("").to_string();
+    Ok(def_key)
 }
 
 #[tauri::command]
 #[cfg(not(feature = "http-backend"))]
 async fn start_instance(state: tauri::State<'_, AppState>, def_id: String, variables: Option<HashMap<String, serde_json::Value>>) -> Result<String, String> {
     let mut engine = state.engine.lock().await;
+    let def_key = Uuid::parse_str(&def_id).map_err(|e| format!("Invalid definition key: {}", e))?;
     let id = match variables {
         Some(vars) if !vars.is_empty() => {
-            engine.start_instance_with_variables(&def_id, vars).await
+            engine.start_instance_with_variables(def_key, vars).await
         }
-        _ => engine.start_instance(&def_id).await,
+        _ => engine.start_instance(def_key).await,
     }
     .map_err(|e| format!("{:?}", e))?;
     Ok(id.to_string())
@@ -173,7 +178,7 @@ async fn start_instance(state: tauri::State<'_, AppState>, def_id: String, varia
 async fn start_instance(state: tauri::State<'_, AppState>, def_id: String, variables: Option<HashMap<String, serde_json::Value>>) -> Result<String, String> {
     let url = format!("{}/api/start", state.base_url);
     let mut payload = serde_json::json!({
-        "definition_id": def_id
+        "definition_key": def_id
     });
     if let Some(vars) = variables {
         if !vars.is_empty() {
@@ -332,8 +337,9 @@ async fn list_definitions(state: tauri::State<'_, AppState>) -> Result<Vec<Defin
     let defs: Vec<DefinitionInfo> = engine
         .definitions
         .iter()
-        .map(|(id, def)| DefinitionInfo {
-            id: id.clone(),
+        .map(|(key, def)| DefinitionInfo {
+            key: key.to_string(),
+            bpmn_id: def.id.clone(),
             node_count: def.nodes.len(),
         })
         .collect();
@@ -436,7 +442,9 @@ async fn switch_backend(
             let persistence = NatsPersistence::connect(&url, "WORKFLOW_EVENTS")
                 .await
                 .map_err(|e| format!("Failed to connect to NATS at '{}': {}", url, e))?;
-            *state.nats.lock().await = Some(Arc::new(persistence));
+            let nats_arc = Arc::new(persistence);
+            *state.nats.lock().await = Some(nats_arc.clone());
+            state.engine.lock().await.persistence = Some(nats_arc as Arc<dyn WorkflowPersistence>);
             *state.nats_url.lock().await = url.clone();
             Ok(BackendInfo {
                 backend_type: "nats".into(),
@@ -446,6 +454,7 @@ async fn switch_backend(
         }
         "in-memory" => {
             *state.nats.lock().await = None;
+            state.engine.lock().await.persistence = None;
             let url = state.nats_url.lock().await.clone();
             Ok(BackendInfo {
                 backend_type: "in-memory".into(),
@@ -530,6 +539,85 @@ async fn get_monitoring_data(_state: tauri::State<'_, AppState>) -> Result<Monit
     })
 }
 
+// ---------------------------------------------------------------------------
+// Read BPMN file from local filesystem
+// ---------------------------------------------------------------------------
+
+/// Read a BPMN XML file from disk and validate it via the bpmn-parser.
+#[tauri::command]
+#[cfg(not(feature = "http-backend"))]
+async fn read_bpmn_file(path: String) -> Result<String, String> {
+    let xml = std::fs::read_to_string(&path)
+        .map_err(|e| format!("Could not read file '{}': {}", path, e))?;
+    // Validate via bpmn-parser before returning.
+    let _ = parse_bpmn_xml(&xml)
+        .map_err(|e| format!("Invalid BPMN 2.0 XML: {:?}", e))?;
+    Ok(xml)
+}
+
+/// Read a BPMN XML file from disk (no parser validation in http-backend mode).
+#[tauri::command]
+#[cfg(feature = "http-backend")]
+async fn read_bpmn_file(path: String) -> Result<String, String> {
+    let xml = std::fs::read_to_string(&path)
+        .map_err(|e| format!("Could not read file '{}': {}", path, e))?;
+    Ok(xml)
+}
+
+/// Restores all BPMN definitions from NATS Object Store into the engine.
+#[cfg(not(feature = "http-backend"))]
+async fn restore_from_nats(
+    nats: &NatsPersistence,
+    engine: &mut WorkflowEngine,
+    deployed_xml: &mut HashMap<String, String>,
+) {
+    let ids = match nats.list_bpmn_xml_ids().await {
+        Ok(ids) => ids,
+        Err(e) => {
+            eprintln!("[mini-bpm] Failed to list definitions from NATS: {:?}", e);
+            return;
+        }
+    };
+    let count = ids.len();
+    for nats_key in ids {
+        match nats.load_bpmn_xml(&nats_key).await {
+            Ok(xml) => match parse_bpmn_xml(&xml) {
+                Ok(def) => {
+                    let key = engine.deploy_definition(def).await;
+                    deployed_xml.insert(key.to_string(), xml);
+                    println!("[mini-bpm] Restored definition (key: {})", key);
+                }
+                Err(e) => eprintln!("[mini-bpm] Failed to parse '{}': {:?}", nats_key, e),
+            },
+            Err(e) => eprintln!("[mini-bpm] Failed to load XML for '{}': {:?}", nats_key, e),
+        }
+    }
+    println!("[mini-bpm] Restore complete: {count} definition(s) found.");
+
+    // Restore instances and user tasks
+    match nats.list_instances().await {
+        Ok(instances) => {
+            let num = instances.len();
+            for inst in instances {
+                engine.instances.insert(inst.id, inst);
+            }
+            println!("[mini-bpm] Restored {} process instance(s).", num);
+        }
+        Err(e) => eprintln!("[mini-bpm] Failed to list instances: {:?}", e),
+    }
+
+    match nats.list_user_tasks().await {
+        Ok(tasks) => {
+            let num = tasks.len();
+            for task in tasks {
+                engine.pending_user_tasks.push(task);
+            }
+            println!("[mini-bpm] Restored {} pending user task(s).", num);
+        }
+        Err(e) => eprintln!("[mini-bpm] Failed to list user tasks: {:?}", e),
+    }
+}
+
 fn main() {
     // Attempt NATS connection (non-blocking, graceful fallback).
     #[cfg(not(feature = "http-backend"))]
@@ -552,10 +640,23 @@ fn main() {
         })
     };
 
+    // Restore definitions from NATS Object Store if connected.
+    #[cfg(not(feature = "http-backend"))]
+    let mut engine = WorkflowEngine::new();
+    #[cfg(not(feature = "http-backend"))]
+    let mut xml_cache: HashMap<String, String> = HashMap::new();
+    #[cfg(not(feature = "http-backend"))]
+    if let Some(ref nats) = nats_persistence {
+        engine.persistence = Some(nats.clone() as Arc<dyn WorkflowPersistence>);
+        tauri::async_runtime::block_on(async {
+            restore_from_nats(nats, &mut engine, &mut xml_cache).await;
+        });
+    }
+
     #[cfg(not(feature = "http-backend"))]
     let initial_state = AppState {
-        engine: Arc::new(Mutex::new(WorkflowEngine::new())),
-        deployed_xml: Arc::new(Mutex::new(HashMap::new())),
+        engine: Arc::new(Mutex::new(engine)),
+        deployed_xml: Arc::new(Mutex::new(xml_cache)),
         nats: Arc::new(Mutex::new(nats_persistence)),
         nats_url: Arc::new(Mutex::new(default_nats_url)),
     };
@@ -581,7 +682,8 @@ fn main() {
             get_definition_xml,
             get_backend_info,
             switch_backend,
-            get_monitoring_data
+            get_monitoring_data,
+            read_bpmn_file
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

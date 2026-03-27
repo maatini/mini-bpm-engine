@@ -16,6 +16,8 @@ interface MockState {
   deployedDefs: string[];
   deployedXml: Record<string, string>;
   instances: string[];
+  /** XML content returned by the read_bpmn_file mock */
+  openFileXml: string | null;
   pendingTasks: Array<{
     task_id: string;
     instance_id: string;
@@ -26,7 +28,8 @@ interface MockState {
   completedTasks: string[];
   processInstances: Array<{
     id: string;
-    definition_id: string;
+    definition_key: string;
+    business_key: string;
     state: string | { WaitingOnUserTask: { task_id: string } };
     current_node: string;
     audit_log: string[];
@@ -38,6 +41,7 @@ const DEFAULT_MOCK_STATE: MockState = {
   deployedDefs: [],
   deployedXml: {},
   instances: [],
+  openFileXml: null,
   pendingTasks: [],
   completedTasks: [],
   processInstances: [],
@@ -112,7 +116,8 @@ async function injectTauriMock(
                 const defId = mockState.deployedDefs.length > 0 ? mockState.deployedDefs[mockState.deployedDefs.length - 1] : 'mock-def';
                 mockState.processInstances.push({
                   id: instId,
-                  definition_id: defId,
+                  definition_key: defId,
+                  business_key: 'bk-' + Date.now(),
                   state: { WaitingOnUserTask: { task_id: 'mock-task-' + Date.now() } },
                   current_node: 'UserTask_Approval',
                   audit_log: [
@@ -172,7 +177,7 @@ async function injectTauriMock(
 
             case 'list_definitions': {
               // Return a definition info entry per deployed def
-              resolve(mockState.deployedDefs.map(id => ({ id, node_count: 3 })));
+              resolve(mockState.deployedDefs.map(id => ({ key: id, bpmn_id: id, node_count: 3 })));
               break;
             }
 
@@ -210,6 +215,23 @@ async function injectTauriMock(
             case 'plugin:dialog|save': {
               // Return a fake file path so writeTextFile can proceed
               resolve('/tmp/mock-download.bpmn');
+              break;
+            }
+
+            // Tauri built-in dialog/open
+            case 'plugin:dialog|open': {
+              // Return a fake file path for the open-file mock
+              resolve(mockState.openFileXml ? '/tmp/mock-open.bpmn' : null);
+              break;
+            }
+
+            // Read BPMN file from local filesystem
+            case 'read_bpmn_file': {
+              if (mockState.openFileXml) {
+                resolve(mockState.openFileXml);
+              } else {
+                reject('Mock: no openFileXml configured');
+              }
               break;
             }
 
@@ -493,7 +515,8 @@ test.describe('mini-bpm Desktop App – E2E', () => {
       processInstances: [
         {
           id: 'inst-aaa-111',
-          definition_id: 'order-process',
+          definition_key: 'order-process-key',
+          business_key: 'bk-order-001',
           state: 'Running',
           current_node: 'ServiceTask_1',
           audit_log: ['▶ Process started at node \'start\''],
@@ -501,7 +524,8 @@ test.describe('mini-bpm Desktop App – E2E', () => {
         },
         {
           id: 'inst-bbb-222',
-          definition_id: 'approval-flow',
+          definition_key: 'approval-flow-key',
+          business_key: 'bk-approval-001',
           state: 'Completed',
           current_node: 'end',
           audit_log: ['▶ Process started', '⏹ Process completed'],
@@ -518,7 +542,7 @@ test.describe('mini-bpm Desktop App – E2E', () => {
 
     // First instance should show Running badge
     await expect(cards.first().locator('.state-running')).toBeVisible();
-    await expect(cards.first().getByText('Definition: order-process')).toBeVisible();
+    await expect(cards.first().getByText(/Definition:/)).toBeVisible();
 
     // Second instance should show Completed badge
     await expect(cards.nth(1).locator('.state-completed')).toBeVisible();
@@ -531,7 +555,8 @@ test.describe('mini-bpm Desktop App – E2E', () => {
       processInstances: [
         {
           id: 'inst-detail-001',
-          definition_id: 'review-process',
+          definition_key: 'review-process-key',
+          business_key: 'bk-review-001',
           state: 'Running',
           current_node: 'ReviewTask',
           audit_log: [
@@ -764,7 +789,8 @@ test.describe('mini-bpm Desktop App – E2E', () => {
       processInstances: [
         {
           id: 'inst-edit-vars-001',
-          definition_id: 'edit-vars-def',
+          definition_key: 'edit-vars-key',
+          business_key: 'bk-edit-001',
           state: 'Running',
           current_node: 'Task_1',
           audit_log: ['▶ Process started'],
@@ -897,5 +923,41 @@ test.describe('mini-bpm Desktop App – E2E', () => {
     const taskCard = page.locator('.card').filter({ hasText: 'Task: UserTask_Approval' });
     await expect(taskCard).toBeVisible({ timeout: 5_000 });
     await expect(taskCard.getByText('Assignee: admin')).toBeVisible();
+  });
+
+  // ---- 21. Open BPMN file from filesystem ---------------------------------
+
+  test('should open a BPMN file from filesystem and load it into the modeler', async ({ page }) => {
+    const fileXml = `<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="OpenFileTest_1" isExecutable="true">
+    <bpmn:startEvent id="StartEvent_Open"/>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="OpenFileTest_1">
+      <bpmndi:BPMNShape id="Shape_Start" bpmnElement="StartEvent_Open">
+        <dc:Bounds x="180" y="160" width="36" height="36" />
+      </bpmndi:BPMNShape>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>`;
+
+    await injectTauriMock(page, { openFileXml: fileXml });
+    await page.goto('/');
+    await expect(page.locator('.bjs-container')).toBeVisible({ timeout: 10_000 });
+
+    // Click "Open File" – the mock dialog returns a path, read_bpmn_file returns XML
+    await page.locator('button', { hasText: 'Open File' }).click();
+
+    // Canvas should still be visible after loading
+    await expect(page.locator('.bjs-container')).toBeVisible({ timeout: 10_000 });
+
+    // defId was reset, so "Start Instance" should warn about missing deploy
+    const alerts = await collectAlerts(page, async () => {
+      await page.locator('.header-actions button', { hasText: 'Start Instance' }).click();
+      await page.locator('.vars-dialog button', { hasText: 'Start' }).click();
+    });
+    expect(alerts.length).toBe(1);
+    expect(alerts[0]).toBe('Please deploy a process first.');
   });
 });

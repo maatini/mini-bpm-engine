@@ -51,11 +51,12 @@ async fn deploy_minimal_workflow_returns_definition_id() {
     assert_eq!(res.status(), 200, "deploy should return 200 OK");
 
     let body: Value = res.json().await.expect("failed to parse deploy response");
-    let def_id = body["definition_id"]
+    let def_key = body["definition_key"]
         .as_str()
-        .expect("response should contain definition_id");
+        .expect("response should contain definition_key");
 
-    assert_eq!(def_id, "MinimalProcess", "definition_id should match process id");
+    // The returned key should be a valid UUID
+    assert!(uuid::Uuid::parse_str(def_key).is_ok(), "definition_key should be a valid UUID");
 }
 
 #[tokio::test]
@@ -76,15 +77,15 @@ async fn deploy_and_start_minimal_workflow_completes_immediately() {
 
     assert_eq!(deploy_res.status(), 200);
     let deploy_body: Value = deploy_res.json().await.expect("parse deploy response");
-    let def_id = deploy_body["definition_id"]
+    let def_key = deploy_body["definition_key"]
         .as_str()
-        .expect("definition_id missing")
+        .expect("definition_key missing")
         .to_string();
 
     // Step 2: Start instance
     let start_res = client
         .post(format!("{}/api/start", base))
-        .json(&serde_json::json!({ "definition_id": def_id }))
+        .json(&serde_json::json!({ "definition_key": def_key }))
         .send()
         .await
         .expect("start request failed");
@@ -112,8 +113,9 @@ async fn deploy_and_start_minimal_workflow_completes_immediately() {
         "instance should be Completed after Start→End workflow"
     );
     assert_eq!(
-        details["definition_id"], "MinimalProcess",
-        "definition_id should match"
+        details["definition_key"].as_str().map(|s| s.to_string()),
+        Some(def_key),
+        "definition_key should match the deployed key"
     );
 }
 

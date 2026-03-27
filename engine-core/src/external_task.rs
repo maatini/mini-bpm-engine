@@ -130,13 +130,13 @@ impl WorkflowEngine {
         ));
         inst.state = InstanceState::Running;
         inst.variables = token.variables.clone();
-        let def_id = inst.definition_id.clone();
+        let def_key = inst.definition_key;
 
         // Advance token to the next node
         let def = self
             .definitions
-            .get(&def_id)
-            .ok_or(EngineError::NoSuchDefinition(def_id))?;
+            .get(&def_key)
+            .ok_or(EngineError::NoSuchDefinition(def_key))?;
         let def = Arc::clone(def);
 
         // Run end scripts

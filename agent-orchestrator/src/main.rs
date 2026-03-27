@@ -32,7 +32,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let definition = parse_bpmn_xml(&bpmn_xml)?;
 
     // 2. Deploy definition to Engine
-    engine.deploy_definition(definition);
+    let def_key = engine.deploy_definition(definition).await;
 
     // 3. Register service handler bindings
     engine.register_service_handler("InitialProcessing", Arc::new(|vars| {
@@ -47,7 +47,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 4. Start instance
     log::info!("===========================================");
     log::info!("Starting Process_1...");
-    let instance_id = engine.start_instance("Process_1").await?;
+    let instance_id = engine.start_instance(def_key).await?;
     log::info!("Process instance started with ID: {}", instance_id);
 
     // Give engine time to progress to the user task...
@@ -70,7 +70,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         log::info!("===========================================");
         log::info!("Final instance state:");
         log::info!("ID: {}", instance.id);
-        log::info!("Definition: {}", instance.definition_id);
+        log::info!("Definition: {}", instance.definition_key);
         log::info!("State: {:?}", instance.state);
         log::info!("Current Node: {}", instance.current_node);
         log::info!("Audit Log Length: {}", instance.audit_log.len());

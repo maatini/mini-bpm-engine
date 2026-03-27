@@ -67,6 +67,12 @@ function App() {
     setDefId('')
   }
 
+  // Called when the user opens a local BPMN file via "Open File".
+  const handleOpenFile = () => {
+    setViewXml(null)
+    setDefId('')
+  }
+
   const handleComplete = async (taskId: string) => {
     try {
       await completeTask(taskId)
@@ -110,7 +116,7 @@ function App() {
       
       <div className="main-content">
         {activeTab === 'modeler' && (
-          <Modeler onDeploy={handleDeploy} onStart={handleStart} onNewDiagram={handleNewDiagram} initialXml={viewXml} />
+          <Modeler onDeploy={handleDeploy} onStart={handleStart} onNewDiagram={handleNewDiagram} onOpenFile={handleOpenFile} initialXml={viewXml} />
         )}
 
         {activeTab === 'definitions' && (

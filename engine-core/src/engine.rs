@@ -52,7 +52,7 @@ pub struct PendingUserTask {
 pub struct ExternalTaskItem {
     pub id: Uuid,
     pub instance_id: Uuid,
-    pub definition_id: String,
+    pub definition_key: Uuid,
     pub node_id: String,
     pub topic: String,
     pub token: Token,
@@ -109,7 +109,8 @@ pub enum InstanceState {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProcessInstance {
     pub id: Uuid,
-    pub definition_id: String,
+    pub definition_key: Uuid,
+    pub business_key: Uuid,
     pub state: InstanceState,
     pub current_node: String,
     pub audit_log: Vec<String>,
@@ -152,7 +153,7 @@ fn resolve_next_target(
 
 /// The central workflow engine managing definitions, instances, and handlers.
 pub struct WorkflowEngine {
-    pub definitions: HashMap<String, Arc<ProcessDefinition>>,
+    pub definitions: HashMap<Uuid, Arc<ProcessDefinition>>,
     pub instances: HashMap<Uuid, ProcessInstance>,
     pub service_handlers: HashMap<String, ServiceHandlerFn>,
     pub pending_user_tasks: Vec<PendingUserTask>,
@@ -182,12 +183,65 @@ impl WorkflowEngine {
         self
     }
 
+    /// Persists the current state of a process instance (if a persistence
+    /// layer is configured). Logs and swallows errors.
+    async fn persist_instance(&self, instance_id: Uuid) {
+        if let (Some(p), Some(inst)) = (&self.persistence, self.instances.get(&instance_id)) {
+            if let Err(e) = p.save_instance(inst).await {
+                log::error!("Failed to persist instance {}: {}", instance_id, e);
+            }
+        }
+    }
+
+    /// Persists a process definition to the KV store.
+    async fn persist_definition(&self, key: Uuid) {
+        if let (Some(p), Some(def)) = (&self.persistence, self.definitions.get(&key)) {
+            if let Err(e) = p.save_definition(def).await {
+                log::error!("Failed to persist definition {}: {}", key, e);
+            }
+        }
+    }
+
+    /// Persists a pending user task to the KV store.
+    async fn persist_user_task(&self, task_id: Uuid) {
+        if let Some(p) = &self.persistence {
+            if let Some(task) = self.pending_user_tasks.iter().find(|t| t.task_id == task_id) {
+                if let Err(e) = p.save_user_task(task).await {
+                    log::error!("Failed to persist user task {}: {}", task_id, e);
+                }
+            }
+        }
+    }
+
+    /// Deletes a completed pending user task from the KV store.
+    async fn remove_persisted_user_task(&self, task_id: Uuid) {
+        if let Some(p) = &self.persistence {
+            if let Err(e) = p.delete_user_task(task_id).await {
+                log::error!("Failed to delete persisted user task {}: {}", task_id, e);
+            }
+        }
+    }
+
     // ----- deployment ------------------------------------------------------
 
     /// Deploys a process definition so instances can be started from it.
-    pub fn deploy_definition(&mut self, definition: ProcessDefinition) {
-        log::info!("Deployed definition '{}'", definition.id);
-        self.definitions.insert(definition.id.clone(), Arc::new(definition));
+    ///
+    /// Upsert semantics: if a definition with the same BPMN process ID already
+    /// exists, its key is preserved and data is overwritten.
+    /// Returns the definition key (UUID).
+    pub async fn deploy_definition(&mut self, definition: ProcessDefinition) -> Uuid {
+        // Upsert: reuse key if same BPMN process ID already deployed
+        let existing_key = self.definitions.values()
+            .find(|d| d.id == definition.id)
+            .map(|d| d.key);
+
+        let key = existing_key.unwrap_or(definition.key);
+        let mut def = definition;
+        def.key = key;
+        log::info!("Deployed definition '{}' (key: {})", def.id, key);
+        self.definitions.insert(key, Arc::new(def));
+        self.persist_definition(key).await;
+        key
     }
 
     // ----- handler registration --------------------------------------------
@@ -209,8 +263,8 @@ impl WorkflowEngine {
     ///
     /// The definition must have a plain `StartEvent`.
     /// Delegates to `start_instance_with_variables` with an empty variable map.
-    pub async fn start_instance(&mut self, definition_id: &str) -> EngineResult<Uuid> {
-        self.start_instance_with_variables(definition_id, HashMap::new()).await
+    pub async fn start_instance(&mut self, definition_key: Uuid) -> EngineResult<Uuid> {
+        self.start_instance_with_variables(definition_key, HashMap::new()).await
     }
 
     /// Starts a new process instance with pre-populated variables.
@@ -219,13 +273,13 @@ impl WorkflowEngine {
     /// caller. The instance's `variables` field is also seeded.
     pub async fn start_instance_with_variables(
         &mut self,
-        definition_id: &str,
+        definition_key: Uuid,
         variables: HashMap<String, Value>,
     ) -> EngineResult<Uuid> {
         let def = self
             .definitions
-            .get(definition_id)
-            .ok_or_else(|| EngineError::NoSuchDefinition(definition_id.to_string()))?;
+            .get(&definition_key)
+            .ok_or(EngineError::NoSuchDefinition(definition_key))?;
 
         let (start_id, start_element) = def
             .start_event()
@@ -238,9 +292,11 @@ impl WorkflowEngine {
         }
 
         let instance_id = Uuid::new_v4();
+        let business_key = Uuid::new_v4();
         let instance = ProcessInstance {
             id: instance_id,
-            definition_id: definition_id.to_string(),
+            definition_key,
+            business_key,
             state: InstanceState::Running,
             current_node: start_id.to_string(),
             audit_log: vec![format!(
@@ -251,7 +307,7 @@ impl WorkflowEngine {
         };
 
         log::info!(
-            "Started instance {instance_id} of '{definition_id}' at node '{start_id}' with {} vars",
+            "Started instance {instance_id} of def key {definition_key} at node '{start_id}' with {} vars",
             variables.len()
         );
 
@@ -263,6 +319,7 @@ impl WorkflowEngine {
             }
         }
         self.run_instance(instance_id, token).await?;
+        self.persist_instance(instance_id).await;
 
         Ok(instance_id)
     }
@@ -272,13 +329,13 @@ impl WorkflowEngine {
     /// Validates the duration against the definition, then spawns the instance.
     pub async fn trigger_timer_start(
         &mut self,
-        definition_id: &str,
+        definition_key: Uuid,
         provided_duration: Duration,
     ) -> EngineResult<Uuid> {
         let def = self
             .definitions
-            .get(definition_id)
-            .ok_or_else(|| EngineError::NoSuchDefinition(definition_id.to_string()))?;
+            .get(&definition_key)
+            .ok_or(EngineError::NoSuchDefinition(definition_key))?;
 
         let (start_id, start_element) = def
             .start_event()
@@ -302,9 +359,11 @@ impl WorkflowEngine {
 
         let start_id = start_id.to_string();
         let instance_id = Uuid::new_v4();
+        let business_key = Uuid::new_v4();
         let instance = ProcessInstance {
             id: instance_id,
-            definition_id: definition_id.to_string(),
+            definition_key,
+            business_key,
             state: InstanceState::Running,
             current_node: start_id.clone(),
             audit_log: vec![format!(
@@ -315,7 +374,7 @@ impl WorkflowEngine {
         };
 
         log::info!(
-            "Timer-started instance {instance_id} of '{definition_id}' ({}s)",
+            "Timer-started instance {instance_id} of def key {definition_key} ({}s)",
             provided_duration.as_secs()
         );
 
@@ -327,6 +386,7 @@ impl WorkflowEngine {
             }
         }
         self.run_instance(instance_id, token).await?;
+        self.persist_instance(instance_id).await;
 
         Ok(instance_id)
     }
@@ -340,22 +400,21 @@ impl WorkflowEngine {
     /// the duration and let the main code handle it.
     pub fn schedule_timer_start(
         &self,
-        definition_id: &str,
+        definition_key: Uuid,
         duration: Duration,
     ) -> EngineResult<()> {
-        if !self.definitions.contains_key(definition_id) {
-            return Err(EngineError::NoSuchDefinition(definition_id.to_string()));
+        if !self.definitions.contains_key(&definition_key) {
+            return Err(EngineError::NoSuchDefinition(definition_key));
         }
 
-        let def_id = definition_id.to_string();
         log::info!(
-            "Scheduled timer for '{def_id}' — will fire in {}s",
+            "Scheduled timer for def key '{definition_key}' — will fire in {}s",
             duration.as_secs()
         );
 
         tokio::spawn(async move {
             tokio::time::sleep(duration).await;
-            log::info!("⏰ Timer fired for '{def_id}' after {}s", duration.as_secs());
+            log::info!("⏰ Timer fired for def key '{definition_key}' after {}s", duration.as_secs());
             // In a real engine this would send a message via mpsc channel
             // to the engine to start the instance. For demo purposes we log.
         });
@@ -409,6 +468,8 @@ impl WorkflowEngine {
                         inst.state = InstanceState::WaitingOnUserTask { task_id };
                     }
                     self.pending_user_tasks.push(pending);
+                    self.persist_instance(instance_id).await;
+                    self.persist_user_task(task_id).await;
                     return Ok(());
                 }
                 NextAction::WaitForExternalTask(ext_task) => {
@@ -416,6 +477,7 @@ impl WorkflowEngine {
                     if let Some(inst) = self.instances.get_mut(&instance_id) {
                         inst.state = InstanceState::WaitingOnExternalTask { task_id };
                     }
+                    self.persist_instance(instance_id).await;
                     self.pending_external_tasks.push(ext_task);
                     return Ok(());
                 }
@@ -423,6 +485,7 @@ impl WorkflowEngine {
                     if let Some(inst) = self.instances.get_mut(&instance_id) {
                         inst.state = InstanceState::Completed;
                     }
+                    self.persist_instance(instance_id).await;
                     return Ok(());
                 }
             }
@@ -456,18 +519,18 @@ impl WorkflowEngine {
         instance_id: Uuid,
         token: &mut Token,
     ) -> EngineResult<NextAction> {
-        let def_id = {
+        let def_key = {
             let instance = self
                 .instances
                 .get(&instance_id)
                 .ok_or(EngineError::NoSuchInstance(instance_id))?;
-            instance.definition_id.clone()
+            instance.definition_key
         };
 
         let def = self
             .definitions
-            .get(&def_id)
-            .ok_or_else(|| EngineError::NoSuchDefinition(def_id.clone()))?;
+            .get(&def_key)
+            .ok_or(EngineError::NoSuchDefinition(def_key))?;
 
         let current_id = token.current_node.clone();
         let element = def
@@ -576,7 +639,7 @@ impl WorkflowEngine {
                 let ext_task = ExternalTaskItem {
                     id: Uuid::new_v4(),
                     instance_id,
-                    definition_id: def_id.clone(),
+                    definition_key: def_key,
                     node_id: current_id.clone(),
                     topic: topic.clone(),
                     token: token.clone(),
@@ -731,6 +794,8 @@ impl WorkflowEngine {
             token.variables.insert(k, v);
         }
 
+        self.remove_persisted_user_task(task_id).await;
+
         log::info!(
             "Instance {instance_id}: completed user task '{}' (task_id: {task_id})",
             pending.node_id
@@ -744,13 +809,13 @@ impl WorkflowEngine {
             .push(format!("✅ User task '{}' completed", pending.node_id));
         inst.state = InstanceState::Running;
         inst.variables = token.variables.clone();
-        let def_id = inst.definition_id.clone();
+        let def_key = inst.definition_key;
 
         // Advance token to the next node
         let def = self
             .definitions
-            .get(&def_id)
-            .ok_or(EngineError::NoSuchDefinition(def_id))?;
+            .get(&def_key)
+            .ok_or(EngineError::NoSuchDefinition(def_key))?;
         let def = Arc::clone(def);
 
         self.run_end_scripts(instance_id, &mut token, &def, &pending.node_id)?;

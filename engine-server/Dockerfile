@@ -1,4 +1,4 @@
-FROM rust:1.80 as builder
+FROM rust:1.85 AS builder
 WORKDIR /app
 COPY . .
 RUN cargo build --release -p engine-server

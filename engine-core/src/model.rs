@@ -135,6 +135,9 @@ impl Token {
 ///   Linear nodes have exactly one entry; gateways have two or more.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProcessDefinition {
+    /// Unique key for this definition (UUID). Persists across re-deployments.
+    pub key: Uuid,
+    /// Human-readable BPMN process ID (e.g. "Process_1").
     pub id: String,
     pub nodes: HashMap<String, BpmnElement>,
     pub flows: HashMap<String, Vec<SequenceFlow>>,
@@ -227,7 +230,7 @@ impl ProcessDefinition {
             }
         }
 
-        Ok(Self { id, nodes, flows, listeners })
+        Ok(Self { key: Uuid::new_v4(), id, nodes, flows, listeners })
     }
 
     /// Returns the (id, element) of the start event.
@@ -273,6 +276,7 @@ impl ProcessDefinition {
 /// Fluent builder for creating a `ProcessDefinition`.
 pub struct ProcessDefinitionBuilder {
     id: String,
+    key: Option<Uuid>,
     nodes: HashMap<String, BpmnElement>,
     flows: HashMap<String, Vec<SequenceFlow>>,
     listeners: HashMap<String, Vec<ExecutionListener>>,
@@ -282,10 +286,17 @@ impl ProcessDefinitionBuilder {
     pub fn new(id: impl Into<String>) -> Self {
         Self {
             id: id.into(),
+            key: None,
             nodes: HashMap::new(),
             flows: HashMap::new(),
             listeners: HashMap::new(),
         }
+    }
+
+    /// Sets an explicit key for the definition (used during restore).
+    pub fn with_key(mut self, key: Uuid) -> Self {
+        self.key = Some(key);
+        self
     }
 
     /// Adds a node to the definition.
@@ -331,7 +342,11 @@ impl ProcessDefinitionBuilder {
 
     /// Builds and validates the definition.
     pub fn build(self) -> EngineResult<ProcessDefinition> {
-        ProcessDefinition::new(self.id, self.nodes, self.flows, self.listeners)
+        let mut def = ProcessDefinition::new(self.id, self.nodes, self.flows, self.listeners)?;
+        if let Some(key) = self.key {
+            def.key = key;
+        }
+        Ok(def)
     }
 }
 

@@ -103,12 +103,12 @@ struct DeployRequest {
 
 #[derive(Serialize)]
 struct DeployResponse {
-    definition_id: String,
+    definition_key: String,
 }
 
 #[derive(Serialize, Deserialize)]
 struct StartRequest {
-    definition_id: String,
+    definition_key: String,
     #[serde(default)]
     variables: Option<HashMap<String, Value>>,
 }
@@ -221,10 +221,9 @@ async fn deploy_definition(
     let def = bpmn_parser::parse_bpmn_xml(&payload.xml)
         .map_err(|e| AppError::BadRequest(format!("Invalid BPMN XML: {e:?}")))?;
 
-    let def_id = def.id.clone();
-    engine.deploy_definition(def);
+    let key = engine.deploy_definition(def).await;
 
-    Ok(Json(DeployResponse { definition_id: def_id }))
+    Ok(Json(DeployResponse { definition_key: key.to_string() }))
 }
 
 async fn start_instance(
@@ -232,13 +231,14 @@ async fn start_instance(
     Json(payload): Json<StartRequest>,
 ) -> Result<Json<StartResponse>, AppError> {
     let mut engine = state.engine.lock().await;
+    let def_key = parse_uuid(&payload.definition_key)?;
     let id = match payload.variables {
         Some(vars) if !vars.is_empty() => {
             engine
-                .start_instance_with_variables(&payload.definition_id, vars)
+                .start_instance_with_variables(def_key, vars)
                 .await
         }
-        _ => engine.start_instance(&payload.definition_id).await,
+        _ => engine.start_instance(def_key).await,
     }?;
 
     Ok(Json(StartResponse { instance_id: id.to_string() }))

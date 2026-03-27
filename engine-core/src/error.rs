@@ -16,9 +16,9 @@ pub enum EngineError {
     #[error("No such node: {0}")]
     NoSuchNode(String),
 
-    /// No process definition found for the given ID.
+    /// No process definition found for the given key.
     #[error("No such definition: {0}")]
-    NoSuchDefinition(String),
+    NoSuchDefinition(Uuid),
 
     /// No process instance found for the given ID.
     #[error("No such instance: {0}")]
