@@ -1,85 +1,80 @@
-use std::sync::Arc;
-use tokio::time::{sleep, Duration};
-
-use bpmn_parser::parse_bpmn_xml;
-use engine_core::engine::WorkflowEngine;
-use persistence_nats::persistence::NatsPersistence;
+use serde_json::Value;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Initialize standard logging
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
-    log::info!("Starting mini-bpm workflow engine...");
-    let mut engine = WorkflowEngine::new();
+    let base_url = std::env::var("ENGINE_API_URL")
+        .unwrap_or_else(|_| "http://localhost:8081".to_string());
 
-    // Optional: Connect to NATS JetStream for tracking workflow events
-    match NatsPersistence::connect("nats://localhost:4222", "WORKFLOW_EVENTS").await {
-        Ok(nats) => {
-            log::info!("Connected to NATS JetStream for token persistence.");
-            engine = engine.with_persistence(Arc::new(nats));
-        }
-        Err(e) => {
-            log::warn!(
-                "NATS not available at nats://localhost:4222, running in strictly in-memory mode. Reason: {}",
-                e
-            );
-        }
-    }
+    let client = reqwest::Client::new();
 
-    // 1. Read and Parse BPMN file
+    log::info!("Starting mini-bpm agent-orchestrator (HTTP mode)...");
+    log::info!("Engine API: {}", base_url);
+
+    // 1. Deploy example BPMN
     let bpmn_xml = std::fs::read_to_string("example.bpmn")?;
-    let definition = parse_bpmn_xml(&bpmn_xml)?;
+    let deploy_res: Value = client
+        .post(format!("{}/api/deploy", base_url))
+        .json(&serde_json::json!({ "xml": bpmn_xml, "name": "example" }))
+        .send().await?
+        .json().await?;
+    let def_key = deploy_res["definition_key"].as_str().unwrap();
+    log::info!("Deployed definition: {}", def_key);
 
-    // 2. Deploy definition to Engine
-    let def_key = engine.deploy_definition(definition).await;
+    // 2. Start instance
+    let start_res: Value = client
+        .post(format!("{}/api/start", base_url))
+        .json(&serde_json::json!({ "definition_key": def_key }))
+        .send().await?
+        .json().await?;
+    let instance_id = start_res["instance_id"].as_str().unwrap();
+    log::info!("Started instance: {}", instance_id);
 
-    // 4. Start instance
-    log::info!("===========================================");
-    log::info!("Starting Process_1...");
-    let instance_id = engine.start_instance(def_key).await?;
-    log::info!("Process instance started with ID: {}", instance_id);
+    // 3. Fetch and complete service tasks
+    let tasks: Vec<Value> = client
+        .post(format!("{}/api/service-task/fetchAndLock", base_url))
+        .json(&serde_json::json!({
+            "workerId": "orchestrator",
+            "maxTasks": 10,
+            "topics": [{ "topicName": "InitialProcessing", "lockDuration": 10000 }]
+        }))
+        .send().await?
+        .json().await?;
 
-
-    // Give engine time to progress to the service task
-    sleep(Duration::from_millis(150)).await;
-
-    let svc_tasks = engine.fetch_and_lock_service_tasks("orchestrator", 1, &["InitialProcessing".to_string()], 10000).await;
-    for task in svc_tasks {
-        log::info!("  -> [ServiceTask] Completing '{}'", task.node_id);
-        let mut vars = std::collections::HashMap::new();
-        vars.insert("processed".to_string(), serde_json::Value::Bool(true));
-        engine.complete_service_task(task.id, "orchestrator", vars).await?;
+    for task in &tasks {
+        let task_id = task["id"].as_str().unwrap();
+        log::info!("Completing service task: {}", task_id);
+        client
+            .post(format!("{}/api/service-task/{}/complete", base_url, task_id))
+            .json(&serde_json::json!({
+                "workerId": "orchestrator",
+                "variables": { "processed": true }
+            }))
+            .send().await?;
     }
 
-    // Give engine time to progress to the user task...
-    sleep(Duration::from_millis(150)).await;
+    // 4. Complete pending user tasks
+    let user_tasks: Vec<Value> = client
+        .get(format!("{}/api/tasks", base_url))
+        .send().await?
+        .json().await?;
 
-    // 5. Check out pending manual tasks
-    let pending_tasks = engine.get_pending_user_tasks();
-    log::info!("Found {} pending user task(s).", pending_tasks.len());
-
-    if let Some(task) = pending_tasks.first() {
-        log::info!("  -> [UserTask] Completing '{}' for user '{}'", task.node_id, task.assignee);
-        engine.complete_user_task(task.task_id, Default::default()).await?;
+    for task in &user_tasks {
+        let task_id = task["task_id"].as_str().unwrap();
+        log::info!("Completing user task: {}", task_id);
+        client
+            .post(format!("{}/api/complete/{}", base_url, task_id))
+            .json(&serde_json::json!({ "variables": {} }))
+            .send().await?;
     }
 
-    // Give engine time to complete the flow...
-    sleep(Duration::from_millis(50)).await;
-
-    // View final instance state
-    if let Some(instance) = engine.instances.get(&instance_id) {
-        log::info!("===========================================");
-        log::info!("Final instance state:");
-        log::info!("ID: {}", instance.id);
-        log::info!("Definition: {}", instance.definition_key);
-        log::info!("State: {:?}", instance.state);
-        log::info!("Current Node: {}", instance.current_node);
-        log::info!("Audit Log Length: {}", instance.audit_log.len());
-        for event in instance.audit_log.iter() {
-            log::info!(" - Event: {:?}", event);
-        }
-    }
+    // 5. Show final state
+    let instance: Value = client
+        .get(format!("{}/api/instances/{}", base_url, instance_id))
+        .send().await?
+        .json().await?;
+    log::info!("Final state: {}", serde_json::to_string_pretty(&instance)?);
 
     Ok(())
 }

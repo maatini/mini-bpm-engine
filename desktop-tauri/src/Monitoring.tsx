@@ -70,7 +70,7 @@ export function Monitoring() {
             <div className="metric-label">Pending User Tasks</div>
           </div>
           <div className="metric-card">
-            <div className="metric-value">{data?.pending_external_tasks ?? '–'}</div>
+            <div className="metric-value">{data?.pending_service_tasks ?? '–'}</div>
             <div className="metric-label">Pending External Tasks</div>
           </div>
         </div>

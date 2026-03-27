@@ -1,8 +1,22 @@
 use async_trait::async_trait;
+use serde::{Deserialize, Serialize};
 
 use crate::engine::{ProcessInstance, PendingUserTask, PendingServiceTask};
 use crate::error::EngineResult;
 use crate::model::{Token, ProcessDefinition};
+
+/// Generic storage backend information for monitoring.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StorageInfo {
+    pub backend_name: String,
+    pub version: String,
+    pub host: String,
+    pub port: u16,
+    pub memory_bytes: u64,
+    pub storage_bytes: u64,
+    pub streams: usize,
+    pub consumers: usize,
+}
 
 /// A trait for persisting workflow engine state.
 #[async_trait]
@@ -41,4 +55,15 @@ pub trait WorkflowPersistence: Send + Sync {
     async fn delete_service_task(&self, task_id: uuid::Uuid) -> EngineResult<()>;
     /// Load all persisted service tasks.
     async fn list_service_tasks(&self) -> EngineResult<Vec<PendingServiceTask>>;
+
+    /// Store original BPMN 2.0 XML for a definition.
+    async fn save_bpmn_xml(&self, definition_key: &str, xml: &str) -> EngineResult<()>;
+    /// Load original BPMN 2.0 XML for a definition.
+    async fn load_bpmn_xml(&self, definition_key: &str) -> EngineResult<String>;
+    /// List all stored BPMN XML definition keys.
+    async fn list_bpmn_xml_ids(&self) -> EngineResult<Vec<String>>;
+
+    /// Returns storage backend information (name, version, etc.).
+    /// Returns None if the backend doesn't support reporting.
+    async fn get_storage_info(&self) -> EngineResult<Option<StorageInfo>>;
 }

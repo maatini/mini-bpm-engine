@@ -133,7 +133,7 @@ export interface MonitoringData {
   instances_running: number;
   instances_completed: number;
   pending_user_tasks: number;
-  pending_external_tasks: number;
+  pending_service_tasks: number;
   nats_server: NatsServerInfo | null;
 }
 

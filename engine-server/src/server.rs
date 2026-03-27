@@ -5,17 +5,17 @@ use axum::{
     routing::{get, post, put, delete},
     Json, Router,
 };
-use engine_core::engine::{PendingServiceTask, PendingUserTask, ProcessInstance, WorkflowEngine, InstanceState};
+use engine_core::engine::{PendingServiceTask, PendingUserTask, ProcessInstance, WorkflowEngine};
 use engine_core::error::EngineError;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 
 use std::sync::Arc;
-use tokio::sync::Mutex;
+use tokio::sync::RwLock;
 use tower_http::cors::{Any, CorsLayer};
 use uuid::Uuid;
-use persistence_nats::NatsPersistence;
+use engine_core::persistence::{StorageInfo, WorkflowPersistence};
 
 // ---------------------------------------------------------------------------
 // Centralized error type – maps EngineError to proper HTTP status codes
@@ -93,9 +93,9 @@ fn parse_uuid(raw: &str) -> Result<Uuid, AppError> {
 // ---------------------------------------------------------------------------
 
 struct AppState {
-    engine: Arc<Mutex<WorkflowEngine>>,
-    nats: Option<Arc<NatsPersistence>>,
-    deployed_xml: Arc<Mutex<HashMap<String, String>>>,
+    engine: Arc<RwLock<WorkflowEngine>>,
+    persistence: Option<Arc<dyn WorkflowPersistence>>,
+    deployed_xml: Arc<RwLock<HashMap<String, String>>>,
     nats_url: String, // Store URL for /api/info
 }
 
@@ -106,17 +106,7 @@ struct BackendInfo {
     connected: bool,
 }
 
-#[derive(Serialize)]
-struct NatsServerInfo {
-    server_name: String,
-    version: String,
-    host: String,
-    port: u16,
-    memory_bytes: u64,
-    storage_bytes: u64,
-    streams: usize,
-    consumers: usize,
-}
+
 
 #[derive(Serialize)]
 struct MonitoringData {
@@ -126,7 +116,7 @@ struct MonitoringData {
     instances_completed: usize,
     pending_user_tasks: usize,
     pending_service_tasks: usize,
-    nats_server: Option<NatsServerInfo>,
+    storage_info: Option<StorageInfo>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -213,20 +203,20 @@ struct BpmnErrorRequest {
 /// Exposed as `pub` so integration tests can create the app without
 /// starting a full server binary.
 pub fn build_app() -> Router {
-    build_app_with_engine(Arc::new(Mutex::new(WorkflowEngine::new())), None, HashMap::new())
+    build_app_with_engine(Arc::new(RwLock::new(WorkflowEngine::new())), None, HashMap::new())
 }
 
 pub fn build_app_with_engine(
-    engine: Arc<Mutex<WorkflowEngine>>,
-    nats: Option<Arc<NatsPersistence>>,
+    engine: Arc<RwLock<WorkflowEngine>>,
+    persistence: Option<Arc<dyn WorkflowPersistence>>,
     xml_cache: HashMap<String, String>,
 ) -> Router {
     let nats_url = std::env::var("NATS_URL").unwrap_or_else(|_| "nats://localhost:4222".to_string());
     
     let state = Arc::new(AppState {
         engine,
-        nats,
-        deployed_xml: Arc::new(Mutex::new(xml_cache)),
+        persistence,
+        deployed_xml: Arc::new(RwLock::new(xml_cache)),
         nats_url,
     });
 
@@ -267,7 +257,7 @@ async fn deploy_definition(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<DeployRequest>,
 ) -> Result<Json<DeployResponse>, AppError> {
-    let mut engine = state.engine.lock().await;
+    let mut engine = state.engine.write().await;
 
     let def = bpmn_parser::parse_bpmn_xml(&payload.xml)
         .map_err(|e| AppError::BadRequest(format!("Invalid BPMN XML: {e:?}")))?;
@@ -275,12 +265,12 @@ async fn deploy_definition(
     let key = engine.deploy_definition(def).await;
     let key_str = key.to_string();
 
-    if let Some(nats) = &state.nats {
-        if let Err(e) = nats.save_bpmn_xml(&key_str, &payload.xml).await {
-            log::error!("Failed to save BPMN XML to NATS: {:?}", e);
+    if let Some(persistence) = &state.persistence {
+        if let Err(e) = persistence.save_bpmn_xml(&key_str, &payload.xml).await {
+            log::error!("Failed to save BPMN XML to persistence layer: {:?}", e);
         }
     }
-    state.deployed_xml.lock().await.insert(key_str.clone(), payload.xml.clone());
+    state.deployed_xml.write().await.insert(key_str.clone(), payload.xml.clone());
 
     Ok(Json(DeployResponse { definition_key: key_str }))
 }
@@ -295,14 +285,14 @@ struct DefinitionInfo {
 async fn list_definitions(
     State(state): State<Arc<AppState>>,
 ) -> Json<Vec<DefinitionInfo>> {
-    let engine = state.engine.lock().await;
+    let engine = state.engine.read().await;
     let defs: Vec<DefinitionInfo> = engine
-        .definitions
-        .iter()
-        .map(|(key, def)| DefinitionInfo {
+        .list_definitions()
+        .into_iter()
+        .map(|(key, bpmn_id, node_count)| DefinitionInfo {
             key: key.to_string(),
-            bpmn_id: def.id.clone(),
-            node_count: def.nodes.len(),
+            bpmn_id,
+            node_count,
         })
         .collect();
     Json(defs)
@@ -313,14 +303,14 @@ async fn get_definition_xml(
     Path(id): Path<String>,
 ) -> Result<String, AppError> {
     {
-        let xml_store = state.deployed_xml.lock().await;
+        let xml_store = state.deployed_xml.read().await;
         if let Some(xml) = xml_store.get(&id) {
             return Ok(xml.clone());
         }
     }
 
-    if let Some(nats) = &state.nats {
-        if let Ok(xml) = nats.load_bpmn_xml(&id).await {
+    if let Some(persistence) = &state.persistence {
+        if let Ok(xml) = persistence.load_bpmn_xml(&id).await {
             return Ok(xml);
         }
     }
@@ -332,7 +322,7 @@ async fn start_instance(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<StartRequest>,
 ) -> Result<Json<StartResponse>, AppError> {
-    let mut engine = state.engine.lock().await;
+    let mut engine = state.engine.write().await;
     let def_key = parse_uuid(&payload.definition_key)?;
     let id = match payload.variables {
         Some(vars) if !vars.is_empty() => {
@@ -349,7 +339,7 @@ async fn start_instance(
 async fn get_tasks(
     State(state): State<Arc<AppState>>,
 ) -> Json<Vec<PendingUserTask>> {
-    let engine = state.engine.lock().await;
+    let engine = state.engine.read().await;
     let tasks = engine.get_pending_user_tasks().to_vec();
     Json(tasks)
 }
@@ -357,8 +347,8 @@ async fn get_tasks(
 async fn get_service_tasks(
     State(state): State<Arc<AppState>>,
 ) -> Json<Vec<PendingServiceTask>> {
-    let engine = state.engine.lock().await;
-    let tasks = engine.get_external_tasks().to_vec();
+    let engine = state.engine.read().await;
+    let tasks = engine.get_pending_service_tasks().to_vec();
     Json(tasks)
 }
 
@@ -367,7 +357,7 @@ async fn complete_task(
     Path(id): Path<String>,
     Json(payload): Json<CompleteRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    let mut engine = state.engine.lock().await;
+    let mut engine = state.engine.write().await;
     let task_id = parse_uuid(&id)?;
     let vars = payload.variables.unwrap_or_default();
 
@@ -379,7 +369,7 @@ async fn complete_task(
 async fn list_instances(
     State(state): State<Arc<AppState>>,
 ) -> Json<Vec<ProcessInstance>> {
-    let engine = state.engine.lock().await;
+    let engine = state.engine.read().await;
     let instances = engine.list_instances();
     Json(instances)
 }
@@ -388,7 +378,7 @@ async fn get_instance(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
 ) -> Result<Json<ProcessInstance>, AppError> {
-    let engine = state.engine.lock().await;
+    let engine = state.engine.read().await;
     let instance_id = parse_uuid(&id)?;
 
     let instance = engine.get_instance_details(instance_id)?;
@@ -406,19 +396,19 @@ async fn update_instance_variables(
     Path(id): Path<String>,
     Json(payload): Json<UpdateVariablesRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    let mut engine = state.engine.lock().await;
+    let mut engine = state.engine.write().await;
     let instance_id = parse_uuid(&id)?;
 
     engine.update_instance_variables(instance_id, payload.variables)?;
 
-    Ok((StatusCode::OK, Json(serde_json::json!({ "status": "ok" }))))
+    Ok(StatusCode::NO_CONTENT)
 }
 
 async fn delete_instance(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, AppError> {
-    let mut engine = state.engine.lock().await;
+    let mut engine = state.engine.write().await;
     let instance_id = parse_uuid(&id)?;
 
     engine.delete_instance(instance_id).await?;
@@ -436,12 +426,12 @@ async fn delete_definition(
     Path(id): Path<String>,
     axum::extract::Query(query): axum::extract::Query<DeleteDefinitionQuery>,
 ) -> Result<impl IntoResponse, AppError> {
-    let mut engine = state.engine.lock().await;
+    let mut engine = state.engine.write().await;
     let def_key = parse_uuid(&id)?;
 
     engine.delete_definition(def_key, query.cascade.unwrap_or(false)).await?;
 
-    state.deployed_xml.lock().await.remove(&id);
+    state.deployed_xml.write().await.remove(&id);
 
     Ok(StatusCode::NO_CONTENT)
 }
@@ -466,7 +456,7 @@ async fn fetch_and_lock_service_tasks(
     // Simple long-polling: retry until tasks found or timeout
     let start = tokio::time::Instant::now();
     loop {
-        let mut engine = state.engine.lock().await;
+        let mut engine = state.engine.write().await;
         let tasks = engine.fetch_and_lock_service_tasks(
             &payload.worker_id,
             payload.max_tasks,
@@ -495,7 +485,7 @@ async fn complete_service_task(
     Path(id): Path<String>,
     Json(payload): Json<CompleteServiceTaskRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    let mut engine = state.engine.lock().await;
+    let mut engine = state.engine.write().await;
     let task_id = parse_uuid(&id)?;
     let vars = payload.variables.unwrap_or_default();
 
@@ -512,7 +502,7 @@ async fn fail_service_task(
     Path(id): Path<String>,
     Json(payload): Json<FailServiceTaskRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    let mut engine = state.engine.lock().await;
+    let mut engine = state.engine.write().await;
     let task_id = parse_uuid(&id)?;
 
     engine.fail_service_task(
@@ -532,7 +522,7 @@ async fn extend_lock(
     Path(id): Path<String>,
     Json(payload): Json<ExtendLockRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    let mut engine = state.engine.lock().await;
+    let mut engine = state.engine.write().await;
     let task_id = parse_uuid(&id)?;
 
     engine.extend_lock(task_id, &payload.worker_id, payload.new_duration).await?;
@@ -546,7 +536,7 @@ async fn bpmn_error(
     Path(id): Path<String>,
     Json(payload): Json<BpmnErrorRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    let mut engine = state.engine.lock().await;
+    let mut engine = state.engine.write().await;
     let task_id = parse_uuid(&id)?;
 
     engine.handle_bpmn_error(task_id, &payload.worker_id, &payload.error_code).await?;
@@ -561,10 +551,11 @@ async fn bpmn_error(
 async fn get_backend_info(
     State(state): State<Arc<AppState>>,
 ) -> Json<BackendInfo> {
-    if state.nats.is_some() {
+    if let Some(ref p) = state.persistence {
+        let info = p.get_storage_info().await.ok().flatten();
         Json(BackendInfo {
-            backend_type: "nats".to_string(),
-            nats_url: Some(state.nats_url.clone()),
+            backend_type: "persistent".to_string(),
+            nats_url: info.as_ref().map(|i| format!("{}:{}", i.host, i.port)),
             connected: true,
         })
     } else {
@@ -579,40 +570,23 @@ async fn get_backend_info(
 async fn get_monitoring_data(
     State(state): State<Arc<AppState>>,
 ) -> Json<MonitoringData> {
-    let engine = state.engine.lock().await;
+    let engine = state.engine.read().await;
 
-    let instances_running = engine.instances.values()
-        .filter(|i| matches!(i.state, InstanceState::Running | InstanceState::WaitingOnUserTask { .. } | InstanceState::WaitingOnServiceTask { .. }))
-        .count();
-    let instances_completed = engine.instances.values()
-        .filter(|i| matches!(i.state, InstanceState::Completed))
-        .count();
+    let stats = engine.get_stats();
 
-    let nats_server = if let Some(ref nats) = state.nats {
-        match nats.get_nats_info().await {
-            Ok(info) => Some(NatsServerInfo {
-                server_name: info.server_name,
-                version: info.version,
-                host: info.host,
-                port: info.port,
-                memory_bytes: info.js_memory_bytes,
-                storage_bytes: info.js_storage_bytes,
-                streams: info.js_streams,
-                consumers: info.js_consumers,
-            }),
-            Err(_) => None,
-        }
+    let storage_info = if let Some(ref persistence) = state.persistence {
+        persistence.get_storage_info().await.unwrap_or(None)
     } else {
         None
     };
 
     Json(MonitoringData {
-        definitions_count: engine.definitions.len(),
-        instances_total: engine.instances.len(),
-        instances_running,
-        instances_completed,
-        pending_user_tasks: engine.pending_user_tasks.len(),
-        pending_service_tasks: engine.pending_service_tasks.len(),
-        nats_server,
+        definitions_count: stats.definitions_count,
+        instances_total: stats.instances_total,
+        instances_running: stats.instances_running + stats.instances_waiting_user + stats.instances_waiting_service,
+        instances_completed: stats.instances_completed,
+        pending_user_tasks: stats.pending_user_tasks,
+        pending_service_tasks: stats.pending_service_tasks,
+        storage_info,
     })
 }

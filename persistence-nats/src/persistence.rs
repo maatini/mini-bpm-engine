@@ -106,87 +106,39 @@ impl NatsPersistence {
         })
     }
 
-    /// Stores the original BPMN XML in the `bpmn_xml` Object Store bucket.
-    pub async fn save_bpmn_xml(&self, definition_id: &str, xml: &str) -> EngineResult<()> {
-        let store = self.js.get_object_store("bpmn_xml").await.map_err(|e| {
-            EngineError::PersistenceError(format!("Failed to get bpmn_xml Object Store: {}", e))
+    async fn list_kv_entries<T: serde::de::DeserializeOwned>(&self, bucket: &str, entity_name: &str) -> EngineResult<Vec<T>> {
+        let store = self.js.get_key_value(bucket).await.map_err(|e| {
+            EngineError::PersistenceError(format!("Failed to get {bucket} KV: {}", e))
         })?;
 
-        store
-            .put(definition_id, &mut xml.as_bytes())
-            .await
-            .map_err(|e| {
-                EngineError::PersistenceError(format!("Failed to store BPMN XML: {}", e))
-            })?;
+        let mut keys = store.keys().await.map_err(|e| {
+            EngineError::PersistenceError(format!("Failed to list {entity_name} keys: {}", e))
+        });
 
-        Ok(())
-    }
-
-    /// Loads the original BPMN XML from the `bpmn_xml` Object Store bucket.
-    pub async fn load_bpmn_xml(&self, definition_id: &str) -> EngineResult<String> {
-        use tokio::io::AsyncReadExt;
-
-        let store = self.js.get_object_store("bpmn_xml").await.map_err(|e| {
-            EngineError::PersistenceError(format!("Failed to get bpmn_xml Object Store: {}", e))
-        })?;
-
-        let mut result = store.get(definition_id).await.map_err(|e| {
-            EngineError::PersistenceError(format!(
-                "Failed to load BPMN XML for '{}': {}",
-                definition_id, e
-            ))
-        })?;
-
-        let mut data = Vec::new();
-        result.read_to_end(&mut data).await.map_err(|e| {
-            EngineError::PersistenceError(format!("Error reading XML data: {}", e))
-        })?;
-
-        String::from_utf8(data).map_err(|e| {
-            EngineError::PersistenceError(format!("BPMN XML is not valid UTF-8: {}", e))
-        })
-    }
-
-    /// Returns monitoring information about the connected NATS server
-    /// and JetStream account.
-    pub async fn get_nats_info(&self) -> EngineResult<NatsInfo> {
-        let si = self.client.server_info();
-
-        let account = self.js.query_account().await.map_err(|e| {
-            EngineError::PersistenceError(format!("Failed to query JetStream account: {}", e))
-        })?;
-
-        Ok(NatsInfo {
-            server_name: si.server_name.clone(),
-            version: si.version.clone(),
-            host: si.host.clone(),
-            port: si.port,
-            max_payload: si.max_payload,
-            js_memory_bytes: account.memory,
-            js_storage_bytes: account.storage,
-            js_streams: account.streams,
-            js_consumers: account.consumers,
-        })
-    }
-    /// Lists all definition IDs currently stored in the `bpmn_xml` Object Store.
-    pub async fn list_bpmn_xml_ids(&self) -> EngineResult<Vec<String>> {
-        let store = self.js.get_object_store("bpmn_xml").await.map_err(|e| {
-            EngineError::PersistenceError(format!("Failed to get bpmn_xml Object Store: {}", e))
-        })?;
-
-        let mut list = store.list().await.map_err(|e| {
-            EngineError::PersistenceError(format!("Failed to list bpmn_xml objects: {}", e))
-        })?;
-
-        let mut ids = Vec::new();
-        while let Some(info) = list.next().await {
-            if let Ok(info) = info {
-                ids.push(info.name);
+        let mut entries = Vec::new();
+        while let Ok(ref mut stream) = keys {
+            match stream.next().await {
+                Some(Ok(key)) => {
+                    match store.get(&key).await {
+                        Ok(Some(entry)) => {
+                            match serde_json::from_slice::<T>(&entry) {
+                                Ok(item) => entries.push(item),
+                                Err(e) => log::warn!("Failed to deserialize {entity_name} '{}': {}", key, e),
+                            }
+                        }
+                        Ok(None) => {}
+                        Err(e) => log::warn!("Failed to get {entity_name} '{key}': {}", e),
+                    }
+                }
+                Some(Err(e)) => log::warn!("Failed to stream {entity_name} key: {}", e),
+                None => break,
             }
         }
-        Ok(ids)
+
+        Ok(entries)
     }
 }
+
 
 #[async_trait]
 impl WorkflowPersistence for NatsPersistence {
@@ -256,35 +208,7 @@ impl WorkflowPersistence for NatsPersistence {
     }
 
     async fn list_instances(&self) -> EngineResult<Vec<ProcessInstance>> {
-        let store = self.js.get_key_value("instances").await.map_err(|e| {
-            EngineError::PersistenceError(format!("Failed to get instances KV: {}", e))
-        })?;
-
-        let mut keys = store.keys().await.map_err(|e| {
-            EngineError::PersistenceError(format!("Failed to list instance keys: {}", e))
-        });
-
-        let mut instances = Vec::new();
-        while let Ok(ref mut stream) = keys {
-            match stream.next().await {
-                Some(Ok(key)) => {
-                    match store.get(&key).await {
-                        Ok(Some(entry)) => {
-                            match serde_json::from_slice::<ProcessInstance>(&entry) {
-                                Ok(inst) => instances.push(inst),
-                                Err(e) => log::warn!("Failed to deserialize instance '{}': {}", key, e),
-                            }
-                        }
-                        Ok(None) => {}
-                        Err(e) => log::warn!("Failed to get instance '{}': {}", key, e),
-                    }
-                }
-                Some(Err(e)) => log::warn!("Failed to stream instance key: {}", e),
-                None => break,
-            }
-        }
-
-        Ok(instances)
+        self.list_kv_entries("instances", "instance").await
     }
 
     async fn delete_instance(&self, id: &str) -> EngineResult<()> {
@@ -322,35 +246,7 @@ impl WorkflowPersistence for NatsPersistence {
     }
 
     async fn list_definitions(&self) -> EngineResult<Vec<ProcessDefinition>> {
-        let store = self.js.get_key_value("definitions").await.map_err(|e| {
-            EngineError::PersistenceError(format!("Failed to get definitions KV: {}", e))
-        })?;
-
-        let mut keys = store.keys().await.map_err(|e| {
-            EngineError::PersistenceError(format!("Failed to list definition keys: {}", e))
-        });
-
-        let mut defs = Vec::new();
-        while let Ok(ref mut stream) = keys {
-            match stream.next().await {
-                Some(Ok(key)) => {
-                    match store.get(&key).await {
-                        Ok(Some(entry)) => {
-                            match serde_json::from_slice::<ProcessDefinition>(&entry) {
-                                Ok(def) => defs.push(def),
-                                Err(e) => log::warn!("Failed to deserialize definition '{}': {}", key, e),
-                            }
-                        }
-                        Ok(None) => {}
-                        Err(e) => log::warn!("Failed to get definition '{}': {}", key, e),
-                    }
-                }
-                Some(Err(e)) => log::warn!("Failed to stream definition key: {}", e),
-                None => break,
-            }
-        }
-
-        Ok(defs)
+        self.list_kv_entries("definitions", "definition").await
     }
 
     async fn delete_definition(&self, key: &str) -> EngineResult<()> {
@@ -409,35 +305,7 @@ impl WorkflowPersistence for NatsPersistence {
     }
 
     async fn list_user_tasks(&self) -> EngineResult<Vec<PendingUserTask>> {
-        let store = self.js.get_key_value("user_tasks").await.map_err(|e| {
-            EngineError::PersistenceError(format!("Failed to get user_tasks KV: {}", e))
-        })?;
-
-        let mut keys = store.keys().await.map_err(|e| {
-            EngineError::PersistenceError(format!("Failed to list user task keys: {}", e))
-        });
-
-        let mut tasks = Vec::new();
-        while let Ok(ref mut stream) = keys {
-            match stream.next().await {
-                Some(Ok(key)) => {
-                    match store.get(&key).await {
-                        Ok(Some(entry)) => {
-                            match serde_json::from_slice::<PendingUserTask>(&entry) {
-                                Ok(task) => tasks.push(task),
-                                Err(e) => log::warn!("Failed to deserialize user task '{}': {}", key, e),
-                            }
-                        }
-                        Ok(None) => {}
-                        Err(e) => log::warn!("Failed to get user task '{}': {}", key, e),
-                    }
-                }
-                Some(Err(e)) => log::warn!("Failed to stream user task key: {}", e),
-                None => break,
-            }
-        }
-
-        Ok(tasks)
+        self.list_kv_entries("user_tasks", "user task").await
     }
 
     async fn save_service_task(&self, task: &PendingServiceTask) -> EngineResult<()> {
@@ -475,35 +343,83 @@ impl WorkflowPersistence for NatsPersistence {
     }
 
     async fn list_service_tasks(&self) -> EngineResult<Vec<PendingServiceTask>> {
-        let store = self.js.get_key_value("service_tasks").await.map_err(|e| {
-            EngineError::PersistenceError(format!("Failed to get service_tasks KV: {}", e))
+        self.list_kv_entries("service_tasks", "service task").await
+    }
+
+    async fn save_bpmn_xml(&self, definition_id: &str, xml: &str) -> EngineResult<()> {
+        let store = self.js.get_object_store("bpmn_xml").await.map_err(|e| {
+            EngineError::PersistenceError(format!("Failed to get bpmn_xml Object Store: {}", e))
         })?;
 
-        let mut keys = store.keys().await.map_err(|e| {
-            EngineError::PersistenceError(format!("Failed to list service task keys: {}", e))
-        });
+        store
+            .put(definition_id, &mut xml.as_bytes())
+            .await
+            .map_err(|e| {
+                EngineError::PersistenceError(format!("Failed to store BPMN XML: {}", e))
+            })?;
 
-        let mut tasks = Vec::new();
-        while let Ok(ref mut stream) = keys {
-            match stream.next().await {
-                Some(Ok(key)) => {
-                    match store.get(&key).await {
-                        Ok(Some(entry)) => {
-                            match serde_json::from_slice::<PendingServiceTask>(&entry) {
-                                Ok(task) => tasks.push(task),
-                                Err(e) => log::warn!("Failed to deserialize service task '{}': {}", key, e),
-                            }
-                        }
-                        Ok(None) => {}
-                        Err(e) => log::warn!("Failed to get service task '{}': {}", key, e),
-                    }
-                }
-                Some(Err(e)) => log::warn!("Failed to stream service task key: {}", e),
-                None => break,
+        Ok(())
+    }
+
+    async fn load_bpmn_xml(&self, definition_id: &str) -> EngineResult<String> {
+        use tokio::io::AsyncReadExt;
+
+        let store = self.js.get_object_store("bpmn_xml").await.map_err(|e| {
+            EngineError::PersistenceError(format!("Failed to get bpmn_xml Object Store: {}", e))
+        })?;
+
+        let mut result = store.get(definition_id).await.map_err(|e| {
+            EngineError::PersistenceError(format!(
+                "Failed to load BPMN XML for '{}': {}",
+                definition_id, e
+            ))
+        })?;
+
+        let mut data = Vec::new();
+        result.read_to_end(&mut data).await.map_err(|e| {
+            EngineError::PersistenceError(format!("Error reading XML data: {}", e))
+        })?;
+
+        String::from_utf8(data).map_err(|e| {
+            EngineError::PersistenceError(format!("BPMN XML is not valid UTF-8: {}", e))
+        })
+    }
+
+    async fn list_bpmn_xml_ids(&self) -> EngineResult<Vec<String>> {
+        let store = self.js.get_object_store("bpmn_xml").await.map_err(|e| {
+            EngineError::PersistenceError(format!("Failed to get bpmn_xml Object Store: {}", e))
+        })?;
+
+        let mut list = store.list().await.map_err(|e| {
+            EngineError::PersistenceError(format!("Failed to list bpmn_xml objects: {}", e))
+        })?;
+
+        let mut ids = Vec::new();
+        while let Some(info) = list.next().await {
+            if let Ok(info) = info {
+                ids.push(info.name);
             }
         }
+        Ok(ids)
+    }
 
-        Ok(tasks)
+    async fn get_storage_info(&self) -> EngineResult<Option<engine_core::persistence::StorageInfo>> {
+        let si = self.client.server_info();
+
+        let account = self.js.query_account().await.map_err(|e| {
+            EngineError::PersistenceError(format!("Failed to query JetStream account: {}", e))
+        })?;
+
+        Ok(Some(engine_core::persistence::StorageInfo {
+            backend_name: si.server_name.clone(),
+            version: si.version.clone(),
+            host: si.host.clone(),
+            port: si.port,
+            memory_bytes: account.memory,
+            storage_bytes: account.storage,
+            streams: account.streams,
+            consumers: account.consumers,
+        }))
     }
 }
 

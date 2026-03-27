@@ -4,10 +4,8 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-engine-core = { path = "../engine-core" }
-bpmn-parser = { path = "../bpmn-parser" }
-persistence-nats = { path = "../persistence-nats" }
 tokio = { workspace = true }
+reqwest = { version = "0.12", features = ["json"] }
 env_logger = "0.11"
 log = "0.4"
 anyhow = { workspace = true }

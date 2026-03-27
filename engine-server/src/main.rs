@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::env;
 use std::sync::Arc;
-use tokio::sync::Mutex;
+use tokio::sync::RwLock;
 use uuid::Uuid;
 
 use engine_core::engine::WorkflowEngine;
@@ -44,7 +44,7 @@ async fn restore_from_nats(
         Ok(instances) => {
             let num = instances.len();
             for inst in instances {
-                engine.instances.insert(inst.id, inst);
+                engine.restore_instance(inst);
             }
             log::info!("Restored {} process instance(s).", num);
         }
@@ -55,7 +55,7 @@ async fn restore_from_nats(
         Ok(tasks) => {
             let num = tasks.len();
             for task in tasks {
-                engine.pending_user_tasks.push(task);
+                engine.restore_user_task(task);
             }
             log::info!("Restored {} pending user task(s).", num);
         }
@@ -66,7 +66,7 @@ async fn restore_from_nats(
         Ok(tasks) => {
             let num = tasks.len();
             for task in tasks {
-                engine.pending_service_tasks.push(task);
+                engine.restore_service_task(task);
             }
             log::info!("Restored {} pending service task(s).", num);
         }
@@ -89,9 +89,9 @@ async fn main() -> anyhow::Result<()> {
         Ok(p) => {
             log::info!("Connected to NATS at {}", nats_url);
             let p_arc = Arc::new(p);
-            engine.persistence = Some(p_arc.clone() as Arc<dyn WorkflowPersistence>);
+            engine.set_persistence(p_arc.clone() as Arc<dyn WorkflowPersistence>);
             restore_from_nats(&p_arc, &mut engine, &mut xml_cache).await;
-            Some(p_arc)
+            Some(p_arc as Arc<dyn WorkflowPersistence>)
         }
         Err(e) => {
             log::error!("NATS not available at {} - running IN-MEMORY only! Error: {}", nats_url, e);
@@ -99,7 +99,7 @@ async fn main() -> anyhow::Result<()> {
         }
     };
 
-    let app = build_app_with_engine(Arc::new(Mutex::new(engine)), nats_persistence, xml_cache);
+    let app = build_app_with_engine(Arc::new(RwLock::new(engine)), nats_persistence, xml_cache);
 
     let port = env::var("PORT").unwrap_or_else(|_| "8081".to_string());
     let addr = format!("0.0.0.0:{}", port);

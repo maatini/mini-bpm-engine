@@ -12,7 +12,7 @@ Eine einbettbare BPMN 2.0 Workflow-Engine in Rust.
 ## Crates (Module)
 
 * `bpmn-parser`: Parst BPMN 2.0 XML-Definitionen in interne Rust-Strukturen.
-* `engine-core`: Die Hauptbibliothek der Workflow-Engine — token-basierte Ausführung, Gateway-Routing mit Condition-Evaluator, Script-Engine (Execution Listeners), External-Task-Support und umfassendes Error-Handling via `EngineError` (thiserror). Tests sind in ein separates Modul (`tests.rs`) ausgelagert.
+* `engine-core`: Die Hauptbibliothek der Workflow-Engine — token-basierte Ausführung, Gateway-Routing mit Condition-Evaluator, Script-Engine (Execution Listeners), Service-Task-Support und umfassendes Error-Handling via `EngineError` (thiserror). Tests sind in ein separates Modul (`tests.rs`) ausgelagert.
 * `persistence-nats`: (Optional) Bietet NATS-basierte Persistenz. Nutzt JetStream KV-Stores für Instanzen, Definitionen und Pending-Tasks, sowie einen Object Store (`bpmn_xml`) für die originalen BPMN-Dateien. Darüber hinaus wird ein Event-Sourcing-Ansatz via JetStream Publishing unterstützt.
 * `engine-server`: Ein Axum-basierter HTTP-Server mit REST-API. Nutzt einen typsicheren `AppError`-Enum für konsistente HTTP-Fehlercodes (400/404/409/500).
 * `desktop-tauri`: Eine Tauri-Desktop-Anwendung, die mit der Workflow-Engine interagiert.
@@ -25,9 +25,8 @@ Eine einbettbare BPMN 2.0 Workflow-Engine in Rust.
 | **StartEvent** | Einfacher Startpunkt — Prozess wird sofort gestartet. |
 | **TimerStartEvent** | Timer-gesteuerter Start nach einer konfigurierbaren Dauer. |
 | **EndEvent** | Endpunkt — Prozessinstanz wird als abgeschlossen markiert. |
-| **ServiceTask** | Führt einen registrierten async Handler aus (identifiziert per Name). |
+| **ServiceTask** | Tasks, die von externen Workern (z.B. agent-orchestrator) per fetch-and-lock abgearbeitet werden. |
 | **UserTask** | Erstellt einen Pending-Task, der extern abgeschlossen werden muss. |
-| **ExternalTask** | Tasks, die von Remote-Workern per fetch-and-lock abgearbeitet werden. |
 | **ExclusiveGateway (XOR)** | Genau ein ausgehender Pfad wird gewählt (Bedingungsauswertung). Optionaler Default-Flow. |
 | **InclusiveGateway (OR)** | Alle Pfade, deren Bedingung `true` ergibt, werden parallel verfolgt (Token-Forking). |
 
@@ -100,12 +99,12 @@ Der Server lauscht standardmäßig auf `http://localhost:8081`.
 * `DELETE /api/instances/:id` - Eine Prozessinstanz löschen
 * `DELETE /api/definitions/:id` - Eine Prozessdefinition löschen (Query `?cascade=true` zum Mitlöschen aller zugehörigen Instanzen)
 
-#### Externe Tasks (External Tasks)
-* `POST /api/external-task/fetchAndLock` - Tasks für Worker abrufen und sperren (inkl. Long-Polling)
-* `POST /api/external-task/:id/complete` - Einen externen Task erfolgreich abschließen
-* `POST /api/external-task/:id/failure` - Einen externen Task als fehlgeschlagen markieren
-* `POST /api/external-task/:id/extendLock` - Die Sperrdauer eines Tasks verlängern
-* `POST /api/external-task/:id/bpmnError` - Einen BPMN-Fehler für einen Task melden
+#### Service Tasks
+* `POST /api/service-task/fetchAndLock` - Tasks für Worker abrufen und sperren (inkl. Long-Polling)
+* `POST /api/service-task/:id/complete` - Einen Service Task erfolgreich abschließen
+* `POST /api/service-task/:id/failure` - Einen Service Task als fehlgeschlagen markieren
+* `POST /api/service-task/:id/extendLock` - Die Sperrdauer eines Tasks verlängern
+* `POST /api/service-task/:id/bpmnError` - Einen BPMN-Fehler für einen Task melden
 
 ## Ausführen der Desktop-Anwendung
 

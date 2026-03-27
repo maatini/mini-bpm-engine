@@ -13,7 +13,6 @@ use crate::model::{BpmnElement, ListenerEvent, ProcessDefinition, Token};
 use crate::persistence::WorkflowPersistence;
 use crate::script_runner;
 
-#[path = "service_task.rs"]
 mod service_task;
 
 
@@ -140,14 +139,27 @@ fn resolve_next_target(
 // Workflow engine
 // ---------------------------------------------------------------------------
 
+/// Summary statistics for engine monitoring.
+#[derive(Debug, Clone, Serialize)]
+pub struct EngineStats {
+    pub definitions_count: usize,
+    pub instances_total: usize,
+    pub instances_running: usize,
+    pub instances_completed: usize,
+    pub instances_waiting_user: usize,
+    pub instances_waiting_service: usize,
+    pub pending_user_tasks: usize,
+    pub pending_service_tasks: usize,
+}
+
 /// The central workflow engine managing definitions, instances, and handlers.
 pub struct WorkflowEngine {
-    pub definitions: HashMap<Uuid, Arc<ProcessDefinition>>,
-    pub instances: HashMap<Uuid, ProcessInstance>,
-    pub pending_user_tasks: Vec<PendingUserTask>,
-    pub pending_service_tasks: Vec<PendingServiceTask>,
-    pub persistence: Option<Arc<dyn WorkflowPersistence>>,
-    pub script_engine: rhai::Engine,
+    pub(crate) definitions: HashMap<Uuid, Arc<ProcessDefinition>>,
+    pub(crate) instances: HashMap<Uuid, ProcessInstance>,
+    pub(crate) pending_user_tasks: Vec<PendingUserTask>,
+    pub(crate) pending_service_tasks: Vec<PendingServiceTask>,
+    pub(crate) persistence: Option<Arc<dyn WorkflowPersistence>>,
+    pub(crate) script_engine: rhai::Engine,
 }
 
 impl WorkflowEngine {
@@ -168,6 +180,59 @@ impl WorkflowEngine {
     pub fn with_persistence(mut self, persistence: Arc<dyn WorkflowPersistence>) -> Self {
         self.persistence = Some(persistence);
         self
+    }
+
+    /// Sets the persistence layer (builder-style alternative to `with_persistence`).
+    pub fn set_persistence(&mut self, persistence: Arc<dyn WorkflowPersistence>) {
+        self.persistence = Some(persistence);
+    }
+
+    /// Restores a process instance from persistence (e.g. on server startup).
+    pub fn restore_instance(&mut self, instance: ProcessInstance) {
+        log::info!("Restored instance {} (def: {})", instance.id, instance.definition_key);
+        self.instances.insert(instance.id, instance);
+    }
+
+    /// Restores a pending user task from persistence.
+    pub fn restore_user_task(&mut self, task: PendingUserTask) {
+        log::info!("Restored user task {} (instance: {})", task.task_id, task.instance_id);
+        self.pending_user_tasks.push(task);
+    }
+
+    /// Restores a pending service task from persistence.
+    pub fn restore_service_task(&mut self, task: PendingServiceTask) {
+        log::info!("Restored service task {} (instance: {})", task.id, task.instance_id);
+        self.pending_service_tasks.push(task);
+    }
+
+    /// Returns summary statistics for monitoring dashboards.
+    pub fn get_stats(&self) -> EngineStats {
+        EngineStats {
+            definitions_count: self.definitions.len(),
+            instances_total: self.instances.len(),
+            instances_running: self.instances.values()
+                .filter(|i| matches!(i.state, InstanceState::Running))
+                .count(),
+            instances_completed: self.instances.values()
+                .filter(|i| matches!(i.state, InstanceState::Completed))
+                .count(),
+            instances_waiting_user: self.instances.values()
+                .filter(|i| matches!(i.state, InstanceState::WaitingOnUserTask { .. }))
+                .count(),
+            instances_waiting_service: self.instances.values()
+                .filter(|i| matches!(i.state, InstanceState::WaitingOnServiceTask { .. }))
+                .count(),
+            pending_user_tasks: self.pending_user_tasks.len(),
+            pending_service_tasks: self.pending_service_tasks.len(),
+        }
+    }
+
+    /// Returns a list of all deployed definitions (key, BPMN-ID, node count).
+    pub fn list_definitions(&self) -> Vec<(Uuid, String, usize)> {
+        self.definitions
+            .iter()
+            .map(|(key, def)| (*key, def.id.clone(), def.nodes.len()))
+            .collect()
     }
 
     /// Persists the current state of a process instance (if a persistence
@@ -832,7 +897,7 @@ impl WorkflowEngine {
     }
 
     /// Returns all pending service tasks (for debugging / admin).
-    pub fn get_external_tasks(&self) -> &[PendingServiceTask] {
+    pub fn get_pending_service_tasks(&self) -> &[PendingServiceTask] {
         &self.pending_service_tasks
     }
 
@@ -973,5 +1038,4 @@ impl Default for WorkflowEngine {
 // ---------------------------------------------------------------------------
 
 #[cfg(test)]
-#[path = "tests.rs"]
 mod tests;

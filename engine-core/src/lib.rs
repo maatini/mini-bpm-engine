@@ -7,6 +7,6 @@ pub mod engine;
 
 pub use error::{EngineError, EngineResult};
 pub use model::{ProcessDefinition, ProcessDefinitionBuilder, BpmnElement, SequenceFlow, Token};
-pub use engine::{ProcessInstance, PendingUserTask, PendingServiceTask, InstanceState};
-pub use persistence::WorkflowPersistence;
+pub use engine::{ProcessInstance, PendingUserTask, PendingServiceTask, InstanceState, EngineStats};
+pub use persistence::{WorkflowPersistence, StorageInfo};
 pub use engine::WorkflowEngine;
