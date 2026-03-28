@@ -59,3 +59,12 @@ src-tauri/WixTools/
 
 # Cargo cache (optional)
 .cargo/
+
+# ========================
+# Test & Coverage Reports
+# ========================
+mutants.out/
+tarpaulin-report/
+cobertura.xml
+*.profraw
+*.profdata

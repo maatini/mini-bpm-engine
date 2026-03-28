@@ -89,6 +89,61 @@ Folgende Tools müssen auf deinem System installiert sein:
 - Node.js (≥ 18)
 - Docker & Docker Compose (für NATS)
 
+## Test-Metriken
+
+### Code Coverage (cargo-llvm-cov)
+
+| Crate / Modul | Lines | Covered | Line Coverage |
+|---|---|---|---|
+| **engine-core** `model.rs` | 312 | 303 | **97.1%** ✅ |
+| **engine-core** `engine.rs` | 709 | 512 | **72.2%** |
+| **engine-core** `condition.rs` | 74 | 60 | **81.1%** |
+| **engine-core** `script_runner.rs` | 57 | 54 | **94.7%** ✅ |
+| **engine-core** `service_task.rs` | 221 | 104 | **47.1%** |
+| **engine-core** `tests.rs` | 1179 | 1171 | **99.3%** ✅ |
+| **bpmn-parser** | 312 | 280 | **89.7%** ✅ |
+| **persistence-nats** | 512 | 45 | **8.8%** ¹ |
+| **engine-server** | 437 | 12 | **2.7%** ¹ |
+| **Gesamt (Workspace)** | **3893** | **2629** | **67.5%** |
+
+¹ *Benötigen laufende NATS-Instanz bzw. HTTP-Server für Integration Tests.*
+
+### Mutation Testing (cargo-mutants, engine-core)
+
+| Metrik | Wert |
+|---|---|
+| Generierte Mutanten | 213 |
+| Unviable (kompiliert nicht) | 121 (56.8%) |
+| Caught (von Tests erkannt) | 46 |
+| Missed (nicht erkannt) | 46 |
+| **Mutation Score** | **50.0%** |
+
+> [!NOTE]
+> Der hohe Anteil unviable Mutanten (56.8%) zeigt, dass Rusts Typsystem viele potenzielle Fehler bereits zur Compile-Zeit verhindert. Der Mutation Score bezieht sich auf die 92 Mutanten, die kompilierbar waren.
+
+### E2E Tests (Playwright, desktop-tauri)
+
+| Metrik | Wert |
+|---|---|
+| Tests | 24 |
+| Passed | 24 |
+| **E2E Pass Rate** | **100%** ✅ |
+
+### Coverage ermitteln
+
+```bash
+# Voraussetzung: cargo-llvm-cov installiert
+rustup component add llvm-tools-preview
+cargo install cargo-llvm-cov
+
+# Coverage Report
+cargo llvm-cov --workspace --exclude mini-bpm-desktop
+
+# Mutation Testing (engine-core)
+cargo install cargo-mutants
+cargo mutants --package engine-core
+```
+
 ## Build, Test & Lint
 
 | Aktion | Variante A: Devbox | Variante B: Manuell (Shell) |
