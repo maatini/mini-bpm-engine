@@ -34,6 +34,7 @@ interface MockState {
     state: string | { WaitingOnUserTask: { task_id: string } };
     current_node: string;
     audit_log: string[];
+    history?: any[];
     variables: Record<string, unknown>;
   }>;
 }
@@ -181,6 +182,54 @@ async function injectTauriMock(
               const found = mockState.processInstances.find((i: any) => i.id === instId);
               if (found) {
                 resolve(found);
+              } else {
+                reject('No such instance: ' + instId);
+              }
+              break;
+            }
+
+            case 'get_instance_history': {
+              const instId = args.instanceId as string;
+              const found = mockState.processInstances.find((i: any) => i.id === instId);
+              if (found) {
+                let entries: any[] = [];
+                // If the test provided explicit history objects
+                if (found.history && found.history.length > 0) {
+                   entries = [...found.history];
+                } else {
+                   // Fallback: migrate old audit_log text strings 
+                   // into new HistoryEntry objects for the test to pass
+                   entries = found.audit_log.map((log: string, idx: number) => ({
+                      id: `hist-${idx}`,
+                      instance_id: instId,
+                      timestamp: new Date().toISOString(),
+                      event_type: log.includes('started') ? 'InstanceStarted' : 'TokenAdvanced',
+                      node_id: null,
+                      description: log,
+                      actor_type: 'engine',
+                      actor_id: null,
+                      diff: null,
+                      context: {},
+                      metadata: null,
+                      definition_version: 1,
+                      is_snapshot: false,
+                      full_state_snapshot: null
+                   }));
+                }
+                
+                const eventTypesFilter = args.eventTypes as string | null;
+                const actorTypesFilter = args.actorTypes as string | null;
+                
+                if (eventTypesFilter && eventTypesFilter.trim() !== '') {
+                  const allowed = eventTypesFilter.split(',');
+                  entries = entries.filter(e => allowed.includes(e.event_type));
+                }
+                if (actorTypesFilter && actorTypesFilter.trim() !== '') {
+                  const allowed = actorTypesFilter.split(',');
+                  entries = entries.filter(e => allowed.includes(e.actor_type));
+                }
+
+                resolve(entries);
               } else {
                 reject('No such instance: ' + instId);
               }
@@ -598,9 +647,9 @@ test.describe('mini-bpm Desktop App – E2E', () => {
     const detail = page.locator('.instance-detail');
     await expect(detail).toBeVisible({ timeout: 5_000 });
 
-    // Audit log entries
-    await expect(detail.getByText('Process started')).toBeVisible();
-    await expect(detail.getByText('Executed service task')).toBeVisible();
+    // Audit log entries inside the Timeline
+    await expect(detail.getByText('Process started at node \'start\'')).toBeVisible();
+    await expect(detail.getByText('Executed service task \'validate\' (handler: validate)')).toBeVisible();
 
     // Variables Table
     const varTable = detail.locator('.variables-table');
@@ -1081,6 +1130,7 @@ test.describe('mini-bpm Desktop App – E2E', () => {
     await expect(statusRowComplex.locator('input').nth(1)).toHaveValue('processed');
 
     // 6. Prüfe Audit-Log
+    // Since the frontend history component renders the full text, we look for that:
     await expect(detail.getByText("Executed end script on 'ServiceTask_Script'")).toBeVisible();
     await expect(detail.getByText("evaluated condition (score > 50) -> took path 'Flow_High'")).toBeVisible();
 
@@ -1128,5 +1178,112 @@ test.describe('mini-bpm Desktop App – E2E', () => {
     
     // Should navigate to instances view
     await expect(page.locator('.nav-item.active')).toHaveText('Instances', { timeout: 10_000 });
+  });
+
+  // ---- 25. History Timeline Rendering and Filtering -----------------------
+
+  test('should render history timeline with actors, snapshots, and filters', async ({ page }) => {
+    await injectTauriMock(page, {
+      processInstances: [
+        {
+          id: 'inst-history-1',
+          definition_key: 'history-key',
+          business_key: 'bk-hist-1',
+          state: 'Running',
+          current_node: 'Task_1',
+          audit_log: [],
+          history: [
+            {
+              id: 'h1',
+              instance_id: 'inst-history-1',
+              timestamp: new Date().toISOString(),
+              event_type: 'InstanceStarted',
+              node_id: 'StartEvent_1',
+              description: 'Process started',
+              actor_type: 'engine',
+              actor_id: null,
+              diff: { human_readable: 'Started workflow definition history-key' },
+              context: {},
+              is_snapshot: false,
+            },
+            {
+              id: 'h2',
+              instance_id: 'inst-history-1',
+              timestamp: new Date().toISOString(),
+              event_type: 'TokenAdvanced',
+              node_id: 'Task_1',
+              description: 'Token arrived at Task_1',
+              actor_type: 'serviceworker',
+              actor_id: 'worker-a',
+              diff: null,
+              context: {},
+              is_snapshot: true,
+              full_state_snapshot: { dummy: true }
+            },
+            {
+              id: 'h3',
+              instance_id: 'inst-history-1',
+              timestamp: new Date().toISOString(),
+              event_type: 'VariablesChanged',
+              node_id: 'Task_1',
+              description: 'Variables updated',
+              actor_type: 'user',
+              actor_id: 'admin',
+              diff: { human_readable: 'amount changed from null to 500' },
+              context: {},
+              is_snapshot: false,
+            }
+          ],
+          variables: { amount: 500 }
+        }
+      ]
+    });
+    
+    await page.goto('/');
+    
+    // Navigate to instance details
+    await page.locator('.nav-item', { hasText: 'Instances' }).click();
+    await expect(page.locator('.card').first()).toBeVisible({ timeout: 5_000 });
+    await page.locator('.card').first().click();
+    
+    const timeline = page.locator('.history-timeline-container');
+    await expect(timeline).toBeVisible({ timeout: 5_000 });
+    
+    // 1. Verify all 3 entries are rendered initially
+    await expect(timeline.getByText('Instance Started')).toBeVisible();
+    await expect(timeline.getByText('Token Advanced')).toBeVisible();
+    await expect(timeline.getByText('Variables Changed')).toBeVisible();
+    
+    // 2. Verify snapshot badge is visible for the second entry
+    await expect(timeline.locator('span', { hasText: 'Snapshot' })).toBeVisible();
+    
+    // 3. Verify Actor Badges
+    await expect(timeline.getByText('engine', { exact: true })).toBeVisible();
+    await expect(timeline.getByText('serviceworker (worker-a)')).toBeVisible();
+    await expect(timeline.getByText('user (admin)')).toBeVisible();
+    
+    // 4. Verify human-readable diff
+    await expect(timeline.getByText('Started workflow definition history-key')).toBeVisible();
+    await expect(timeline.getByText('amount changed from null to 500')).toBeVisible();
+    
+    // 5. Test Event Type Filtering
+    // Select 'VariablesChanged' from dropdown
+    await timeline.locator('select').first().selectOption('VariablesChanged');
+    
+    // Verify only 'Variables Changed' is visible, others are hidden
+    await expect(timeline.getByText('Variables Changed')).toBeVisible();
+    await expect(timeline.getByText('Instance Started')).not.toBeVisible();
+    await expect(timeline.getByText('Token Advanced')).not.toBeVisible();
+    
+    // 6. Test Actor Filtering
+    // Reset Event Types
+    await timeline.locator('select').first().selectOption('');
+    // Select 'engine'
+    await timeline.locator('select').nth(1).selectOption('engine');
+    
+    // Verify only 'Instance Started' is visible
+    await expect(timeline.getByText('Instance Started')).toBeVisible();
+    await expect(timeline.getByText('Token Advanced')).not.toBeVisible();
+    await expect(timeline.getByText('Variables Changed')).not.toBeVisible();
   });
 });

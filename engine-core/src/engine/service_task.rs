@@ -115,6 +115,8 @@ impl WorkflowEngine {
         let task = self.pending_service_tasks.remove(idx);
         let instance_id = task.instance_id;
 
+        let old_state = self.instances.get(&instance_id).cloned();
+
         // Merge variables into the token
         let mut token = task.token;
         for (k, v) in variables {
@@ -175,6 +177,15 @@ impl WorkflowEngine {
 
         self.remove_persisted_service_task(task_id).await;
 
+        self.record_history_event(
+            instance_id,
+            crate::history::HistoryEventType::TaskCompleted,
+            &format!("Service task '{}' completed", task.node_id),
+            crate::history::ActorType::ServiceWorker,
+            Some(worker_id.to_string()),
+            old_state.as_ref()
+        ).await;
+
         self.run_instance(instance_id, token).await
     }
 
@@ -232,6 +243,15 @@ impl WorkflowEngine {
             }
             instance_id
         };
+
+        self.record_history_event(
+            instance_id,
+            crate::history::HistoryEventType::Error,
+            &format!("Service task '{}' failed", task_id),
+            crate::history::ActorType::ServiceWorker,
+            Some(worker_id.to_string()),
+            None // State variables didn't fundamentally change, but it's an error record
+        ).await;
 
         self.persist_service_task(task_id).await;
         self.persist_instance(instance_id).await;

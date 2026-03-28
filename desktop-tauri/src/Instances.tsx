@@ -3,6 +3,8 @@ import { listInstances, getInstanceDetails, getPendingTasks, getPendingServiceTa
 import { InstanceViewer } from './InstanceViewer';
 import { RefreshCw, Activity, CheckCircle, Clock, Trash } from 'lucide-react';
 import { VariableEditor, type VariableRow, parseVariables, serializeVariables } from './VariableEditor';
+import { HistoryTimeline } from './HistoryTimeline';
+import { ErrorBoundary } from './ErrorBoundary';
 
 // Helper to render the instance state as a readable string
 function stateLabel(state: ProcessInstance['state']): string {
@@ -221,11 +223,13 @@ export function Instances({ selectedInstanceId }: { selectedInstanceId?: string 
               {definitionXml && (
                 <div style={{ marginBottom: 16 }}>
                   <strong>Process Workflow:</strong>
-                  <InstanceViewer 
-                    xml={definitionXml} 
-                    activeNodeId={selected.current_node} 
-                    onNodeClick={() => setShowNodeDetails((prev) => !prev)} 
-                  />
+                  <ErrorBoundary>
+                    <InstanceViewer 
+                      xml={definitionXml} 
+                      activeNodeId={selected.current_node} 
+                      onNodeClick={() => setShowNodeDetails((prev) => !prev)} 
+                    />
+                  </ErrorBoundary>
                   {!showNodeDetails && (
                     <div style={{ fontSize: '0.85rem', color: '#64748b' }}>
                       Click on the highlighted active node ({selected.current_node}) to view variables and state details.
@@ -235,66 +239,64 @@ export function Instances({ selectedInstanceId }: { selectedInstanceId?: string 
               )}
 
               {(!definitionXml || showNodeDetails) && (
+                <ErrorBoundary>
                 <div style={{ padding: '12px', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '4px' }}>
                   <div style={{ marginBottom: 12 }}>
-                    <strong>Current Node:</strong> {selected.current_node}
+                    <strong>Current Node:</strong> {selected?.current_node || 'Unknown'}
                   </div>
 
-              {/* Pending user task info */}
-              {pendingTasks.length > 0 && (
-                <div style={{ marginBottom: 12 }}>
-                  <strong>Pending User Task:</strong>
-                  {pendingTasks.map(task => (
-                    <div key={task.task_id} style={{ marginLeft: 12, marginTop: 4 }}>
-                      Node: {task.node_id} · Assignee: {task.assignee}
+                  {/* Pending user task info */}
+                  {pendingTasks?.length > 0 && (
+                    <div style={{ marginBottom: 12 }}>
+                      <strong>Pending User Task:</strong>
+                      {pendingTasks.map(task => (
+                        <div key={task.task_id} style={{ marginLeft: 12, marginTop: 4 }}>
+                          Node: {task.node_id} · Assignee: {task.assignee}
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              )}
+                  )}
 
-              {/* Pending service task info */}
-              {pendingServiceTasks.length > 0 && (
-                <div style={{ marginBottom: 12 }}>
-                  <strong>Pending Service Task:</strong>
-                  {pendingServiceTasks.map(task => (
-                    <div key={task.id} style={{ marginLeft: 12, marginTop: 4 }}>
-                      Node: {task.node_id} · Topic: <span style={{ fontWeight: 600 }}>{task.topic}</span>
-                      <br/>
-                      <span style={{ fontSize: '0.85em', color: '#64748b' }}>
-                        Worker: {task.worker_id || 'Unlocked'} · Retries: {task.retries}
-                      </span>
+                  {/* Pending service task info */}
+                  {pendingServiceTasks?.length > 0 && (
+                    <div style={{ marginBottom: 12 }}>
+                      <strong>Pending Service Task:</strong>
+                      {pendingServiceTasks.map(task => (
+                        <div key={task?.id || Math.random().toString()} style={{ marginLeft: 12, marginTop: 4 }}>
+                          Node: {task?.node_id} · Topic: <span style={{ fontWeight: 600 }}>{task?.topic}</span>
+                          <br/>
+                          <span style={{ fontSize: '0.85em', color: '#64748b' }}>
+                            Worker: {task?.worker_id || 'Unlocked'} · Retries: {task?.retries}
+                          </span>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              )}
+                  )}
 
-              {/* Audit log */}
-              <div style={{ marginBottom: 12 }}>
-                <strong>Audit Log:</strong>
-                <ul className="audit-log">
-                  {selected.audit_log.map((entry, i) => (
-                    <li key={i}>{entry}</li>
-                  ))}
-                </ul>
-              </div>
+                  {/* Execution History Timeline */}
+                  <div style={{ marginBottom: 16 }}>
+                    <strong>Execution History:</strong>
+                    <HistoryTimeline instanceId={selected.id} />
+                  </div>
 
-              {/* Editable variables */}
-              <div style={{ marginTop: 16 }}>
-                <strong>Variables:</strong>
-                <VariableEditor
-                  variables={variables}
-                  onChange={setVariables}
-                  readOnlyNames={true}
-                  deletedKeys={deletedKeys}
-                  onDeletedKeysChange={setDeletedKeys}
-                />
-                <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
-                  <button className="button save-vars-btn" onClick={handleSaveVariables}>
-                    Save Variables
-                  </button>
+                  {/* Editable variables */}
+                  <div style={{ marginTop: 16 }}>
+                    <strong>Variables:</strong>
+                    <VariableEditor
+                      variables={variables}
+                      onChange={setVariables}
+                      readOnlyNames={true}
+                      deletedKeys={deletedKeys}
+                      onDeletedKeysChange={setDeletedKeys}
+                    />
+                    <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
+                      <button className="button save-vars-btn" onClick={handleSaveVariables}>
+                        Save Variables
+                      </button>
+                    </div>
+                  </div>
                 </div>
-              </div>
-              </div> /* End of detail toggle section */
+                </ErrorBoundary>
               )}
             </>
           )}

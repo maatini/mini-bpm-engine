@@ -98,6 +98,15 @@ impl NatsPersistence {
                 ..Default::default()
             })
             .await;
+
+        // Ensure the WORKFLOW_HISTORY JetStream stream exists for event-sourcing.
+        let _ = js
+            .get_or_create_stream(StreamConfig {
+                name: "WORKFLOW_HISTORY".to_string(),
+                subjects: vec!["history.instance.*".to_string()],
+                ..Default::default()
+            })
+            .await;
             
         Ok(Self {
             client,
@@ -421,6 +430,71 @@ impl WorkflowPersistence for NatsPersistence {
             consumers: account.consumers,
         }))
     }
+
+    async fn append_history_entry(&self, entry: &engine_core::history::HistoryEntry) -> EngineResult<()> {
+        let subject = format!("history.instance.{}", entry.instance_id);
+        let payload = serde_json::to_vec(entry).map_err(|e| {
+            EngineError::PersistenceError(format!("Failed to serialize history entry: {}", e))
+        })?;
+        
+        self.js
+            .publish(subject, payload.into())
+            .await
+            .map_err(|e| {
+                EngineError::PersistenceError(format!("Failed to publish history entry to JetStream: {}", e))
+            })?;
+            
+        Ok(())
+    }
+
+    async fn query_history(&self, query: engine_core::persistence::HistoryQuery) -> EngineResult<Vec<engine_core::history::HistoryEntry>> {
+        let stream = self.js.get_stream("WORKFLOW_HISTORY").await.map_err(|e| {
+            EngineError::PersistenceError(format!("Failed to get WORKFLOW_HISTORY stream: {}", e))
+        })?;
+        
+        let subject = format!("history.instance.{}", query.instance_id);
+        
+        let consumer = stream.create_consumer(async_nats::jetstream::consumer::pull::Config {
+            deliver_policy: async_nats::jetstream::consumer::DeliverPolicy::All,
+            filter_subject: subject.clone(),
+            ..Default::default()
+        }).await.map_err(|e| {
+            EngineError::PersistenceError(format!("Failed to create history consumer: {}", e))
+        })?;
+        
+        let mut messages = consumer.messages().await.map_err(|e| {
+            EngineError::PersistenceError(format!("Message stream error: {}", e))
+        })?;
+        
+        let mut entries = Vec::new();
+        
+        // Timeout to drain all existing messages
+        while let Ok(Some(msg)) = tokio::time::timeout(std::time::Duration::from_millis(100), messages.next()).await {
+            if let Ok(msg) = msg {
+                let _ = msg.ack().await;
+                if let Ok(entry) = serde_json::from_slice::<engine_core::history::HistoryEntry>(&msg.payload) {
+                    let mut matched = true;
+                    if let Some(types) = &query.event_types { if !types.contains(&entry.event_type) { matched = false; } }
+                    if let Some(nid) = &query.node_id { if entry.node_id.as_deref() != Some(nid) { matched = false; } }
+                    if let Some(aty) = &query.actor_type { if &entry.actor_type != aty { matched = false; } }
+                    if let Some(f) = query.from { if entry.timestamp < f { matched = false; } }
+                    if let Some(t) = query.to { if entry.timestamp > t { matched = false; } }
+                    
+                    if matched {
+                        entries.push(entry);
+                    }
+                }
+            }
+        }
+        
+        // Ensure chronological order
+        entries.sort_by_key(|e| e.timestamp);
+        
+        let offset = query.offset.unwrap_or(0);
+        let limit = query.limit.unwrap_or(entries.len());
+        
+        Ok(entries.into_iter().skip(offset).take(limit).collect())
+    }
 }
 
 #[cfg(test)]
@@ -466,5 +540,49 @@ pub mod tests {
         assert_eq!(loaded_token.id, token.id);
         assert_eq!(loaded_token.current_node, "next_node");
         assert_eq!(loaded_token.variables.get("test_key").unwrap().as_str().unwrap(), "test_value");
+    }
+
+    #[tokio::test]
+    async fn test_history_append_and_load() {
+        let persistence = match setup_nats_test().await {
+            Some(p) => p,
+            None => return, // Ignore if NATS container is not running
+        };
+
+        let instance_id = Uuid::new_v4();
+        let entry1 = engine_core::history::HistoryEntry::new(
+            instance_id,
+            engine_core::history::HistoryEventType::InstanceStarted,
+            "Instance Started",
+            engine_core::history::ActorType::Engine,
+            None
+        );
+
+        let entry2 = engine_core::history::HistoryEntry::new(
+            instance_id,
+            engine_core::history::HistoryEventType::TokenAdvanced,
+            "Token moved",
+            engine_core::history::ActorType::Engine,
+            None
+        ).with_node("task_1");
+
+        // Append to stream
+        persistence.append_history_entry(&entry1).await.unwrap();
+        persistence.append_history_entry(&entry2).await.unwrap();
+
+        // Give NATS JetStream a tiny bit of time to flush/index
+        tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+
+        let history = persistence.query_history(engine_core::persistence::HistoryQuery {
+            instance_id,
+            ..Default::default()
+        }).await.unwrap();
+
+        assert_eq!(history.len(), 2);
+        assert_eq!(history[0].id, entry1.id);
+        assert_eq!(history[0].event_type, engine_core::history::HistoryEventType::InstanceStarted);
+        assert_eq!(history[1].id, entry2.id);
+        assert_eq!(history[1].event_type, engine_core::history::HistoryEventType::TokenAdvanced);
+        assert_eq!(history[1].node_id.as_deref(), Some("task_1"));
     }
 }

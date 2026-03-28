@@ -1,9 +1,23 @@
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
+use chrono::{DateTime, Utc};
+
 use crate::engine::{ProcessInstance, PendingUserTask, PendingServiceTask};
 use crate::error::EngineResult;
 use crate::model::{Token, ProcessDefinition};
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct HistoryQuery {
+    pub instance_id: uuid::Uuid,
+    pub event_types: Option<Vec<crate::history::HistoryEventType>>,
+    pub node_id: Option<String>,
+    pub actor_type: Option<crate::history::ActorType>,
+    pub from: Option<DateTime<Utc>>,
+    pub to: Option<DateTime<Utc>>,
+    pub limit: Option<usize>,
+    pub offset: Option<usize>,
+}
 
 /// Generic storage backend information for monitoring.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -66,4 +80,9 @@ pub trait WorkflowPersistence: Send + Sync {
     /// Returns storage backend information (name, version, etc.).
     /// Returns None if the backend doesn't support reporting.
     async fn get_storage_info(&self) -> EngineResult<Option<StorageInfo>>;
+
+    /// Append a new history entry to the instance history log.
+    async fn append_history_entry(&self, entry: &crate::history::HistoryEntry) -> EngineResult<()>;
+    /// Retrieve all history entries for a specific instance, ordered by time.
+    async fn query_history(&self, query: HistoryQuery) -> EngineResult<Vec<crate::history::HistoryEntry>>;
 }

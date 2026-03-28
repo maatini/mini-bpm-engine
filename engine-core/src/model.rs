@@ -137,6 +137,8 @@ pub struct ProcessDefinition {
     pub key: Uuid,
     /// Human-readable BPMN process ID (e.g. "Process_1").
     pub id: String,
+    /// Model version, increments on deploy if id corresponds.
+    pub version: i32,
     pub nodes: HashMap<String, BpmnElement>,
     pub flows: HashMap<String, Vec<SequenceFlow>>,
     #[serde(default)]
@@ -154,6 +156,7 @@ impl ProcessDefinition {
     /// - Gateways must have at least 2 outgoing flows.
     pub fn new(
         id: impl Into<String>,
+        version: i32,
         nodes: HashMap<String, BpmnElement>,
         flows: HashMap<String, Vec<SequenceFlow>>,
         listeners: HashMap<String, Vec<ExecutionListener>>,
@@ -228,7 +231,7 @@ impl ProcessDefinition {
             }
         }
 
-        Ok(Self { key: Uuid::new_v4(), id, nodes, flows, listeners })
+        Ok(Self { key: Uuid::new_v4(), id, version, nodes, flows, listeners })
     }
 
     /// Returns the (id, element) of the start event.
@@ -275,6 +278,7 @@ impl ProcessDefinition {
 pub struct ProcessDefinitionBuilder {
     id: String,
     key: Option<Uuid>,
+    version: i32,
     nodes: HashMap<String, BpmnElement>,
     flows: HashMap<String, Vec<SequenceFlow>>,
     listeners: HashMap<String, Vec<ExecutionListener>>,
@@ -285,6 +289,7 @@ impl ProcessDefinitionBuilder {
         Self {
             id: id.into(),
             key: None,
+            version: 1,
             nodes: HashMap::new(),
             flows: HashMap::new(),
             listeners: HashMap::new(),
@@ -294,6 +299,12 @@ impl ProcessDefinitionBuilder {
     /// Sets an explicit key for the definition (used during restore).
     pub fn with_key(mut self, key: Uuid) -> Self {
         self.key = Some(key);
+        self
+    }
+
+    /// Sets an explicit version for the definition.
+    pub fn with_version(mut self, version: i32) -> Self {
+        self.version = version;
         self
     }
 
@@ -340,7 +351,7 @@ impl ProcessDefinitionBuilder {
 
     /// Builds and validates the definition.
     pub fn build(self) -> EngineResult<ProcessDefinition> {
-        let mut def = ProcessDefinition::new(self.id, self.nodes, self.flows, self.listeners)?;
+        let mut def = ProcessDefinition::new(self.id, self.version, self.nodes, self.flows, self.listeners)?;
         if let Some(key) = self.key {
             def.key = key;
         }

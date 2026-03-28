@@ -1,16 +1,12 @@
 import { useState, useEffect } from 'react'
-import { getBackendInfo, switchBackend, type BackendInfo } from './lib/tauri'
-import { Server, Cpu } from 'lucide-react'
+import { getApiUrl, setApiUrl, getMonitoringData } from './lib/tauri'
+import { Server, CheckCircle, XCircle } from 'lucide-react'
 
-interface SettingsProps {
-  onBackendChange?: (info: BackendInfo) => void
-}
-
-export function Settings({ onBackendChange }: SettingsProps) {
-  const [info, setInfo] = useState<BackendInfo | null>(null)
-  const [natsUrl, setNatsUrl] = useState('nats://localhost:4222')
+export function Settings() {
+  const [apiUrl, setLocalApiUrl] = useState('http://localhost:8081')
   const [loading, setLoading] = useState(false)
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle')
+  const [message, setMessage] = useState<string | null>(null)
 
   useEffect(() => {
     loadInfo()
@@ -18,26 +14,30 @@ export function Settings({ onBackendChange }: SettingsProps) {
 
   const loadInfo = async () => {
     try {
-      const result = await getBackendInfo()
-      setInfo(result)
-      if (result.nats_url) {
-        setNatsUrl(result.nats_url)
-      }
+      const currentUrl = await getApiUrl()
+      setLocalApiUrl(currentUrl)
     } catch (e) {
-      console.error('Failed to load backend info', e)
+      console.error('Failed to load API URL', e)
     }
   }
 
-  const handleSwitch = async (backendType: string) => {
+  const handleSaveAndVerify = async () => {
     setLoading(true)
+    setStatus('idle')
     setMessage(null)
+    
     try {
-      const result = await switchBackend(backendType, backendType === 'nats' ? natsUrl : undefined)
-      setInfo(result)
-      setMessage({ type: 'success', text: `Switched to ${result.backend_type} backend.` })
-      onBackendChange?.(result)
+      // 1. Save internally in Tauri
+      await setApiUrl(apiUrl)
+      
+      // 2. Verify connection by fetching monitoring data
+      await getMonitoringData()
+      
+      setStatus('success')
+      setMessage(`Successfully connected to Workflow Engine at ${apiUrl}`)
     } catch (e) {
-      setMessage({ type: 'error', text: String(e) })
+      setStatus('error')
+      setMessage(`Connection failed: ${String(e)}`)
     } finally {
       setLoading(false)
     }
@@ -46,58 +46,55 @@ export function Settings({ onBackendChange }: SettingsProps) {
   return (
     <div>
       <h2>Settings</h2>
+      
       <div className="card" style={{ maxWidth: 520 }}>
-        <div className="card-title">Backend Configuration</div>
+        <div className="card-title">Engine API Configuration</div>
+        <p style={{ fontSize: '0.9rem', color: '#64748b', marginBottom: 20 }}>
+          This desktop application operates as a Thin Client. It delegates workflow execution to the configured Engine Server via REST.
+        </p>
 
-        {/* Current status */}
+        {/* API URL input */}
         <div style={{ marginBottom: 16 }}>
-          <span style={{ marginRight: 8 }}>Active Backend:</span>
-          {info && (
-            <span className={`backend-badge ${info.backend_type === 'nats' ? 'backend-nats' : 'backend-inmemory'}`}>
-              {info.backend_type === 'nats' ? '● NATS' : '● In-Memory'}
-            </span>
-          )}
-        </div>
-
-        {/* NATS URL input */}
-        <div style={{ marginBottom: 12 }}>
-          <label style={{ display: 'block', marginBottom: 4, fontWeight: 500, fontSize: '0.9rem' }}>
-            NATS Server URL
+          <label style={{ display: 'block', marginBottom: 6, fontWeight: 500, fontSize: '0.9rem' }}>
+            Engine REST API URL
           </label>
           <input
             className="input-field"
             type="text"
-            value={natsUrl}
-            onChange={(e) => setNatsUrl(e.target.value)}
-            placeholder="nats://localhost:4222"
+            value={apiUrl}
+            onChange={(e) => setLocalApiUrl(e.target.value)}
+            placeholder="http://localhost:8081"
             disabled={loading}
           />
         </div>
 
         {/* Action buttons */}
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 16 }}>
           <button
             className="button"
-            onClick={() => handleSwitch('nats')}
-            disabled={loading || info?.backend_type === 'nats'}
-            style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+            onClick={handleSaveAndVerify}
+            disabled={loading || !apiUrl.trim()}
+            style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
           >
-            <Server size={16} /> Connect to NATS
+            <Server size={16} /> Save & Verify Connection
           </button>
-          <button
-            className="button-secondary"
-            onClick={() => handleSwitch('in-memory')}
-            disabled={loading || info?.backend_type === 'in-memory'}
-            style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-          >
-            <Cpu size={16} /> Switch to In-Memory
-          </button>
+
+          {status === 'success' && (
+            <span style={{ color: '#16a34a', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.9rem', fontWeight: 500 }}>
+              <CheckCircle size={16} /> OK
+            </span>
+          )}
+          {status === 'error' && (
+            <span style={{ color: '#dc2626', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.9rem', fontWeight: 500 }}>
+              <XCircle size={16} /> Failed
+            </span>
+          )}
         </div>
 
         {/* Feedback message */}
         {message && (
-          <div className={`status-message ${message.type === 'success' ? 'status-success' : 'status-error'}`}>
-            {message.text}
+          <div className={`status-message ${status === 'success' ? 'status-success' : 'status-error'}`}>
+            {message}
           </div>
         )}
       </div>

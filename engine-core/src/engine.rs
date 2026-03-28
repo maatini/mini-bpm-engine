@@ -235,6 +235,60 @@ impl WorkflowEngine {
             .collect()
     }
 
+    // ----- History Recording -----------------------------------------------
+
+    /// Helper to record a history entry for an instance, calculating the diff automatically.
+    async fn record_history_event(
+        &self,
+        instance_id: Uuid,
+        event_type: crate::history::HistoryEventType,
+        description: &str,
+        actor_type: crate::history::ActorType,
+        actor_id: Option<String>,
+        old_state: Option<&ProcessInstance>,
+    ) {
+        if let Some(p) = &self.persistence {
+            let new_state = self.instances.get(&instance_id);
+            let diff = match (old_state, new_state) {
+                (Some(o), Some(n)) => crate::history::calculate_diff(o, n),
+                _ => crate::history::HistoryDiff { 
+                    variables: None, status: None, current_node: None, human_readable: None 
+                },
+            };
+            
+            // Do not record if nothing changed for generic token move
+            if diff.is_empty() && matches!(event_type, crate::history::HistoryEventType::TokenAdvanced) {
+                return;
+            }
+
+            let mut entry = crate::history::HistoryEntry::new(
+                instance_id, event_type, description, actor_type, actor_id);
+            if !diff.is_empty() {
+                entry = entry.with_diff(diff);
+            }
+            if let Some(curr) = new_state.or(old_state) {
+                if let Some(def) = self.definitions.get(&curr.definition_key) {
+                    entry.definition_version = Some(def.version);
+                }
+            }
+            
+            if let Some(curr) = new_state {
+                entry = entry.with_node(curr.current_node.clone());
+
+                // Snapshot-Heuristik: Alle 8 Audit-Log Einträge einen Snapshot speichern
+                if !curr.audit_log.is_empty() && curr.audit_log.len() % 8 == 0 {
+                    if let Ok(json_state) = serde_json::to_value(curr) {
+                        entry = entry.with_snapshot(json_state);
+                    }
+                }
+            }
+
+            if let Err(e) = p.append_history_entry(&entry).await {
+                log::error!("Failed to record history entry for {}: {}", instance_id, e);
+            }
+        }
+    }
+
     /// Persists the current state of a process instance (if a persistence
     /// layer is configured). Logs and swallows errors.
     async fn persist_instance(&self, instance_id: Uuid) {
@@ -303,14 +357,14 @@ impl WorkflowEngine {
     /// Returns the definition key (UUID).
     pub async fn deploy_definition(&mut self, definition: ProcessDefinition) -> Uuid {
         // Upsert: reuse key if same BPMN process ID already deployed
-        let existing_key = self.definitions.values()
-            .find(|d| d.id == definition.id)
-            .map(|d| d.key);
+        let existing = self.definitions.values().find(|d| d.id == definition.id);
+        let key = existing.map(|d| d.key).unwrap_or(definition.key);
+        let version = existing.map(|d| d.version + 1).unwrap_or(definition.version);
 
-        let key = existing_key.unwrap_or(definition.key);
         let mut def = definition;
         def.key = key;
-        log::info!("Deployed definition '{}' (key: {})", def.id, key);
+        def.version = version;
+        log::info!("Deployed definition '{}' (v{}, key: {})", def.id, def.version, key);
         self.definitions.insert(key, Arc::new(def));
         self.persist_definition(key).await;
         key
@@ -376,6 +430,17 @@ impl WorkflowEngine {
         );
 
         self.instances.insert(instance_id, instance);
+        
+        // Record history for start
+        self.record_history_event(
+            instance_id,
+            crate::history::HistoryEventType::InstanceStarted,
+            &format!("Started instance of process '{}'", def.id),
+            crate::history::ActorType::Engine,
+            None,
+            None
+        ).await;
+
         let token = Token::with_variables(start_id, variables);
         if let Some(p) = &self.persistence {
             if let Err(e) = p.save_token(&token).await {
@@ -443,6 +508,17 @@ impl WorkflowEngine {
         );
 
         self.instances.insert(instance_id, instance);
+
+        // Record history for start
+        self.record_history_event(
+            instance_id,
+            crate::history::HistoryEventType::InstanceStarted,
+            &format!("Timer fired for instance of process '{}'", def.id),
+            crate::history::ActorType::Timer,
+            None,
+            None
+        ).await;
+
         let token = Token::new(&start_id);
         if let Some(p) = &self.persistence {
             if let Err(e) = p.save_token(&token).await {
@@ -495,7 +571,26 @@ impl WorkflowEngine {
         mut token: Token,
     ) -> EngineResult<()> {
         loop {
+            let old_state = self.instances.get(&instance_id).cloned();
             let action = self.execute_step(instance_id, &mut token).await?;
+            
+            // Get event type based on what action just took place
+            let (event_type, description) = match &action {
+                NextAction::Continue(_) => (crate::history::HistoryEventType::TokenAdvanced, "Token advanced".to_string()),
+                NextAction::ContinueMultiple(_) => (crate::history::HistoryEventType::GatewayTaken, "Token forked at gateway".to_string()),
+                NextAction::WaitForUser(_) => (crate::history::HistoryEventType::TokenAdvanced, "Waiting for user task".to_string()),
+                NextAction::WaitForServiceTask(_) => (crate::history::HistoryEventType::TokenAdvanced, "Waiting for service task".to_string()),
+                NextAction::Complete => (crate::history::HistoryEventType::InstanceCompleted, "Process completed".to_string()),
+            };
+            
+            self.record_history_event(
+                instance_id,
+                event_type,
+                &description,
+                crate::history::ActorType::Engine,
+                None,
+                old_state.as_ref()
+            ).await;
 
             match action {
                 NextAction::Continue(next_token) => {
@@ -832,6 +927,8 @@ impl WorkflowEngine {
 
         self.remove_persisted_user_task(task_id).await;
 
+        let old_state = self.instances.get(&instance_id).cloned();
+
         log::info!(
             "Instance {instance_id}: completed user task '{}' (task_id: {task_id})",
             pending.node_id
@@ -868,6 +965,15 @@ impl WorkflowEngine {
                 log::error!("Failed to save token after user task: {}", e);
             }
         }
+        
+        self.record_history_event(
+            instance_id,
+            crate::history::HistoryEventType::TaskCompleted,
+            &format!("User task '{}' completed", pending.node_id),
+            crate::history::ActorType::User,
+            Some(pending.assignee.clone()),
+            old_state.as_ref()
+        ).await;
 
         // Continue running
         self.run_instance(instance_id, token).await
@@ -978,50 +1084,65 @@ impl WorkflowEngine {
     ///
     /// - Keys with non-null values are created or overwritten.
     /// - Keys with `Value::Null` are removed from the instance variables.
-    pub fn update_instance_variables(
+    pub async fn update_instance_variables(
         &mut self,
         instance_id: Uuid,
         variables: HashMap<String, Value>,
     ) -> EngineResult<()> {
-        let instance = self
-            .instances
-            .get_mut(&instance_id)
-            .ok_or(EngineError::NoSuchInstance(instance_id))?;
+        let old_state = self.instances.get(&instance_id).cloned();
 
-        let mut added: usize = 0;
-        let mut modified: usize = 0;
-        let mut deleted: usize = 0;
+        {
+            let instance = self
+                .instances
+                .get_mut(&instance_id)
+                .ok_or(EngineError::NoSuchInstance(instance_id))?;
 
-        for (key, value) in variables {
-            if value.is_null() {
-                // Delete
-                if instance.variables.remove(&key).is_some() {
-                    deleted += 1;
-                }
-            } else {
-                match instance.variables.entry(key) {
-                    std::collections::hash_map::Entry::Occupied(mut e) => {
-                        // Update existing
-                        e.insert(value);
-                        modified += 1;
+            let mut added: usize = 0;
+            let mut modified: usize = 0;
+            let mut deleted: usize = 0;
+
+            for (key, value) in variables {
+                if value.is_null() {
+                    // Delete
+                    if instance.variables.remove(&key).is_some() {
+                        deleted += 1;
                     }
-                    std::collections::hash_map::Entry::Vacant(e) => {
-                        // Create new
-                        e.insert(value);
-                        added += 1;
+                } else {
+                    match instance.variables.entry(key) {
+                        std::collections::hash_map::Entry::Occupied(mut e) => {
+                            // Update existing
+                            e.insert(value);
+                            modified += 1;
+                        }
+                        std::collections::hash_map::Entry::Vacant(e) => {
+                            // Create new
+                            e.insert(value);
+                            added += 1;
+                        }
                     }
                 }
             }
+
+            instance.audit_log.push(format!(
+                "Variables updated: +{added} ~{modified} -{deleted}"
+            ));
+
+            log::info!(
+                "Instance {}: variables updated (+{added} ~{modified} -{deleted})",
+                instance_id
+            );
         }
 
-        instance.audit_log.push(format!(
-            "Variables updated: +{added} ~{modified} -{deleted}"
-        ));
+        self.record_history_event(
+            instance_id,
+            crate::history::HistoryEventType::VariableUpdated,
+            "Variables updated directly",
+            crate::history::ActorType::User, // API call
+            None,
+            old_state.as_ref()
+        ).await;
 
-        log::info!(
-            "Instance {}: variables updated (+{added} ~{modified} -{deleted})",
-            instance_id
-        );
+        self.persist_instance(instance_id).await;
 
         Ok(())
     }

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { deployDefinition, startInstance, getPendingTasks, completeTask, getPendingServiceTasks, completeServiceTask, getBackendInfo, type PendingUserTask, type PendingServiceTask, type BackendInfo } from './lib/tauri'
+import { deployDefinition, startInstance, getPendingTasks, completeTask, getPendingServiceTasks, fetchAndLockServiceTasks, completeServiceTask, type PendingUserTask, type PendingServiceTask } from './lib/tauri'
 import { Modeler } from './Modeler'
 import { Instances } from './Instances'
 import { DeployedProcesses } from './DeployedProcesses'
@@ -13,11 +13,7 @@ function App() {
   const [tasks, setTasks] = useState<PendingUserTask[]>([])
   const [serviceTasks, setServiceTasks] = useState<PendingServiceTask[]>([])
   const [viewXml, setViewXml] = useState<string | null>(null)
-  const [backendInfo, setBackendInfo] = useState<BackendInfo | null>(null)
 
-  useEffect(() => {
-    getBackendInfo().then(setBackendInfo).catch(console.error)
-  }, [])
 
   useEffect(() => {
     if (activeTab === 'tasks') {
@@ -89,9 +85,22 @@ function App() {
     }
   }
 
-  const handleCompleteServiceTask = async (taskId: string) => {
+  const handleCompleteServiceTask = async (task: PendingServiceTask) => {
     try {
-      await completeServiceTask(taskId, "tauri-ui")
+      if (!task.worker_id) {
+        // Automatically fetch and lock the specific task's topic first
+        const lockedTasks = await fetchAndLockServiceTasks("tauri-ui", 10, task.topic, 5000)
+        if (!lockedTasks.some(t => t.id === task.id)) {
+          alert("Could not lock task! It might have been acquired by another worker.")
+          fetchTasks()
+          return
+        }
+      } else if (task.worker_id !== "tauri-ui") {
+        alert("Task is currently locked by another worker: " + task.worker_id)
+        return
+      }
+
+      await completeServiceTask(task.id, "tauri-ui")
       fetchTasks()
       alert("Service Task completed!")
     } catch (e) {
@@ -122,10 +131,9 @@ function App() {
           <SettingsIcon size={18} /> Settings
         </div>
 
-        {/* Sidebar footer: backend badge */}
         <div className="sidebar-footer">
-          <span className={`backend-badge ${backendInfo?.backend_type === 'nats' ? 'backend-nats' : 'backend-inmemory'}`}>
-            {backendInfo ? (backendInfo.backend_type === 'nats' ? '● NATS' : '● In-Memory') : '…'}
+          <span className="backend-badge backend-nats">
+            ● Thin Client
           </span>
         </div>
       </div>
@@ -182,7 +190,7 @@ function App() {
                     <div style={{ color: '#ef4444', fontSize: '0.9rem', marginTop: 4 }}>Error: {task.error_message}</div>
                   )}
                   <div style={{marginTop: 10}}>
-                    <button className="button" style={{ background: '#8b5cf6' }} onClick={() => handleCompleteServiceTask(task.id)}>
+                    <button className="button" style={{ background: '#8b5cf6' }} onClick={() => handleCompleteServiceTask(task)}>
                       Complete as 'tauri-ui'
                     </button>
                   </div>
@@ -201,7 +209,7 @@ function App() {
         )}
 
         {activeTab === 'settings' && (
-          <Settings onBackendChange={(info) => setBackendInfo(info)} />
+          <Settings />
         )}
       </div>
     </div>

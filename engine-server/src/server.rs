@@ -236,6 +236,8 @@ pub fn build_app_with_engine(
         .route("/api/definitions/:id/xml", get(get_definition_xml))
         .route("/api/definitions/:id", delete(delete_definition))
         .route("/api/instances/:id/variables", put(update_instance_variables))
+        .route("/api/instances/:id/history", get(get_instance_history))
+        .route("/api/instances/:id/history/:event_id", get(get_instance_history_entry))
         .route("/api/info", get(get_backend_info))
         .route("/api/monitoring", get(get_monitoring_data))
         // Service Task endpoints
@@ -399,7 +401,7 @@ async fn update_instance_variables(
     let mut engine = state.engine.write().await;
     let instance_id = parse_uuid(&id)?;
 
-    engine.update_instance_variables(instance_id, payload.variables)?;
+    engine.update_instance_variables(instance_id, payload.variables).await?;
 
     Ok(StatusCode::NO_CONTENT)
 }
@@ -547,6 +549,75 @@ async fn bpmn_error(
 // ---------------------------------------------------------------------------
 // Info & Monitoring
 // ---------------------------------------------------------------------------
+
+#[derive(Deserialize, Default)]
+struct ServerHistoryQuery {
+    event_types: Option<String>,
+    node_id: Option<String>,
+    actor_type: Option<String>,
+    from: Option<chrono::DateTime<chrono::Utc>>,
+    to: Option<chrono::DateTime<chrono::Utc>>,
+    limit: Option<usize>,
+    offset: Option<usize>,
+}
+
+async fn get_instance_history(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+    axum::extract::Query(query): axum::extract::Query<ServerHistoryQuery>,
+) -> Result<Json<Vec<engine_core::history::HistoryEntry>>, AppError> {
+    let instance_id = parse_uuid(&id)?;
+    if let Some(p) = &state.persistence {
+        let parsed_event_types = query.event_types.map(|s| {
+            s.split(',')
+             .filter_map(|part| serde_json::from_value(serde_json::json!(part.trim())).ok())
+             .collect::<Vec<_>>()
+        });
+        
+        let parsed_actor_type = query.actor_type.and_then(|s| {
+             serde_json::from_value(serde_json::json!(s.trim())).ok()
+        });
+
+        let history_query = engine_core::persistence::HistoryQuery {
+            instance_id,
+            event_types: parsed_event_types,
+            node_id: query.node_id,
+            actor_type: parsed_actor_type,
+            from: query.from,
+            to: query.to,
+            limit: query.limit,
+            offset: query.offset,
+        };
+        
+        let history = p.query_history(history_query).await.map_err(AppError::from)?;
+            
+        Ok(Json(history))
+    } else {
+        Ok(Json(vec![]))
+    }
+}
+
+async fn get_instance_history_entry(
+    State(state): State<Arc<AppState>>,
+    Path((id, event_id)): Path<(String, String)>,
+) -> Result<Json<engine_core::history::HistoryEntry>, AppError> {
+    let instance_id = parse_uuid(&id)?;
+    let event_uuid = parse_uuid(&event_id)?;
+    
+    if let Some(p) = &state.persistence {
+        let history = p.query_history(engine_core::persistence::HistoryQuery {
+            instance_id,
+            ..Default::default()
+        }).await.map_err(AppError::from)?;
+        if let Some(entry) = history.into_iter().find(|e| e.id == event_uuid) {
+            Ok(Json(entry))
+        } else {
+            Err(AppError::BadRequest(format!("History entry {event_uuid} not found")))
+        }
+    } else {
+        Err(AppError::BadRequest("No persistence configured".to_string()))
+    }
+}
 
 async fn get_backend_info(
     State(state): State<Arc<AppState>>,

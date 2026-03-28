@@ -56,6 +56,10 @@ export async function getPendingServiceTasks(): Promise<PendingServiceTask[]> {
   return invoke('get_pending_service_tasks');
 }
 
+export async function fetchAndLockServiceTasks(workerId: string, maxTasks: number, topicName: string, lockDuration: number): Promise<PendingServiceTask[]> {
+  return invoke('fetch_and_lock_service_tasks', { workerId, maxTasks, topicName, lockDuration });
+}
+
 export async function completeServiceTask(taskId: string, workerId: string, variables?: Record<string, unknown>): Promise<void> {
   return invoke('complete_service_task', { taskId, workerId, variables: variables || null });
 }
@@ -66,6 +70,39 @@ export async function listInstances(): Promise<ProcessInstance[]> {
 
 export async function getInstanceDetails(instanceId: string): Promise<ProcessInstance> {
   return invoke('get_instance_details', { instanceId });
+}
+
+export interface HistoryEntry {
+  id: string;
+  instance_id: string;
+  timestamp: string;
+  event_type: string;
+  node_id: string | null;
+  description: string;
+  actor_type: string;
+  actor_id: string | null;
+  diff: {
+    changes: Record<string, any>;
+    human_readable: string | null;
+  } | null;
+  context: Record<string, any>;
+  metadata: Record<string, any> | null;
+  definition_version: number | null;
+  is_snapshot: boolean;
+  full_state_snapshot: Record<string, any> | null;
+}
+
+export interface HistoryQuery {
+  event_types?: string;
+  actor_types?: string;
+}
+
+export async function getInstanceHistory(instanceId: string, query?: HistoryQuery): Promise<HistoryEntry[]> {
+  return invoke('get_instance_history', { 
+    instanceId,
+    eventTypes: query?.event_types || null,
+    actorTypes: query?.actor_types || null
+  });
 }
 
 export async function updateInstanceVariables(instanceId: string, variables: Record<string, unknown>): Promise<void> {
@@ -98,18 +135,12 @@ export async function deleteDefinition(definitionId: string, cascade: boolean = 
 // Backend info & switching
 // ---------------------------------------------------------------------------
 
-export interface BackendInfo {
-  backend_type: 'in-memory' | 'nats' | 'http';
-  nats_url: string | null;
-  connected: boolean;
+export async function getApiUrl(): Promise<string> {
+  return invoke('get_api_url');
 }
 
-export async function getBackendInfo(): Promise<BackendInfo> {
-  return invoke('get_backend_info');
-}
-
-export async function switchBackend(backendType: string, natsUrl?: string): Promise<BackendInfo> {
-  return invoke('switch_backend', { backendType, natsUrl: natsUrl ?? null });
+export async function setApiUrl(url: string): Promise<void> {
+  return invoke('set_api_url', { url });
 }
 
 // ---------------------------------------------------------------------------
