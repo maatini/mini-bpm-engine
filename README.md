@@ -74,31 +74,59 @@ flowchart TD
     Engine -- "Stores State & Events" --> Nats
 ```
 
-## Devbox-Umgebung
+## Voraussetzungen
 
-Dieses Projekt nutzt [Devbox](https://www.jetify.com/devbox), um eine isolierte und reproduzierbare Entwicklungsumgebung bereitzustellen.
-Diese Umgebung bringt alle notwendigen Abhängigkeiten wie Rust, Node.js und den NATS-Server mit.
+Du kannst dieses Projekt entweder in einer isolierten Devbox-Umgebung (empfohlen) oder mit lokal installierten Tools entwickeln.
 
-Wichtige Devbox-Skripte (ausführbar mit `devbox run <script>`):
-* `build`, `test`, `lint`, `fmt` - Cargo Standardkommandos in der Entwicklungsumgebung
-* `ui:dev` - Startet das Tauri-Frontend (Desktop Applikation) im Entwicklungsmodus
-* `engine:docker` - Startet die gesamte Server-Infrastruktur (NATS & Engine-Server) per Docker Compose
+### Variante A: Devbox (Empfohlen)
+Dieses Projekt nutzt [Devbox](https://www.jetify.com/devbox) für eine reproduzierbare Umgebung.
+1. Installiere Devbox auf deinem System.
+2. Führe im Projektverzeichnis `devbox shell` aus. Dies installiert automatisch Rust, Node.js und den NATS-Server in der isolierten Umgebung.
 
-## Starten des Engine-Servers
+### Variante B: Manuell (Shell)
+Folgende Tools müssen auf deinem System installiert sein:
+- Rust (via `rustup`)
+- Node.js (≥ 18)
+- Docker & Docker Compose (für NATS)
 
-Für die lokale Entwicklung empfehlen wir die bereitgestellten Devbox-Befehle:
+## Build, Test & Lint
+
+| Aktion | Variante A: Devbox | Variante B: Manuell (Shell) |
+|---|---|---|
+| **Build** | `devbox run build` | `cargo build --workspace` |
+| **Test** | `devbox run test` | `cargo test --workspace` |
+| **Lint** | `devbox run lint` | `cargo clippy --workspace -- -D warnings` |
+| **Format Check** | `devbox run fmt` | `cargo fmt --all --check` |
+
+## Engine-Server starten
+
+Der Engine-Server benötigt eine laufende NATS-Instanz für die Persistenz. 
+
+### Variante A: Devbox
 
 ```bash
-# NATS lokal starten
+# NATS lokal via Docker starten
 devbox run nats:up
 
 # Engine-Server ausführen
 devbox run engine:run
 ```
 
-Der Server lauscht standardmäßig auf `http://localhost:8081`.
+### Variante B: Manuell (Shell)
 
-### Endpunkte
+```bash
+# NATS im Hintergrund starten
+docker compose up -d nats
+
+# Engine-Server ausführen
+cargo run -p engine-server
+```
+
+Der Server lauscht standardmäßig auf `http://localhost:8081`. 
+*Hinweis: Wenn NATS auf einem anderen Port als 4222 läuft, kann dies via Umgebungsvariable `NATS_URL` angepasst werden.*
+
+### REST API Endpunkte
+
 * `POST /api/deploy` - Eine BPMN-Definition bereitstellen
 * `POST /api/start` - Eine neue Prozessinstanz starten
 * `GET /api/tasks` - Alle ausstehenden Benutzer-Tasks (User Tasks) auflisten
@@ -107,7 +135,7 @@ Der Server lauscht standardmäßig auf `http://localhost:8081`.
 * `GET /api/instances/:id` - Details einer einzelnen Instanz abrufen
 * `PUT /api/instances/:id/variables` - Variablen einer Prozessinstanz aktualisieren
 * `DELETE /api/instances/:id` - Eine Prozessinstanz löschen
-* `DELETE /api/definitions/:id` - Eine Prozessdefinition löschen (Query `?cascade=true` zum Mitlöschen aller zugehörigen Instanzen)
+* `DELETE /api/definitions/:id` - Eine Prozessdefinition löschen (Query `?cascade=true` zum Mitlöschen aller Instanzen)
 
 #### Service Tasks
 * `POST /api/service-task/fetchAndLock` - Tasks für Worker abrufen und sperren (inkl. Long-Polling)
@@ -116,28 +144,61 @@ Der Server lauscht standardmäßig auf `http://localhost:8081`.
 * `POST /api/service-task/:id/extendLock` - Die Sperrdauer eines Tasks verlängern
 * `POST /api/service-task/:id/bpmnError` - Einen BPMN-Fehler für einen Task melden
 
-## Ausführen der Desktop-Anwendung
+## Desktop-Anwendung (UI) starten
 
-Die `mini-bpm-desktop` Anwendung fungiert als leichtgewichtiger "Thin Client", der sich ausschließlich über HTTP mit der `engine-server` Instanz verbindet. Sie baut keine eigene NATS-Verbindung auf und besitzt keine eingebettete Engine mehr.
+Die `mini-bpm-desktop` Anwendung ist ein "Thin Client", der sich ausschließlich über HTTP mit der `engine-server` Instanz verbindet. 
+
+> [!CAUTION]  
+> Stelle sicher, dass der Engine-Server läuft, bevor die UI gestartet wird. Du kannst den API-Endpunkt über die Umgebungsvariable `ENGINE_API_URL` umleiten (Standard: `http://localhost:8081`).
+
+### Variante A: Devbox
 
 ```bash
-# Starten für das Development (erfordert Node.js und npm)
-cd desktop-tauri && npm install && npm run tauri dev
+devbox run ui:dev
 ```
 
-*Hinweis: Stelle sicher, dass `engine-server` läuft, bevor die App gestartet wird. Du kannst den API-Endpunkt über die Umgebungsvariable `ENGINE_API_URL` konfigurieren.*
-
-### Tauri-Kommandos
-Das Frontend der Desktop-Anwendung nutzt folgende Tauri-Kommandos zur Interaktion mit dem Backend:
-* Deployment & Start: `deploy_definition`, `deploy_simple_process`, `start_instance`
-* Instanzen: `list_instances`, `get_instance_details`, `update_instance_variables`, `delete_instance`
-* Tasks: `get_pending_tasks`, `complete_task`
-* Definitionen: `list_definitions`, `get_definition_xml`, `delete_definition`
-
-## Docker Compose
-
-Die gesamte Infrastruktur (NATS und `engine-server`) kann wie folgt gestartet werden:
+### Variante B: Manuell (Shell)
 
 ```bash
-docker-compose up --build
+cd desktop-tauri
+npm install
+npm run tauri dev
+```
+
+### Tauri-Kommandos
+Das Frontend der Desktop-Anwendung nutzt folgende Tauri-Kommandos zur Interaktion mit dem eigenen Backend, welches wiederum die HTTP Rest-Aufrufe zum Engine-Server macht:
+* **Deployment & Start**: `deploy_definition`, `deploy_simple_process`, `start_instance`
+* **Instanzen**: `list_instances`, `get_instance_details`, `update_instance_variables`, `delete_instance`
+* **Tasks**: `get_pending_tasks`, `complete_task`
+* **Definitionen**: `list_definitions`, `get_definition_xml`, `delete_definition`
+
+## Komplette Infrastruktur starten (Docker Compose)
+
+Um NATS und den Engine-Server gemeinsam und isoliert auszuführen:
+
+### Variante A: Devbox
+
+```bash
+devbox run engine:docker
+```
+
+### Variante B: Manuell (Shell)
+
+```bash
+docker compose up --build
+```
+*(Die Services sind anschließend unter `localhost:8081` und `localhost:4222` erreichbar)*
+
+## Agent Orchestrator (Externer Worker)
+
+Der `agent-orchestrator` ist ein Beispiel für einen externen Microservice, der periodisch nach anstehenden "Service Tasks" im Engine-Server fragt (`fetchAndLock`), diese abarbeitet und anschließend bei der Engine als erledigt meldet.
+
+Um das Zusammenspiel zu testen, stellen Sie sicher, dass NATS und der Engine-Server bereits laufen. Öffnen Sie dann ein neues Terminal:
+
+### Variante A & B: Identischer Befehl (Cargo)
+
+*(Sollte `cargo` nicht installiert sein, vorher `devbox shell` aufrufen)*
+
+```bash
+cargo run -p agent-orchestrator
 ```
