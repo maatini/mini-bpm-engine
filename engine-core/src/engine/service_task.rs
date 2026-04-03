@@ -122,6 +122,8 @@ impl WorkflowEngine {
         for (k, v) in variables {
             token.variables.insert(k, v);
         }
+        
+        self.cancel_boundary_timers(instance_id, &task.node_id);
 
         log::info!(
             "Instance {}: completed service task '{}' (task_id: {task_id})",
@@ -313,15 +315,70 @@ impl WorkflowEngine {
         let task = self.pending_service_tasks.remove(idx);
         let instance_id = task.instance_id;
 
+        let def_key = {
+            let inst = self.instances.get(&instance_id)
+                .ok_or(EngineError::NoSuchInstance(instance_id))?;
+            inst.definition_key
+        };
+        
+        self.cancel_boundary_timers(instance_id, &task.node_id);
+        
+        let mut target_boundary = None;
+        if let Some(def) = self.definitions.get(&def_key) {
+            for (node_id, node) in &def.nodes {
+                if let crate::model::BpmnElement::BoundaryErrorEvent { attached_to, error_code: bound_err } = node {
+                    if attached_to == &task.node_id && (bound_err.is_none() || bound_err.as_deref() == Some(error_code)) {
+                        target_boundary = Some(node_id.clone());
+                        break;
+                    }
+                }
+            }
+        }
+        
+        if let Some(boundary_id) = target_boundary {
+            let old_state = self.instances.get(&instance_id).cloned();
+            let inst = self.instances.get_mut(&instance_id)
+                .ok_or(EngineError::NoSuchInstance(instance_id))?;
+            inst.audit_log.push(format!("💥 BPMN Error '{error_code}' caught by boundary event '{boundary_id}'"));
+            inst.state = InstanceState::Running;
+            
+            self.record_history_event(
+                instance_id,
+                crate::history::HistoryEventType::TokenAdvanced,
+                &format!("Error '{error_code}' caught"),
+                crate::history::ActorType::Engine,
+                None,
+                old_state.as_ref()
+            ).await;
+            
+            let mut token = task.token;
+            let def = self.definitions.get(&def_key)
+                .ok_or(EngineError::NoSuchDefinition(def_key))?;
+            let next = super::resolve_next_target(def, &boundary_id, &token.variables)?;
+            
+            token.current_node = next.clone();
+            {
+                let inst = self.instances.get_mut(&instance_id)
+                    .ok_or(EngineError::NoSuchInstance(instance_id))?;
+                inst.current_node = next;
+            }
+            
+            self.remove_persisted_service_task(task_id).await;
+            self.persist_instance(instance_id).await;
+            Box::pin(self.run_instance(instance_id, token)).await?;
+            return Ok(());
+        }
+
+        // If no boundary event found, just log it as an unhandled error/incident.
         if let Some(inst) = self.instances.get_mut(&instance_id) {
             inst.audit_log.push(format!(
-                "🚨 BPMN error '{}' thrown by worker '{}' at service task '{}'",
+                "🚨 BPMN error '{}' thrown by worker '{}' at service task '{}' (No boundary event caught it)",
                 error_code, worker_id, task.node_id
             ));
         }
 
         log::warn!(
-            "Service task {task_id}: BPMN error '{error_code}' from worker '{worker_id}'"
+            "Service task {task_id}: unhandled BPMN error '{error_code}' from worker '{worker_id}'"
         );
         
         self.remove_persisted_service_task(task_id).await;

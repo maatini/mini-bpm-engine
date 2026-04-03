@@ -240,6 +240,9 @@ pub fn build_app_with_engine(
         .route("/api/instances/:id/history/:event_id", get(get_instance_history_entry))
         .route("/api/info", get(get_backend_info))
         .route("/api/monitoring", get(get_monitoring_data))
+        // Phase 1 endpoints
+        .route("/api/message", post(correlate_message))
+        .route("/api/timers/process", post(process_timers))
         // Service Task endpoints
         .route("/api/service-tasks", get(get_service_tasks))
         .route("/api/service-task/fetchAndLock", post(fetch_and_lock_service_tasks))
@@ -336,6 +339,45 @@ async fn start_instance(
     }?;
 
     Ok(Json(StartResponse { instance_id: id.to_string() }))
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CorrelateMessageRequest {
+    message_name: String,
+    business_key: Option<String>,
+    variables: Option<HashMap<String, Value>>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CorrelateMessageResponse {
+    affected_instances: Vec<String>,
+}
+
+async fn correlate_message(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<CorrelateMessageRequest>,
+) -> Result<Json<CorrelateMessageResponse>, AppError> {
+    let mut engine = state.engine.write().await;
+    let vars = payload.variables.unwrap_or_default();
+    let affected = engine.correlate_message(payload.message_name, payload.business_key, vars).await?;
+    let affected_strs = affected.into_iter().map(|id| id.to_string()).collect();
+    Ok(Json(CorrelateMessageResponse { affected_instances: affected_strs }))
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ProcessTimersResponse {
+    triggered: usize,
+}
+
+async fn process_timers(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<ProcessTimersResponse>, AppError> {
+    let mut engine = state.engine.write().await;
+    let count = engine.process_timers().await?;
+    Ok(Json(ProcessTimersResponse { triggered: count }))
 }
 
 async fn get_tasks(

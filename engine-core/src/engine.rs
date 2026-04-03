@@ -58,6 +58,28 @@ pub struct PendingServiceTask {
 }
 
 // ---------------------------------------------------------------------------
+// Pending Timers and Messages
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PendingTimer {
+    pub id: Uuid,
+    pub instance_id: Uuid,
+    pub node_id: String,
+    pub expires_at: DateTime<Utc>,
+    pub token: Token,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PendingMessageCatch {
+    pub id: Uuid,
+    pub instance_id: Uuid,
+    pub node_id: String,
+    pub message_name: String,
+    pub token: Token,
+}
+
+// ---------------------------------------------------------------------------
 // Next action (execution result)
 // ---------------------------------------------------------------------------
 
@@ -74,6 +96,10 @@ pub enum NextAction {
     WaitForServiceTask(PendingServiceTask),
     /// Token arrived at a join gateway but must wait for sibling tokens.
     WaitForJoin { gateway_id: String, token: Token },
+    /// The engine must pause — a timer is pending.
+    WaitForTimer(PendingTimer),
+    /// The engine must pause — a message catch is pending.
+    WaitForMessage(PendingMessageCatch),
     /// The process reached an end event.
     Complete,
 }
@@ -88,6 +114,8 @@ pub enum InstanceState {
     Running,
     WaitingOnUserTask { task_id: Uuid },
     WaitingOnServiceTask { task_id: Uuid },
+    WaitingOnTimer { timer_id: Uuid },
+    WaitingOnMessage { message_id: Uuid },
     /// Multiple tokens are active; some may be waiting, some running.
     ParallelExecution { active_token_count: usize },
     Completed,
@@ -191,6 +219,8 @@ pub struct WorkflowEngine {
     pub(crate) instances: HashMap<Uuid, ProcessInstance>,
     pub(crate) pending_user_tasks: Vec<PendingUserTask>,
     pub(crate) pending_service_tasks: Vec<PendingServiceTask>,
+    pub(crate) pending_timers: Vec<PendingTimer>,
+    pub(crate) pending_message_catches: Vec<PendingMessageCatch>,
     pub(crate) persistence: Option<Arc<dyn WorkflowPersistence>>,
     pub(crate) script_engine: rhai::Engine,
 }
@@ -204,6 +234,8 @@ impl WorkflowEngine {
             instances: HashMap::new(),
             pending_user_tasks: Vec::new(),
             pending_service_tasks: Vec::new(),
+            pending_timers: Vec::new(),
+            pending_message_catches: Vec::new(),
             persistence: None,
             script_engine: rhai::Engine::new(),
         }
@@ -377,6 +409,46 @@ impl WorkflowEngine {
         if let Some(p) = &self.persistence {
             if let Err(e) = p.delete_service_task(task_id).await {
                 log::error!("Failed to delete persisted external task {}: {}", task_id, e);
+            }
+        }
+    }
+
+    /// Persists a pending timer to the KV store.
+    async fn persist_timer(&self, timer_id: Uuid) {
+        if let Some(p) = &self.persistence {
+            if let Some(timer) = self.pending_timers.iter().find(|t| t.id == timer_id) {
+                if let Err(e) = p.save_timer(timer).await {
+                    log::error!("Failed to persist timer {}: {}", timer_id, e);
+                }
+            }
+        }
+    }
+
+    /// Deletes a completed pending timer from the KV store.
+    async fn remove_persisted_timer(&self, timer_id: Uuid) {
+        if let Some(p) = &self.persistence {
+            if let Err(e) = p.delete_timer(timer_id).await {
+                log::error!("Failed to delete persisted timer {}: {}", timer_id, e);
+            }
+        }
+    }
+
+    /// Persists a pending message catch to the KV store.
+    async fn persist_message_catch(&self, catch_id: Uuid) {
+        if let Some(p) = &self.persistence {
+            if let Some(catch) = self.pending_message_catches.iter().find(|t| t.id == catch_id) {
+                if let Err(e) = p.save_message_catch(catch).await {
+                    log::error!("Failed to persist message catch {}: {}", catch_id, e);
+                }
+            }
+        }
+    }
+
+    /// Deletes a completed pending message catch from the KV store.
+    async fn remove_persisted_message_catch(&self, catch_id: Uuid) {
+        if let Some(p) = &self.persistence {
+            if let Err(e) = p.delete_message_catch(catch_id).await {
+                log::error!("Failed to delete persisted message catch {}: {}", catch_id, e);
             }
         }
     }
@@ -618,6 +690,8 @@ impl WorkflowEngine {
                 NextAction::WaitForJoin { .. } => (crate::history::HistoryEventType::TokenAdvanced, "Token arrived at join".to_string()),
                 NextAction::WaitForUser(_) => (crate::history::HistoryEventType::TokenAdvanced, "Waiting for user task".to_string()),
                 NextAction::WaitForServiceTask(_) => (crate::history::HistoryEventType::TokenAdvanced, "Waiting for service task".to_string()),
+                NextAction::WaitForTimer(_) => (crate::history::HistoryEventType::TokenAdvanced, "Waiting for timer".to_string()),
+                NextAction::WaitForMessage(_) => (crate::history::HistoryEventType::TokenAdvanced, "Waiting for message".to_string()),
                 NextAction::Complete => (crate::history::HistoryEventType::BranchCompleted, "Execution path completed".to_string()),
             };
             
@@ -701,6 +775,30 @@ impl WorkflowEngine {
                     self.persist_service_task(task_id).await;
                     return Ok(());
                 }
+                NextAction::WaitForTimer(pending) => {
+                    let timer_id = pending.id;
+                    if let Some(inst) = self.instances.get_mut(&instance_id) {
+                        if !matches!(inst.state, InstanceState::ParallelExecution { .. }) {
+                            inst.state = InstanceState::WaitingOnTimer { timer_id };
+                        }
+                    }
+                    self.pending_timers.push(pending);
+                    self.persist_instance(instance_id).await;
+                    self.persist_timer(timer_id).await;
+                    return Ok(());
+                }
+                NextAction::WaitForMessage(pending) => {
+                    let message_id = pending.id;
+                    if let Some(inst) = self.instances.get_mut(&instance_id) {
+                        if !matches!(inst.state, InstanceState::ParallelExecution { .. }) {
+                            inst.state = InstanceState::WaitingOnMessage { message_id };
+                        }
+                    }
+                    self.pending_message_catches.push(pending);
+                    self.persist_instance(instance_id).await;
+                    self.persist_message_catch(message_id).await;
+                    return Ok(());
+                }
                 NextAction::Complete => {
                     self.complete_branch_token(instance_id, token.id)?;
                     if self.all_tokens_completed(instance_id)? {
@@ -733,11 +831,14 @@ impl WorkflowEngine {
         split_gateway_id: &str,
         branch_count: usize,
     ) -> EngineResult<()> {
-        let def_key = self.instances.get(&instance_id).unwrap().definition_key;
-        let def = self.definitions.get(&def_key).unwrap().clone();
+        let def_key = self.instances.get(&instance_id)
+            .ok_or(EngineError::NoSuchInstance(instance_id))?.definition_key;
+        let def = self.definitions.get(&def_key)
+            .ok_or(EngineError::NoSuchDefinition(def_key))?.clone();
         
         if let Some(join_id) = self.find_downstream_join(&def, split_gateway_id) {
-            let inst = self.instances.get_mut(&instance_id).unwrap();
+            let inst = self.instances.get_mut(&instance_id)
+                .ok_or(EngineError::NoSuchInstance(instance_id))?;
             inst.join_barriers.insert(join_id.clone(), JoinBarrier {
                 gateway_node_id: join_id.clone(),
                 expected_count: branch_count,
@@ -787,11 +888,14 @@ impl WorkflowEngine {
         gateway_id: &str,
         token: Token,
     ) -> EngineResult<Option<Token>> {
-        let def_key = self.instances.get(&instance_id).unwrap().definition_key;
-        let def = self.definitions.get(&def_key).unwrap().clone();
+        let def_key = self.instances.get(&instance_id)
+            .ok_or(EngineError::NoSuchInstance(instance_id))?.definition_key;
+        let def = self.definitions.get(&def_key)
+            .ok_or(EngineError::NoSuchDefinition(def_key))?.clone();
         
         let expected = def.incoming_flow_count(gateway_id);
-        let inst = self.instances.get_mut(&instance_id).unwrap();
+        let inst = self.instances.get_mut(&instance_id)
+            .ok_or(EngineError::NoSuchInstance(instance_id))?;
         
         let barrier = inst.join_barriers.entry(gateway_id.to_string()).or_insert_with(|| JoinBarrier {
             gateway_node_id: gateway_id.to_string(),
@@ -945,6 +1049,26 @@ impl WorkflowEngine {
             }
 
             BpmnElement::UserTask(assignee) => {
+                let mut bounds = Vec::new();
+                for (node_id, node) in &def_clone.nodes {
+                    if let BpmnElement::BoundaryTimerEvent { attached_to, duration, .. } = node {
+                        if attached_to == &current_id {
+                            bounds.push((node_id.clone(), *duration));
+                        }
+                    }
+                }
+                
+                for (node_id, duration) in bounds {
+                    let pending_timer = PendingTimer {
+                        id: Uuid::new_v4(),
+                        instance_id,
+                        node_id: node_id.clone(),
+                        expires_at: chrono::Utc::now() + chrono::Duration::from_std(duration).unwrap_or(chrono::Duration::seconds(0)),
+                        token: token.clone(),
+                    };
+                    self.pending_timers.push(pending_timer);
+                }
+
                 let pending = PendingUserTask {
                     task_id: Uuid::new_v4(),
                     instance_id,
@@ -970,6 +1094,26 @@ impl WorkflowEngine {
             }
 
             BpmnElement::ServiceTask { topic } => {
+                let mut bounds = Vec::new();
+                for (node_id, node) in &def_clone.nodes {
+                    if let BpmnElement::BoundaryTimerEvent { attached_to, duration, .. } = node {
+                        if attached_to == &current_id {
+                            bounds.push((node_id.clone(), *duration));
+                        }
+                    }
+                }
+                
+                for (node_id, duration) in bounds {
+                    let pending_timer = PendingTimer {
+                        id: Uuid::new_v4(),
+                        instance_id,
+                        node_id: node_id.clone(),
+                        expires_at: chrono::Utc::now() + chrono::Duration::from_std(duration).unwrap_or(chrono::Duration::seconds(0)),
+                        token: token.clone(),
+                    };
+                    self.pending_timers.push(pending_timer);
+                }
+
                 let svc_task = PendingServiceTask {
                     id: Uuid::new_v4(),
                     instance_id,
@@ -1035,7 +1179,9 @@ impl WorkflowEngine {
                     .collect();
 
                 if forked.len() == 1 {
-                    Ok(NextAction::Continue(forked.into_iter().next().unwrap()))
+                    // SAFETY: guarded by `forked.len() == 1` — cannot be empty
+                    Ok(NextAction::Continue(forked.into_iter().next()
+                        .expect("BUG: forked vec verified as len()==1 but is empty")))
                 } else {
                     Ok(NextAction::ContinueMultiple(forked))
                 }
@@ -1149,7 +1295,210 @@ impl WorkflowEngine {
                     Ok(NextAction::ContinueMultiple(forked))
                 }
             }
+
+            // --- Phase 1: Event implementation ---
+            BpmnElement::MessageStartEvent { .. } => {
+                // Treated same as StartEvent.
+                let next = resolve_next_target(&def_clone, &current_id, &token.variables)?;
+                self.run_end_scripts(instance_id, token, &def_clone, &current_id)?;
+                token.current_node = next.clone();
+                let inst = self.instances.get_mut(&instance_id).ok_or(EngineError::NoSuchInstance(instance_id))?;
+                inst.current_node = next;
+                Ok(NextAction::Continue(token.clone()))
+            }
+            
+            BpmnElement::TimerCatchEvent(dur) => {
+                let pending = PendingTimer {
+                    id: Uuid::new_v4(),
+                    instance_id,
+                    node_id: current_id.clone(),
+                    expires_at: chrono::Utc::now() + chrono::Duration::from_std(*dur).unwrap_or(chrono::Duration::seconds(0)),
+                    token: token.clone(),
+                };
+                let inst = self.instances.get_mut(&instance_id)
+                    .ok_or(EngineError::NoSuchInstance(instance_id))?;
+                inst.current_node = current_id.clone();
+                inst.audit_log.push(format!("⏱ Timer catch event '{current_id}' — waiting"));
+                Ok(NextAction::WaitForTimer(pending))
+            }
+
+            BpmnElement::MessageCatchEvent { message_name } => {
+                let pending = PendingMessageCatch {
+                    id: Uuid::new_v4(),
+                    instance_id,
+                    node_id: current_id.clone(),
+                    message_name: message_name.clone(),
+                    token: token.clone(),
+                };
+                let inst = self.instances.get_mut(&instance_id)
+                    .ok_or(EngineError::NoSuchInstance(instance_id))?;
+                inst.current_node = current_id.clone();
+                inst.audit_log.push(format!("✉️ Message catch event '{current_id}' waiting for '{message_name}'"));
+                Ok(NextAction::WaitForMessage(pending))
+            }
+            
+            BpmnElement::ErrorEndEvent { error_code } => {
+                self.run_end_scripts(instance_id, token, &def_clone, &current_id)?;
+                let inst = self.instances.get_mut(&instance_id)
+                    .ok_or(EngineError::NoSuchInstance(instance_id))?;
+                inst.current_node = current_id.clone();
+                inst.audit_log.push(format!("💥 Process completed at error end '{current_id}' with code '{error_code}'"));
+                Ok(NextAction::Complete)
+            }
+            
+            BpmnElement::BoundaryTimerEvent { .. } | BpmnElement::BoundaryErrorEvent { .. } => {
+                // If a token directly hits a boundary event, it means it's passing through it AFTER being triggered.
+                let next = resolve_next_target(&def_clone, &current_id, &token.variables)?;
+                self.run_end_scripts(instance_id, token, &def_clone, &current_id)?;
+                token.current_node = next.clone();
+                let inst = self.instances.get_mut(&instance_id)
+                    .ok_or(EngineError::NoSuchInstance(instance_id))?;
+                inst.current_node = next;
+                Ok(NextAction::Continue(token.clone()))
+            }
         }
+    }
+
+    // ----- Phase 1 API: timers and messages ---------------------------------
+
+    pub async fn correlate_message(
+        &mut self,
+        message_name: String,
+        business_key: Option<String>,
+        variables: HashMap<String, Value>,
+    ) -> EngineResult<Vec<Uuid>> {
+        let mut affected_instances = Vec::new();
+        let mut to_resume = Vec::new();
+        
+        for catch in &self.pending_message_catches {
+            if catch.message_name == message_name {
+                if let Some(inst) = self.instances.get(&catch.instance_id) {
+                    if let Some(ref bk) = business_key {
+                        if &inst.business_key != bk {
+                            continue;
+                        }
+                    }
+                    to_resume.push(catch.id);
+                    affected_instances.push(catch.instance_id);
+                }
+            }
+        }
+        
+        for catch_id in to_resume {
+            let idx = self.pending_message_catches.iter().position(|p| p.id == catch_id)
+                .ok_or_else(|| EngineError::InvalidDefinition(format!("Message catch {catch_id} disappeared")))?;
+            let catch = self.pending_message_catches.remove(idx);
+            
+            let mut token = catch.token;
+            token.variables.extend(variables.clone());
+            
+            let old_state = self.instances.get(&catch.instance_id).cloned();
+            let def_key = {
+                let inst = self.instances.get_mut(&catch.instance_id)
+                    .ok_or(EngineError::NoSuchInstance(catch.instance_id))?;
+                inst.state = InstanceState::Running;
+                inst.audit_log.push(format!("✉️ Msg '{}' correlated, resuming '{catch_id}'", message_name));
+                inst.definition_key
+            };
+            
+            self.record_history_event(
+                catch.instance_id,
+                crate::history::HistoryEventType::TokenAdvanced,
+                &format!("Message '{}' correlated", message_name),
+                crate::history::ActorType::Engine,
+                None,
+                old_state.as_ref()
+            ).await;
+            
+            let def = self.definitions.get(&def_key)
+                .ok_or(EngineError::NoSuchDefinition(def_key))?;
+            let next = resolve_next_target(def, &catch.node_id, &token.variables)?;
+            token.current_node = next.clone();
+            
+            {
+                let inst = self.instances.get_mut(&catch.instance_id)
+                    .ok_or(EngineError::NoSuchInstance(catch.instance_id))?;
+                inst.current_node = next;
+            }
+            
+            self.remove_persisted_message_catch(catch_id).await;
+            Box::pin(self.run_instance(catch.instance_id, token)).await?;
+        }
+        
+        let mut defs_to_start = Vec::new();
+        for (def_key, def) in &self.definitions {
+            if let Some((_, BpmnElement::MessageStartEvent { message_name: ref_msg })) = def.start_event() {
+                if ref_msg == &message_name {
+                    defs_to_start.push(*def_key);
+                }
+            }
+        }
+        
+        for def_key in defs_to_start {
+            let new_id = self.start_instance_with_variables(def_key, variables.clone()).await?;
+            if let Some(ref bk) = business_key {
+                if let Some(inst) = self.instances.get_mut(&new_id) {
+                    inst.business_key = bk.clone();
+                }
+                self.persist_instance(new_id).await;
+            }
+            affected_instances.push(new_id);
+        }
+        
+        Ok(affected_instances)
+    }
+
+    pub async fn process_timers(&mut self) -> EngineResult<usize> {
+        let now = chrono::Utc::now();
+        let mut expired = Vec::new();
+        
+        for timer in &self.pending_timers {
+            if timer.expires_at <= now {
+                expired.push(timer.id);
+            }
+        }
+        
+        let count = expired.len();
+        for tid in expired {
+            let idx = self.pending_timers.iter().position(|p| p.id == tid)
+                .ok_or_else(|| EngineError::InvalidDefinition(format!("Timer {tid} disappeared")))?;
+            let timer = self.pending_timers.remove(idx);
+            
+            let old_state = self.instances.get(&timer.instance_id).cloned();
+            let def_key = {
+                let inst = self.instances.get_mut(&timer.instance_id)
+                    .ok_or(EngineError::NoSuchInstance(timer.instance_id))?;
+                inst.state = InstanceState::Running;
+                inst.audit_log.push(format!("⏱ Timer '{}' expired, resuming", timer.node_id));
+                inst.definition_key
+            };
+            
+            self.record_history_event(
+                timer.instance_id,
+                crate::history::HistoryEventType::TokenAdvanced,
+                "Timer expired",
+                crate::history::ActorType::Timer,
+                None,
+                old_state.as_ref()
+            ).await;
+            
+            let mut token = timer.token;
+            let def = self.definitions.get(&def_key)
+                .ok_or(EngineError::NoSuchDefinition(def_key))?;
+            let next = resolve_next_target(def, &timer.node_id, &token.variables)?;
+            token.current_node = next.clone();
+            
+            {
+                let inst = self.instances.get_mut(&timer.instance_id)
+                    .ok_or(EngineError::NoSuchInstance(timer.instance_id))?;
+                inst.current_node = next;
+            }
+            
+            self.remove_persisted_timer(tid).await;
+            Box::pin(self.run_instance(timer.instance_id, token)).await?;
+        }
+        
+        Ok(count)
     }
 
     // ----- user task completion ---------------------------------------------
@@ -1182,6 +1531,7 @@ impl WorkflowEngine {
         }
 
         self.remove_persisted_user_task(task_id).await;
+        self.cancel_boundary_timers(instance_id, &pending.node_id);
 
         let old_state = self.instances.get(&instance_id).cloned();
 
@@ -1279,6 +1629,35 @@ impl WorkflowEngine {
             .ok_or(EngineError::NoSuchInstance(id))
     }
 
+    /// Helper to cancel any pending boundary timers attached to a task node that is being completed/aborted.
+    pub(crate) fn cancel_boundary_timers(&mut self, instance_id: Uuid, task_node_id: &str) {
+        let def_key = if let Some(inst) = self.instances.get(&instance_id) {
+            inst.definition_key
+        } else {
+            return;
+        };
+        
+        let bound_timers: Vec<String> = if let Some(def) = self.definitions.get(&def_key) {
+            def.nodes.iter()
+                .filter_map(|(id, node)| {
+                    if let BpmnElement::BoundaryTimerEvent { attached_to, .. } = node {
+                        if attached_to == task_node_id {
+                            Some(id.clone())
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                })
+                .collect()
+        } else {
+            Vec::new()
+        };
+        
+        self.pending_timers.retain(|t| !(t.instance_id == instance_id && bound_timers.contains(&t.node_id)));
+    }
+
     /// Deletes a process instance and cleans up associated pending tasks.
     pub async fn delete_instance(&mut self, instance_id: Uuid) -> EngineResult<()> {
         if self.instances.remove(&instance_id).is_none() {
@@ -1294,6 +1673,14 @@ impl WorkflowEngine {
             for task in self.pending_service_tasks.iter().filter(|t| t.instance_id == instance_id) {
                 let _ = persistence.delete_service_task(task.id).await;
             }
+            // Delete associated timers from persistence
+            for timer in self.pending_timers.iter().filter(|t| t.instance_id == instance_id) {
+                let _ = persistence.delete_timer(timer.id).await;
+            }
+            // Delete associated message catches from persistence
+            for catch in self.pending_message_catches.iter().filter(|t| t.instance_id == instance_id) {
+                let _ = persistence.delete_message_catch(catch.id).await;
+            }
             // Delete instance from persistence
             persistence.delete_instance(&instance_id.to_string()).await?;
         }
@@ -1303,6 +1690,12 @@ impl WorkflowEngine {
         
         // Clean up pending service tasks in memory
         self.pending_service_tasks.retain(|t| t.instance_id != instance_id);
+
+        // Clean up pending timers in memory
+        self.pending_timers.retain(|t| t.instance_id != instance_id);
+
+        // Clean up pending message catches in memory
+        self.pending_message_catches.retain(|t| t.instance_id != instance_id);
 
         Ok(())
     }

@@ -99,6 +99,22 @@ impl NatsPersistence {
             })
             .await;
 
+        let _ = js
+            .create_key_value(async_nats::jetstream::kv::Config {
+                bucket: "timers".to_string(),
+                description: "PendingTimer objects (JSON)".to_string(),
+                ..Default::default()
+            })
+            .await;
+
+        let _ = js
+            .create_key_value(async_nats::jetstream::kv::Config {
+                bucket: "messages".to_string(),
+                description: "PendingMessageCatch objects (JSON)".to_string(),
+                ..Default::default()
+            })
+            .await;
+
         // Ensure the WORKFLOW_HISTORY JetStream stream exists for event-sourcing.
         let _ = js
             .get_or_create_stream(StreamConfig {
@@ -353,6 +369,70 @@ impl WorkflowPersistence for NatsPersistence {
 
     async fn list_service_tasks(&self) -> EngineResult<Vec<PendingServiceTask>> {
         self.list_kv_entries("service_tasks", "service task").await
+    }
+
+    async fn save_timer(&self, timer: &engine_core::engine::PendingTimer) -> EngineResult<()> {
+        let store = self.js.get_key_value("timers").await.map_err(|e| {
+            EngineError::PersistenceError(format!("Failed to get timers KV: {}", e))
+        })?;
+
+        let json = serde_json::to_vec(timer).map_err(|e| {
+            EngineError::PersistenceError(format!("Failed to serialize timer: {}", e))
+        })?;
+
+        store.put(timer.id.to_string(), json.into()).await.map_err(|e| {
+            EngineError::PersistenceError(format!("Failed to put timer to KV: {}", e))
+        })?;
+
+        Ok(())
+    }
+
+    async fn delete_timer(&self, timer_id: uuid::Uuid) -> EngineResult<()> {
+        let store = self.js.get_key_value("timers").await.map_err(|e| {
+            EngineError::PersistenceError(format!("Failed to get timers KV: {}", e))
+        })?;
+
+        store.delete(timer_id.to_string()).await.map_err(|e| {
+            EngineError::PersistenceError(format!("Failed to delete timer from KV: {}", e))
+        })?;
+
+        Ok(())
+    }
+
+    async fn list_timers(&self) -> EngineResult<Vec<engine_core::engine::PendingTimer>> {
+        self.list_kv_entries("timers", "timer").await
+    }
+
+    async fn save_message_catch(&self, catch: &engine_core::engine::PendingMessageCatch) -> EngineResult<()> {
+        let store = self.js.get_key_value("messages").await.map_err(|e| {
+            EngineError::PersistenceError(format!("Failed to get messages KV: {}", e))
+        })?;
+
+        let json = serde_json::to_vec(catch).map_err(|e| {
+            EngineError::PersistenceError(format!("Failed to serialize message catch: {}", e))
+        })?;
+
+        store.put(catch.id.to_string(), json.into()).await.map_err(|e| {
+            EngineError::PersistenceError(format!("Failed to put message catch to KV: {}", e))
+        })?;
+
+        Ok(())
+    }
+
+    async fn delete_message_catch(&self, catch_id: uuid::Uuid) -> EngineResult<()> {
+        let store = self.js.get_key_value("messages").await.map_err(|e| {
+            EngineError::PersistenceError(format!("Failed to get messages KV: {}", e))
+        })?;
+
+        store.delete(catch_id.to_string()).await.map_err(|e| {
+            EngineError::PersistenceError(format!("Failed to delete message catch from KV: {}", e))
+        })?;
+
+        Ok(())
+    }
+
+    async fn list_message_catches(&self) -> EngineResult<Vec<engine_core::engine::PendingMessageCatch>> {
+        self.list_kv_entries("messages", "message catch").await
     }
 
     async fn save_bpmn_xml(&self, definition_id: &str, xml: &str) -> EngineResult<()> {

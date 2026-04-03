@@ -1091,7 +1091,119 @@ async fn mutation_find_downstream_join() {
     assert_eq!(found, Some("gw_join".to_string()));
 
     // Find with depth limit (though internal recursion only decreases by 1, testing the > 100 limit protection is hard, but we can just test if the logic iterates correctly).
-    let not_found = engine_local.find_downstream_join(&def, "start"); 
+    let found_from_start = engine_local.find_downstream_join(&def, "start"); 
+    assert_eq!(found_from_start, Some("gw_join".to_string()));
     // It actually returns None because it exceeds max recursion or doesn't find gateway.
 }
 
+#[tokio::test]
+async fn message_start_event_succeeds() {
+    let mut engine = WorkflowEngine::new();
+    let def = ProcessDefinitionBuilder::new("msg_start")
+        .node("start", BpmnElement::MessageStartEvent { message_name: "start_msg".to_string() })
+        .node("end", BpmnElement::EndEvent)
+        .flow("start", "end")
+        .build()
+        .unwrap();
+
+    engine.deploy_definition(def).await;
+
+    // Normal start should fail or wait if not message? Actually, correlate_message starts it
+    let mut vars = HashMap::new();
+    vars.insert("k".into(), serde_json::Value::String("v".into()));
+    
+    let affected = engine.correlate_message("start_msg".into(), Some("bk1".into()), vars).await.unwrap();
+    assert_eq!(affected.len(), 1);
+    
+    let inst_id = affected[0];
+    let inst = engine.get_instance_details(inst_id).unwrap();
+    assert_eq!(inst.state, InstanceState::Completed);
+    assert_eq!(inst.business_key, "bk1");
+}
+
+#[tokio::test]
+async fn timer_catch_event_succeeds() {
+    let mut engine = WorkflowEngine::new();
+    let def = ProcessDefinitionBuilder::new("timer_catch")
+        .node("start", BpmnElement::StartEvent)
+        .node("timer", BpmnElement::TimerCatchEvent(std::time::Duration::from_millis(50)))
+        .node("end", BpmnElement::EndEvent)
+        .flow("start", "timer")
+        .flow("timer", "end")
+        .build()
+        .unwrap();
+
+    let def_key = engine.deploy_definition(def).await;
+    let inst_id = engine.start_instance(def_key).await.unwrap();
+    
+    assert_eq!(engine.get_instance_state(inst_id).unwrap(), &InstanceState::WaitingOnTimer { timer_id: engine.pending_timers[0].id });
+    
+    // Won't trigger immediately
+    let triggered = engine.process_timers().await.unwrap();
+    assert_eq!(triggered, 0);
+
+    tokio::time::sleep(tokio::time::Duration::from_millis(60)).await;
+    
+    let triggered = engine.process_timers().await.unwrap();
+    assert_eq!(triggered, 1);
+    
+    assert_eq!(engine.get_instance_state(inst_id).unwrap(), &InstanceState::Completed);
+}
+
+#[tokio::test]
+async fn boundary_timer_event_cancels_task() {
+    let mut engine = WorkflowEngine::new();
+    let def = ProcessDefinitionBuilder::new("bound_timer")
+        .node("start", BpmnElement::StartEvent)
+        .node("task", BpmnElement::UserTask("assignee".into()))
+        .node("bound_timer", BpmnElement::BoundaryTimerEvent { attached_to: "task".into(), duration: std::time::Duration::from_millis(50), cancel_activity: true })
+        .node("end1", BpmnElement::EndEvent)
+        .node("end2", BpmnElement::EndEvent)
+        .flow("start", "task")
+        .flow("task", "end1")
+        .flow("bound_timer", "end2")
+        .build()
+        .unwrap();
+
+    let def_key = engine.deploy_definition(def).await;
+    let inst_id = engine.start_instance(def_key).await.unwrap();
+    
+    assert_eq!(engine.pending_user_tasks.len(), 1);
+    assert_eq!(engine.pending_timers.len(), 1);
+    
+    tokio::time::sleep(tokio::time::Duration::from_millis(60)).await;
+    let triggered = engine.process_timers().await.unwrap();
+    assert_eq!(triggered, 1);
+    
+    let inst = engine.get_instance_details(inst_id).unwrap();
+    assert_eq!(inst.state, InstanceState::Completed);
+    assert_eq!(inst.current_node, "end2");
+}
+
+#[tokio::test]
+async fn boundary_error_event_catches_error() {
+    let mut engine = WorkflowEngine::new();
+    let def = ProcessDefinitionBuilder::new("bound_err")
+        .node("start", BpmnElement::StartEvent)
+        .node("task", BpmnElement::ServiceTask { topic: "err_topic".into() })
+        .node("bound_err", BpmnElement::BoundaryErrorEvent { attached_to: "task".into(), error_code: Some("ERR_CODE_500".into()) })
+        .node("end1", BpmnElement::EndEvent)
+        .node("end2", BpmnElement::EndEvent)
+        .flow("start", "task")
+        .flow("task", "end1")
+        .flow("bound_err", "end2")
+        .build()
+        .unwrap();
+
+    let def_key = engine.deploy_definition(def).await;
+    let inst_id = engine.start_instance(def_key).await.unwrap();
+    
+    let tasks = engine.fetch_and_lock_service_tasks("worker", 1, &["err_topic".into()], 10).await;
+    assert_eq!(tasks.len(), 1);
+    
+    engine.handle_bpmn_error(tasks[0].id, "worker", "ERR_CODE_500").await.unwrap();
+    
+    let inst = engine.get_instance_details(inst_id).unwrap();
+    assert_eq!(inst.state, InstanceState::Completed);
+    assert_eq!(inst.current_node, "end2");
+}

@@ -53,6 +53,25 @@ pub enum BpmnElement {
     /// A parallel gateway (AND) — all outgoing paths are taken unconditionally;
     /// as a join, waits for ALL incoming tokens.
     ParallelGateway,
+    /// A timer intermediate catch event that pauses the token until the duration elapses.
+    TimerCatchEvent(Duration),
+    /// A boundary timer event attached to an activity.
+    BoundaryTimerEvent {
+        attached_to: String,
+        duration: Duration,
+        cancel_activity: bool,
+    },
+    /// A start event triggered by a named message.
+    MessageStartEvent { message_name: String },
+    /// An intermediate catch event waiting for a named message.
+    MessageCatchEvent { message_name: String },
+    /// A boundary error event attached to an activity.
+    BoundaryErrorEvent {
+        attached_to: String,
+        error_code: Option<String>,
+    },
+    /// An end event that throws a specific BPMN error.
+    ErrorEndEvent { error_code: String },
 }
 
 // ---------------------------------------------------------------------------
@@ -173,7 +192,7 @@ impl ProcessDefinition {
         // --- exactly one start event ---
         let start_count = nodes
             .values()
-            .filter(|e| matches!(e, BpmnElement::StartEvent | BpmnElement::TimerStartEvent(_)))
+            .filter(|e| matches!(e, BpmnElement::StartEvent | BpmnElement::TimerStartEvent(_) | BpmnElement::MessageStartEvent { .. }))
             .count();
 
         if start_count == 0 {
@@ -190,7 +209,7 @@ impl ProcessDefinition {
         // --- at least one end event ---
         let end_count = nodes
             .values()
-            .filter(|e| matches!(e, BpmnElement::EndEvent))
+            .filter(|e| matches!(e, BpmnElement::EndEvent | BpmnElement::ErrorEndEvent { .. }))
             .count();
         if end_count == 0 {
             return Err(EngineError::InvalidDefinition(
@@ -210,9 +229,22 @@ impl ProcessDefinition {
             }
         }
 
+        // --- boundary events must attach to existing tasks ---
+        for (node_id, element) in &nodes {
+            if let BpmnElement::BoundaryTimerEvent { attached_to, .. }
+            | BpmnElement::BoundaryErrorEvent { attached_to, .. } = element
+            {
+                if !nodes.contains_key(attached_to) {
+                    return Err(EngineError::InvalidDefinition(format!(
+                        "Boundary event '{node_id}' attached to missing node '{attached_to}'"
+                    )));
+                }
+            }
+        }
+
         // --- every non-end node must have an outgoing flow ---
         for (node_id, element) in &nodes {
-            if matches!(element, BpmnElement::EndEvent) {
+            if matches!(element, BpmnElement::EndEvent | BpmnElement::ErrorEndEvent { .. }) {
                 continue;
             }
             let outgoing = flows.get(node_id).map_or(0, |v| v.len());
@@ -245,7 +277,7 @@ impl ProcessDefinition {
     /// Returns the (id, element) of the start event.
     pub fn start_event(&self) -> Option<(&str, &BpmnElement)> {
         self.nodes.iter().find_map(|(id, e)| {
-            if matches!(e, BpmnElement::StartEvent | BpmnElement::TimerStartEvent(_)) {
+            if matches!(e, BpmnElement::StartEvent | BpmnElement::TimerStartEvent(_) | BpmnElement::MessageStartEvent { .. }) {
                 Some((id.as_str(), e))
             } else {
                 None

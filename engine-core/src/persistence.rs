@@ -70,6 +70,20 @@ pub trait WorkflowPersistence: Send + Sync {
     /// Load all persisted service tasks.
     async fn list_service_tasks(&self) -> EngineResult<Vec<PendingServiceTask>>;
 
+    /// Persist a pending timer.
+    async fn save_timer(&self, timer: &crate::engine::PendingTimer) -> EngineResult<()>;
+    /// Delete a pending timer.
+    async fn delete_timer(&self, timer_id: uuid::Uuid) -> EngineResult<()>;
+    /// Load all persisted pending timers.
+    async fn list_timers(&self) -> EngineResult<Vec<crate::engine::PendingTimer>>;
+
+    /// Persist a pending message catch.
+    async fn save_message_catch(&self, catch: &crate::engine::PendingMessageCatch) -> EngineResult<()>;
+    /// Delete a pending message catch.
+    async fn delete_message_catch(&self, catch_id: uuid::Uuid) -> EngineResult<()>;
+    /// Load all persisted pending message catches.
+    async fn list_message_catches(&self) -> EngineResult<Vec<crate::engine::PendingMessageCatch>>;
+
     /// Store original BPMN 2.0 XML for a definition.
     async fn save_bpmn_xml(&self, definition_key: &str, xml: &str) -> EngineResult<()>;
     /// Load original BPMN 2.0 XML for a definition.

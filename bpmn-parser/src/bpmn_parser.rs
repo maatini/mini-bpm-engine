@@ -48,6 +48,30 @@ struct BpmnDefinitions {
     #[allow(dead_code)]
     #[serde(rename = "BPMNDiagram", default)]
     bpmndiagrams: Vec<IgnoredElement>,
+
+    #[serde(rename = "message", default)]
+    messages: Vec<BpmnMessage>,
+    
+    #[serde(rename = "error", default)]
+    errors: Vec<BpmnErrorDef>,
+}
+
+#[derive(Debug, Deserialize)]
+struct BpmnMessage {
+    #[serde(rename = "@id")]
+    id: String,
+    #[serde(rename = "@name")]
+    name: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct BpmnErrorDef {
+    #[serde(rename = "@id")]
+    id: String,
+    #[serde(rename = "@name", default)]
+    name: Option<String>,
+    #[serde(rename = "@errorCode", default)]
+    error_code: Option<String>,
 }
 
 /// A catch-all struct for elements we want to parse but otherwise ignore.
@@ -101,9 +125,9 @@ struct BpmnProcess {
     // --- Future/Unsupported Elements ---
     #[serde(rename = "subProcess", default)]
     sub_processes: Vec<BpmnSubProcess>,
-    #[allow(dead_code)]
+    
     #[serde(rename = "boundaryEvent", default)]
-    boundary_events: Vec<IgnoredElement>,
+    boundary_events: Vec<BpmnBoundaryEvent>,
 
     /// Generic `<task>` elements (bpmn-js default when adding a task).
     #[serde(rename = "task", default)]
@@ -135,7 +159,7 @@ struct BpmnProcess {
     #[serde(rename = "intermediateThrowEvent", default)]
     intermediate_throw_events: Vec<BpmnGenericTask>,
     #[serde(rename = "intermediateCatchEvent", default)]
-    intermediate_catch_events: Vec<BpmnGenericTask>,
+    intermediate_catch_events: Vec<BpmnIntermediateCatchEvent>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -146,6 +170,8 @@ struct BpmnStartEvent {
     extension_elements: Option<BpmnExtensionElements>,
     #[serde(rename = "timerEventDefinition")]
     timer_event_definition: Option<BpmnTimerEventDefinition>,
+    #[serde(rename = "messageEventDefinition")]
+    message_event_definition: Option<BpmnMessageEventDefinition>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -155,11 +181,25 @@ struct BpmnTimerEventDefinition {
 }
 
 #[derive(Debug, Deserialize)]
+struct BpmnMessageEventDefinition {
+    #[serde(rename = "@messageRef")]
+    message_ref: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct BpmnErrorEventDefinition {
+    #[serde(rename = "@errorRef")]
+    error_ref: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
 struct BpmnEndEvent {
     #[serde(rename = "@id")]
     id: String,
     #[serde(rename = "extensionElements")]
     extension_elements: Option<BpmnExtensionElements>,
+    #[serde(rename = "errorEventDefinition")]
+    error_event_definition: Option<BpmnErrorEventDefinition>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -236,6 +276,32 @@ struct BpmnGateway {
     id: String,
     #[serde(rename = "extensionElements")]
     extension_elements: Option<BpmnExtensionElements>,
+}
+
+#[derive(Debug, Deserialize)]
+struct BpmnIntermediateCatchEvent {
+    #[serde(rename = "@id")]
+    id: String,
+    #[serde(rename = "extensionElements")]
+    extension_elements: Option<BpmnExtensionElements>,
+    #[serde(rename = "timerEventDefinition")]
+    timer_event_definition: Option<BpmnTimerEventDefinition>,
+    #[serde(rename = "messageEventDefinition")]
+    message_event_definition: Option<BpmnMessageEventDefinition>,
+}
+
+#[derive(Debug, Deserialize)]
+struct BpmnBoundaryEvent {
+    #[serde(rename = "@id")]
+    id: String,
+    #[serde(rename = "@attachedToRef")]
+    attached_to_ref: String,
+    #[serde(rename = "@cancelActivity", default)]
+    cancel_activity: Option<bool>,
+    #[serde(rename = "timerEventDefinition")]
+    timer_event_definition: Option<BpmnTimerEventDefinition>,
+    #[serde(rename = "errorEventDefinition")]
+    error_event_definition: Option<BpmnErrorEventDefinition>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -322,6 +388,22 @@ pub fn parse_bpmn_xml(xml: &str) -> EngineResult<ProcessDefinition> {
         return Err(EngineError::InvalidDefinition("Embedded subprocesses are not yet supported. Please use flat processes.".to_string()));
     }
 
+    // Lookup maps for messages and errors
+    let message_lookup: HashMap<String, String> = defs
+        .messages
+        .iter()
+        .map(|m| (m.id.clone(), m.name.clone()))
+        .collect();
+
+    let error_lookup: HashMap<String, String> = defs
+        .errors
+        .iter()
+        .map(|e| {
+            let code = e.error_code.clone().or_else(|| e.name.clone()).unwrap_or_else(|| e.id.clone());
+            (e.id.clone(), code)
+        })
+        .collect();
+
     // Process-level listeners
     builder = add_listeners(builder, &process_id, process.extension_elements);
 
@@ -335,6 +417,11 @@ pub fn parse_bpmn_xml(xml: &str) -> EngineResult<ProcessDefinition> {
                 Duration::from_secs(0)
             };
             builder = builder.node(start.id, BpmnElement::TimerStartEvent(dur));
+        } else if let Some(msg) = start.message_event_definition {
+            let message_name = msg.message_ref
+                .and_then(|ref_id| message_lookup.get(&ref_id).cloned())
+                .unwrap_or_else(|| "generic_message".into());
+            builder = builder.node(start.id, BpmnElement::MessageStartEvent { message_name });
         } else {
             builder = builder.node(start.id, BpmnElement::StartEvent);
         }
@@ -344,7 +431,14 @@ pub fn parse_bpmn_xml(xml: &str) -> EngineResult<ProcessDefinition> {
     // 2. Process End Events
     for end in process.end_events {
         let node_id = end.id.clone();
-        builder = builder.node(end.id, BpmnElement::EndEvent);
+        if let Some(err) = end.error_event_definition {
+            let error_code = err.error_ref
+                .and_then(|ref_id| error_lookup.get(&ref_id).cloned())
+                .unwrap_or_else(|| "generic_error".into());
+            builder = builder.node(end.id, BpmnElement::ErrorEndEvent { error_code });
+        } else {
+            builder = builder.node(end.id, BpmnElement::EndEvent);
+        }
         builder = add_listeners(builder, &node_id, end.extension_elements);
     }
 
@@ -418,14 +512,57 @@ pub fn parse_bpmn_xml(xml: &str) -> EngineResult<ProcessDefinition> {
         builder = add_listeners(builder, &node_id, gw.extension_elements);
     }
 
-    // 7. Intermediate events — treated as pass-through nodes.
-    let all_intermediate = process.intermediate_throw_events.into_iter()
-        .chain(process.intermediate_catch_events);
+    // 7. Intermediate catch events 
+    for catch_evt in process.intermediate_catch_events {
+        let node_id = catch_evt.id.clone();
+        if let Some(timer) = catch_evt.timer_event_definition {
+            let dur = if let Some(time) = timer.time_duration {
+                parse_iso8601_duration(&time)
+            } else {
+                Duration::from_secs(0)
+            };
+            builder = builder.node(catch_evt.id, BpmnElement::TimerCatchEvent(dur));
+        } else if let Some(msg) = catch_evt.message_event_definition {
+            let message_name = msg.message_ref
+                .and_then(|ref_id| message_lookup.get(&ref_id).cloned())
+                .unwrap_or_else(|| "generic_message".into());
+            builder = builder.node(catch_evt.id, BpmnElement::MessageCatchEvent { message_name });
+        } else {
+            // generic pass through
+            builder = builder.node(catch_evt.id, BpmnElement::ServiceTask { topic: "event_passthrough".into() });
+        }
+        builder = add_listeners(builder, &node_id, catch_evt.extension_elements);
+    }
 
-    for evt in all_intermediate {
+    // 8. Intermediate throw events
+    for evt in process.intermediate_throw_events {
         let node_id = evt.id.clone();
         builder = builder.node(evt.id, BpmnElement::ServiceTask { topic: "event_passthrough".into() });
         builder = add_listeners(builder, &node_id, evt.extension_elements);
+    }
+
+    // 9. Boundary Events
+    for bd in process.boundary_events {
+        let node_id = bd.id.clone();
+        let attached_to = bd.attached_to_ref.clone();
+        // cancelActivity is true by default
+        let cancel_activity = bd.cancel_activity.unwrap_or(true);
+
+        if let Some(timer) = bd.timer_event_definition {
+            let dur = if let Some(time) = timer.time_duration {
+                parse_iso8601_duration(&time)
+            } else {
+                Duration::from_secs(0)
+            };
+            builder = builder.node(bd.id, BpmnElement::BoundaryTimerEvent { attached_to, duration: dur, cancel_activity });
+        } else if let Some(err) = bd.error_event_definition {
+            let error_code = err.error_ref.and_then(|ref_id| error_lookup.get(&ref_id).cloned());
+            builder = builder.node(bd.id, BpmnElement::BoundaryErrorEvent { attached_to, error_code });
+        } else {
+            // Unhandled boundary event, map to noop
+            builder = builder.node(bd.id, BpmnElement::ServiceTask { topic: "noop".into() });
+        }
+        builder = add_listeners(builder, &node_id, None);
     }
 
     // 8. Process Sequence Flows

@@ -12,6 +12,8 @@ function stateLabel(state: ProcessInstance['state']): string {
   if (state === 'Completed') return 'Completed';
   if (typeof state === 'object' && 'WaitingOnUserTask' in state) return 'Waiting on User Task';
   if (typeof state === 'object' && 'WaitingOnServiceTask' in state) return 'Waiting on Service Task';
+  if (typeof state === 'object' && 'WaitingOnTimer' in state) return 'Waiting on Timer';
+  if (typeof state === 'object' && 'WaitingOnMessage' in state) return 'Waiting on Message';
   return String(state);
 }
 
@@ -20,6 +22,8 @@ function stateBadgeClass(state: ProcessInstance['state']): string {
   if (state === 'Running') return 'state-badge state-running';
   if (state === 'Completed') return 'state-badge state-completed';
   if (typeof state === 'object' && 'WaitingOnServiceTask' in state) return 'state-badge state-waiting state-service-task';
+  if (typeof state === 'object' && 'WaitingOnTimer' in state) return 'state-badge state-waiting';
+  if (typeof state === 'object' && 'WaitingOnMessage' in state) return 'state-badge state-waiting';
   return 'state-badge state-waiting';
 }
 
