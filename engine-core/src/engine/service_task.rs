@@ -115,7 +115,7 @@ impl WorkflowEngine {
         let task = self.pending_service_tasks.remove(idx);
         let instance_id = task.instance_id;
 
-        let old_state = self.instances.get(&instance_id).cloned();
+        let old_state = if let Some(lk) = self.instances.get(&instance_id).await { Some(lk.read().await.clone()) } else { None };
 
         // Merge variables into the token
         let mut token = task.token;
@@ -130,19 +130,19 @@ impl WorkflowEngine {
             instance_id, task.node_id
         );
 
-        let inst = self
-            .instances
-            .get_mut(&instance_id)
-            .ok_or(EngineError::NoSuchInstance(instance_id))?;
-        inst.audit_log.push(format!(
-            "✅ Service task '{}' completed by worker '{}'",
-            task.node_id, worker_id
-        ));
-        if !matches!(inst.state, InstanceState::ParallelExecution { .. }) {
-            inst.state = InstanceState::Running;
-        }
-        inst.variables = token.variables.clone();
-        let def_key = inst.definition_key;
+        let def_key = {
+            let inst_arc = self.instances.get(&instance_id).await.ok_or(EngineError::NoSuchInstance(instance_id))?;
+            let mut inst = inst_arc.write().await;
+            inst.audit_log.push(format!(
+                "✅ Service task '{}' completed by worker '{}'",
+                task.node_id, worker_id
+            ));
+            if !matches!(inst.state, InstanceState::ParallelExecution { .. }) {
+                inst.state = InstanceState::Running;
+            }
+            inst.variables = token.variables.clone();
+            inst.definition_key.clone()
+        };
 
         // Advance token to the next node
         let def = self
@@ -154,16 +154,17 @@ impl WorkflowEngine {
 
         // Run end scripts
         {
-            let inst = self.instances.get_mut(&instance_id)
-                .ok_or(EngineError::NoSuchInstance(instance_id))?;
+            let inst_arc = self.instances.get(&instance_id).await.ok_or(EngineError::NoSuchInstance(instance_id))?;
+            let mut inst = inst_arc.write().await;
+            let crate::ProcessInstance { audit_log, variables, .. } = &mut *inst;
             crate::script_runner::run_end_scripts(
                 &self.script_engine,
                 instance_id,
                 &mut token,
                 &def,
                 &task.node_id,
-                &mut inst.audit_log,
-                &mut inst.variables,
+                audit_log,
+                variables,
             )?;
         }
 
@@ -171,9 +172,11 @@ impl WorkflowEngine {
 
         token.current_node = next.clone();
         // Update instance current_node so UI highlights correctly
-        let inst = self.instances.get_mut(&instance_id)
-            .ok_or(EngineError::NoSuchInstance(instance_id))?;
-        inst.current_node = next;
+        let inst_arc = self.instances.get(&instance_id).await.ok_or(EngineError::NoSuchInstance(instance_id))?;
+        {
+            let mut inst = inst_arc.write().await;
+            inst.current_node = next;
+        }
         if let Some(p) = &self.persistence {
             if let Err(e) = p.save_token(&token).await {
                 log::error!("Failed to save token after service task: {}", e);
@@ -230,7 +233,8 @@ impl WorkflowEngine {
 
             if new_retries <= 0 {
                 // Incident: log and record on the instance
-                if let Some(inst) = self.instances.get_mut(&instance_id) {
+                if let Some(inst_arc) = self.instances.get(&instance_id).await {
+            let mut inst = inst_arc.write().await;
                     let msg = error_message.unwrap_or_else(|| "Unknown error".into());
                     inst.audit_log.push(format!(
                         "🚨 INCIDENT: Service task '{}' failed with 0 retries — {}",
@@ -317,8 +321,8 @@ impl WorkflowEngine {
         let instance_id = task.instance_id;
 
         let def_key = {
-            let inst = self.instances.get(&instance_id)
-                .ok_or(EngineError::NoSuchInstance(instance_id))?;
+            let inst_arc = self.instances.get(&instance_id).await.ok_or(EngineError::NoSuchInstance(instance_id))?;
+        let inst = inst_arc.read().await;
             inst.definition_key
         };
         
@@ -337,11 +341,13 @@ impl WorkflowEngine {
         }
         
         if let Some(boundary_id) = target_boundary {
-            let old_state = self.instances.get(&instance_id).cloned();
-            let inst = self.instances.get_mut(&instance_id)
-                .ok_or(EngineError::NoSuchInstance(instance_id))?;
-            inst.audit_log.push(format!("💥 BPMN Error '{error_code}' caught by boundary event '{boundary_id}'"));
-            inst.state = InstanceState::Running;
+            let old_state = if let Some(lk) = self.instances.get(&instance_id).await { Some(lk.read().await.clone()) } else { None };
+            {
+                let inst_arc = self.instances.get(&instance_id).await.ok_or(EngineError::NoSuchInstance(instance_id))?;
+                let mut inst = inst_arc.write().await;
+                inst.audit_log.push(format!("💥 BPMN Error '{error_code}' caught by boundary event '{boundary_id}'"));
+                inst.state = InstanceState::Running;
+            }
             
             self.record_history_event(
                 instance_id,
@@ -359,8 +365,8 @@ impl WorkflowEngine {
             
             token.current_node = next.clone();
             {
-                let inst = self.instances.get_mut(&instance_id)
-                    .ok_or(EngineError::NoSuchInstance(instance_id))?;
+                let inst_arc = self.instances.get(&instance_id).await.ok_or(EngineError::NoSuchInstance(instance_id))?;
+        let mut inst = inst_arc.write().await;
                 inst.current_node = next;
             }
             
@@ -371,7 +377,8 @@ impl WorkflowEngine {
         }
 
         // If no boundary event found, just log it as an unhandled error/incident.
-        if let Some(inst) = self.instances.get_mut(&instance_id) {
+        if let Some(inst_arc) = self.instances.get(&instance_id).await {
+            let mut inst = inst_arc.write().await;
             inst.audit_log.push(format!(
                 "🚨 BPMN error '{}' thrown by worker '{}' at service task '{}' (No boundary event caught it)",
                 error_code, worker_id, task.node_id

@@ -44,7 +44,7 @@ impl WorkflowEngine {
         let mut tokens_to_save = Vec::new();
 
         while let Some(mut token) = queue.pop_front() {
-            let old_state = self.instances.get(&instance_id).cloned();
+            let old_state = if let Some(lk) = self.instances.get(&instance_id).await { Some(lk.read().await.clone()) } else { None };
             let current_gateway_id = token.current_node.clone();
             
             let action = self.execute_step(instance_id, &mut token).await?;
@@ -80,21 +80,23 @@ impl WorkflowEngine {
                     
                     self.register_join_barrier_if_needed(instance_id, &current_gateway_id, branch_count).await?;
 
-                    if let Some(inst) = self.instances.get_mut(&instance_id) {
+                    if let Some(inst_arc) = self.instances.get(&instance_id).await {
+            let mut inst = inst_arc.write().await;
                         inst.state = InstanceState::ParallelExecution { active_token_count: inst.active_tokens.len() + branch_count };
                         inst.current_node = current_gateway_id.clone();
                     }
 
                     for (idx, fork_token) in forked_tokens.into_iter().enumerate() {
                         tokens_to_save.push(fork_token.clone());
-                        self.register_active_token(instance_id, &current_gateway_id, idx, &fork_token)?;
+                        self.register_active_token(instance_id, &current_gateway_id, idx, &fork_token).await?;
                         queue.push_back(fork_token);
                     }
                 }
                 NextAction::WaitForJoin { gateway_id, token: arrived_token } => {
                     let merged = self.arrive_at_join(instance_id, &gateway_id, arrived_token).await?;
                     if let Some(merged_token) = merged {
-                        if let Some(inst) = self.instances.get_mut(&instance_id) {
+                        if let Some(inst_arc) = self.instances.get(&instance_id).await {
+            let mut inst = inst_arc.write().await;
                             inst.state = InstanceState::Running;
                             inst.current_node = gateway_id.clone();
                         }
@@ -103,7 +105,8 @@ impl WorkflowEngine {
                 }
                 NextAction::WaitForUser(pending) => {
                     let task_id = pending.task_id;
-                    if let Some(inst) = self.instances.get_mut(&instance_id) {
+                    if let Some(inst_arc) = self.instances.get(&instance_id).await {
+            let mut inst = inst_arc.write().await;
                         if !matches!(inst.state, InstanceState::ParallelExecution { .. }) {
                             inst.state = InstanceState::WaitingOnUserTask { task_id };
                         }
@@ -113,7 +116,8 @@ impl WorkflowEngine {
                 }
                 NextAction::WaitForServiceTask(svc_task) => {
                     let task_id = svc_task.id;
-                    if let Some(inst) = self.instances.get_mut(&instance_id) {
+                    if let Some(inst_arc) = self.instances.get(&instance_id).await {
+            let mut inst = inst_arc.write().await;
                         if !matches!(inst.state, InstanceState::ParallelExecution { .. }) {
                             inst.state = InstanceState::WaitingOnServiceTask { task_id };
                         }
@@ -123,7 +127,8 @@ impl WorkflowEngine {
                 }
                 NextAction::WaitForTimer(pending) => {
                     let timer_id = pending.id;
-                    if let Some(inst) = self.instances.get_mut(&instance_id) {
+                    if let Some(inst_arc) = self.instances.get(&instance_id).await {
+            let mut inst = inst_arc.write().await;
                         if !matches!(inst.state, InstanceState::ParallelExecution { .. }) {
                             inst.state = InstanceState::WaitingOnTimer { timer_id };
                         }
@@ -133,7 +138,8 @@ impl WorkflowEngine {
                 }
                 NextAction::WaitForMessage(pending) => {
                     let message_id = pending.id;
-                    if let Some(inst) = self.instances.get_mut(&instance_id) {
+                    if let Some(inst_arc) = self.instances.get(&instance_id).await {
+            let mut inst = inst_arc.write().await;
                         if !matches!(inst.state, InstanceState::ParallelExecution { .. }) {
                             inst.state = InstanceState::WaitingOnMessage { message_id };
                         }
@@ -158,7 +164,8 @@ impl WorkflowEngine {
                         // We must first update the state so that the child can find our state if it finishes synchronously.
                         let sub_instance_id = Uuid::new_v4(); // placeholder, assigned by spawn and replaced
                         
-                        if let Some(inst) = self.instances.get_mut(&instance_id) {
+                        if let Some(inst_arc) = self.instances.get(&instance_id).await {
+            let mut inst = inst_arc.write().await;
                             if !matches!(inst.state, InstanceState::ParallelExecution { .. }) {
                                 inst.state = InstanceState::WaitingOnCallActivity { sub_instance_id, token: call_token.clone() };
                             }
@@ -172,7 +179,8 @@ impl WorkflowEngine {
                         match self.spawn_call_activity(child_key, instance_id, call_token.current_node.clone(), call_token.variables.clone()).await {
                             Ok(spawned_id) => {
                                 // Update the actual spawned ID
-                                if let Some(inst) = self.instances.get_mut(&instance_id) {
+                                if let Some(inst_arc) = self.instances.get(&instance_id).await {
+            let mut inst = inst_arc.write().await;
                                     if let InstanceState::WaitingOnCallActivity { sub_instance_id: ref mut sub, .. } = inst.state {
                                         *sub = spawned_id;
                                     }
@@ -188,9 +196,10 @@ impl WorkflowEngine {
                     }
                 }
                 NextAction::Complete => {
-                    self.complete_branch_token(instance_id, token.id)?;
-                    if self.all_tokens_completed(instance_id)? {
-                        if let Some(inst) = self.instances.get_mut(&instance_id) {
+                    self.complete_branch_token(instance_id, token.id).await?;
+                    if self.all_tokens_completed(instance_id).await? {
+                        if let Some(inst_arc) = self.instances.get(&instance_id).await {
+            let mut inst = inst_arc.write().await;
                             inst.state = InstanceState::Completed;
                             inst.audit_log.push("⏹ All tokens completed. Process fully completed.".to_string());
                         }
@@ -224,7 +233,8 @@ impl WorkflowEngine {
         
         // After batch finishes for this instance, if it completed, check parent
         let mut completed = false;
-        if let Some(inst) = self.instances.get(&instance_id) {
+        if let Some(inst_arc) = self.instances.get(&instance_id).await {
+            let inst = inst_arc.read().await;
             completed = matches!(inst.state, InstanceState::Completed);
         }
         if completed {
@@ -240,10 +250,8 @@ impl WorkflowEngine {
         token: &mut Token,
     ) -> EngineResult<NextAction> {
         let def_key = {
-            let instance = self
-                .instances
-                .get(&instance_id)
-                .ok_or(EngineError::NoSuchInstance(instance_id))?;
+            let instance_arc = self.instances.get(&instance_id).await.ok_or(EngineError::NoSuchInstance(instance_id))?;
+        let instance = instance_arc.read().await;
             instance.definition_key
         };
 
@@ -271,7 +279,8 @@ impl WorkflowEngine {
             ListenerEvent::Start,
             &mut start_audits,
         )?;
-        if let Some(inst) = self.instances.get_mut(&instance_id) {
+        if let Some(inst_arc) = self.instances.get(&instance_id).await {
+            let mut inst = inst_arc.write().await;
             inst.audit_log.append(&mut start_audits);
             // Only sync variables if a script listener potentially modified them
             if def_clone.listeners.contains_key(&current_id) {
@@ -283,16 +292,18 @@ impl WorkflowEngine {
             BpmnElement::StartEvent | BpmnElement::TimerStartEvent(_) | BpmnElement::MessageStartEvent { .. } => {
                 log::debug!("Passing through start event '{current_id}'");
                 let next = resolve_next_target(&def_clone, &current_id, &token.variables)?;
-                self.run_end_scripts(instance_id, token, &def_clone, &current_id)?;
+                self.run_end_scripts(instance_id, token, &def_clone, &current_id).await?;
                 token.current_node = next.clone();
-                let inst = self.instances.get_mut(&instance_id).ok_or(EngineError::NoSuchInstance(instance_id))?;
+                let inst_arc = self.instances.get(&instance_id).await.ok_or(EngineError::NoSuchInstance(instance_id))?;
+        let mut inst = inst_arc.write().await;
                 inst.current_node = next;
                 Ok(NextAction::Continue(token.clone()))
             }
 
             BpmnElement::EndEvent => {
-                self.run_end_scripts(instance_id, token, &def_clone, &current_id)?;
-                let inst = self.instances.get_mut(&instance_id).ok_or(EngineError::NoSuchInstance(instance_id))?;
+                self.run_end_scripts(instance_id, token, &def_clone, &current_id).await?;
+                let inst_arc = self.instances.get(&instance_id).await.ok_or(EngineError::NoSuchInstance(instance_id))?;
+        let mut inst = inst_arc.write().await;
                 inst.current_node = current_id.clone();
                 inst.audit_log.push(format!("⏹ Process completed at end event '{current_id}'"));
                 log::info!("Instance {instance_id}: reached end event '{current_id}'");
@@ -314,7 +325,8 @@ impl WorkflowEngine {
                     created_at: Utc::now(),
                 };
 
-                let inst = self.instances.get_mut(&instance_id).ok_or(EngineError::NoSuchInstance(instance_id))?;
+                let inst_arc = self.instances.get(&instance_id).await.ok_or(EngineError::NoSuchInstance(instance_id))?;
+        let mut inst = inst_arc.write().await;
                 inst.current_node = current_id.clone();
                 inst.audit_log.push(format!("👤 User task '{current_id}' assigned to '{assignee}' — waiting (task_id: {})", pending.task_id));
                 log::info!("Instance {instance_id}: user task '{current_id}' pending for '{assignee}'");
@@ -343,7 +355,8 @@ impl WorkflowEngine {
                     error_details: None,
                 };
 
-                let inst = self.instances.get_mut(&instance_id).ok_or(EngineError::NoSuchInstance(instance_id))?;
+                let inst_arc = self.instances.get(&instance_id).await.ok_or(EngineError::NoSuchInstance(instance_id))?;
+        let mut inst = inst_arc.write().await;
                 inst.current_node = current_id.clone();
                 inst.audit_log.push(format!("🔗 Service task '{current_id}' created for topic '{topic}' (task_id: {})", svc_task.id));
                 log::info!("Instance {instance_id}: service task '{current_id}' pending for topic '{topic}'");
@@ -352,10 +365,11 @@ impl WorkflowEngine {
             }
 
             BpmnElement::ParallelGateway => {
-                self.run_end_scripts(instance_id, token, &def_clone, &current_id)?;
+                self.run_end_scripts(instance_id, token, &def_clone, &current_id).await?;
                 let action = execute_parallel_gateway(&def_clone, &current_id, token)?;
                 if let NextAction::ContinueMultiple(ref f) = action {
-                    let inst = self.instances.get_mut(&instance_id).ok_or(EngineError::NoSuchInstance(instance_id))?;
+                    let inst_arc = self.instances.get(&instance_id).await.ok_or(EngineError::NoSuchInstance(instance_id))?;
+        let mut inst = inst_arc.write().await;
                     inst.current_node = current_id.clone();
                     inst.audit_log.push(format!("■ Parallel gateway '{current_id}' → forked to {} path(s)", f.len()));
                 }
@@ -363,19 +377,21 @@ impl WorkflowEngine {
             }
 
             BpmnElement::ExclusiveGateway { default } => {
-                self.run_end_scripts(instance_id, token, &def_clone, &current_id)?;
+                self.run_end_scripts(instance_id, token, &def_clone, &current_id).await?;
                 let action = execute_exclusive_gateway(&def_clone, &current_id, token, default)?;
-                let inst = self.instances.get_mut(&instance_id).ok_or(EngineError::NoSuchInstance(instance_id))?;
+                let inst_arc = self.instances.get(&instance_id).await.ok_or(EngineError::NoSuchInstance(instance_id))?;
+        let mut inst = inst_arc.write().await;
                 inst.audit_log.push(format!("◆ Exclusive gateway '{current_id}' → took path to '{}'", token.current_node));
                 inst.current_node = token.current_node.clone();
                 Ok(action)
             }
 
             BpmnElement::InclusiveGateway => {
-                self.run_end_scripts(instance_id, token, &def_clone, &current_id)?;
+                self.run_end_scripts(instance_id, token, &def_clone, &current_id).await?;
                 let action = execute_inclusive_gateway(&def_clone, &current_id, token)?;
                 if let NextAction::ContinueMultiple(ref f) = action {
-                    let inst = self.instances.get_mut(&instance_id).ok_or(EngineError::NoSuchInstance(instance_id))?;
+                    let inst_arc = self.instances.get(&instance_id).await.ok_or(EngineError::NoSuchInstance(instance_id))?;
+        let mut inst = inst_arc.write().await;
                     inst.current_node = current_id.clone();
                     inst.audit_log.push(format!("◇ Inclusive gateway '{current_id}' → forked to {} path(s)", f.len()));
                 }
@@ -390,7 +406,8 @@ impl WorkflowEngine {
                     expires_at: Utc::now() + chrono::Duration::from_std(*dur).unwrap_or(chrono::Duration::seconds(0)),
                     token: token.clone(),
                 };
-                let inst = self.instances.get_mut(&instance_id).ok_or(EngineError::NoSuchInstance(instance_id))?;
+                let inst_arc = self.instances.get(&instance_id).await.ok_or(EngineError::NoSuchInstance(instance_id))?;
+        let mut inst = inst_arc.write().await;
                 inst.current_node = current_id.clone();
                 inst.audit_log.push(format!("⏱ Timer catch event '{current_id}' — waiting"));
                 Ok(NextAction::WaitForTimer(pending))
@@ -404,7 +421,8 @@ impl WorkflowEngine {
                     message_name: message_name.clone(),
                     token: token.clone(),
                 };
-                let inst = self.instances.get_mut(&instance_id).ok_or(EngineError::NoSuchInstance(instance_id))?;
+                let inst_arc = self.instances.get(&instance_id).await.ok_or(EngineError::NoSuchInstance(instance_id))?;
+        let mut inst = inst_arc.write().await;
                 inst.current_node = current_id.clone();
                 inst.audit_log.push(format!("✉️ Message catch event '{current_id}' waiting for '{message_name}'"));
                 Ok(NextAction::WaitForMessage(pending))
@@ -416,7 +434,8 @@ impl WorkflowEngine {
                     self.pending_timers.push(t);
                 }
                 
-                let inst = self.instances.get_mut(&instance_id).ok_or(EngineError::NoSuchInstance(instance_id))?;
+                let inst_arc = self.instances.get(&instance_id).await.ok_or(EngineError::NoSuchInstance(instance_id))?;
+        let mut inst = inst_arc.write().await;
                 inst.current_node = current_id.clone();
                 inst.audit_log.push(format!("🔗 Call Activity '{current_id}' invoking process '{called_element}'"));
                 log::info!("Instance {instance_id}: call activity '{current_id}' invoking '{called_element}'");
@@ -425,8 +444,9 @@ impl WorkflowEngine {
             }
             
             BpmnElement::ErrorEndEvent { error_code } => {
-                self.run_end_scripts(instance_id, token, &def_clone, &current_id)?;
-                let inst = self.instances.get_mut(&instance_id).ok_or(EngineError::NoSuchInstance(instance_id))?;
+                self.run_end_scripts(instance_id, token, &def_clone, &current_id).await?;
+                let inst_arc = self.instances.get(&instance_id).await.ok_or(EngineError::NoSuchInstance(instance_id))?;
+        let mut inst = inst_arc.write().await;
                 inst.current_node = current_id.clone();
                 inst.audit_log.push(format!("💥 Process completed at error end '{current_id}' with code '{error_code}'"));
                 Ok(NextAction::Complete)
@@ -434,9 +454,10 @@ impl WorkflowEngine {
             
             BpmnElement::BoundaryTimerEvent { .. } | BpmnElement::BoundaryErrorEvent { .. } => {
                 let next = resolve_next_target(&def_clone, &current_id, &token.variables)?;
-                self.run_end_scripts(instance_id, token, &def_clone, &current_id)?;
+                self.run_end_scripts(instance_id, token, &def_clone, &current_id).await?;
                 token.current_node = next.clone();
-                let inst = self.instances.get_mut(&instance_id).ok_or(EngineError::NoSuchInstance(instance_id))?;
+                let inst_arc = self.instances.get(&instance_id).await.ok_or(EngineError::NoSuchInstance(instance_id))?;
+        let mut inst = inst_arc.write().await;
                 inst.current_node = next;
                 Ok(NextAction::Continue(token.clone()))
             }
@@ -451,14 +472,14 @@ impl WorkflowEngine {
         split_gateway_id: &str,
         branch_count: usize,
     ) -> EngineResult<()> {
-        let def_key = self.instances.get(&instance_id)
-            .ok_or(EngineError::NoSuchInstance(instance_id))?.definition_key;
+        let def_key_arc = self.instances.get(&instance_id).await.ok_or(EngineError::NoSuchInstance(instance_id))?;
+            let def_key = def_key_arc.read().await.definition_key;
         let def = self.definitions.get(&def_key).await
             .ok_or(EngineError::NoSuchDefinition(def_key))?.clone();
         
         if let Some(join_id) = self.find_downstream_join(&def, split_gateway_id) {
-            let inst = self.instances.get_mut(&instance_id)
-                .ok_or(EngineError::NoSuchInstance(instance_id))?;
+            let inst_arc = self.instances.get(&instance_id).await.ok_or(EngineError::NoSuchInstance(instance_id))?;
+        let mut inst = inst_arc.write().await;
             inst.join_barriers.insert(join_id.clone(), JoinBarrier {
                 gateway_node_id: join_id.clone(),
                 expected_count: branch_count,
@@ -491,8 +512,9 @@ impl WorkflowEngine {
         None
     }
 
-    pub(crate) fn register_active_token(&mut self, instance_id: Uuid, fork_id: &str, branch_index: usize, token: &Token) -> EngineResult<()> {
-        let inst = self.instances.get_mut(&instance_id).ok_or(EngineError::NoSuchInstance(instance_id))?;
+    pub(crate) async fn register_active_token(&mut self, instance_id: Uuid, fork_id: &str, branch_index: usize, token: &Token) -> EngineResult<()> {
+        let inst_arc = self.instances.get(&instance_id).await.ok_or(EngineError::NoSuchInstance(instance_id))?;
+        let mut inst = inst_arc.write().await;
         inst.active_tokens.push(ActiveToken {
             token: token.clone(),
             fork_id: Some(fork_id.to_string()),
@@ -508,29 +530,32 @@ impl WorkflowEngine {
         gateway_id: &str,
         token: Token,
     ) -> EngineResult<Option<Token>> {
-        let def_key = self.instances.get(&instance_id)
-             .ok_or(EngineError::NoSuchInstance(instance_id))?.definition_key;
+        let def_key_arc = self.instances.get(&instance_id).await.ok_or(EngineError::NoSuchInstance(instance_id))?;
+        let def_key = def_key_arc.read().await.definition_key.clone();
         let def = self.definitions.get(&def_key).await
             .ok_or(EngineError::NoSuchDefinition(def_key))?.clone();
         
         let expected = def.incoming_flow_count(gateway_id);
-        let inst = self.instances.get_mut(&instance_id)
-            .ok_or(EngineError::NoSuchInstance(instance_id))?;
+        let inst_arc = self.instances.get(&instance_id).await.ok_or(EngineError::NoSuchInstance(instance_id))?;
+        let mut inst = inst_arc.write().await;
         
-        let barrier = inst.join_barriers.entry(gateway_id.to_string()).or_insert_with(|| JoinBarrier {
-            gateway_node_id: gateway_id.to_string(),
-            expected_count: expected,
-            arrived_tokens: Vec::new(),
-        });
+        let expected_count = expected;
+        let current_arrived;
         
-        barrier.arrived_tokens.push(token.clone());
-        let current_arrived = barrier.arrived_tokens.len();
+        {
+            let barrier = inst.join_barriers.entry(gateway_id.to_string()).or_insert_with(|| JoinBarrier {
+                gateway_node_id: gateway_id.to_string(),
+                expected_count: expected_count,
+                arrived_tokens: Vec::new(),
+            });
+            barrier.arrived_tokens.push(token.clone());
+            current_arrived = barrier.arrived_tokens.len();
+        }
         
-        inst.audit_log.push(format!("➔ Token arrived at join '{}' ({}/{})", gateway_id, current_arrived, barrier.expected_count));
+        inst.audit_log.push(format!("➔ Token arrived at join '{}' ({}/{})", gateway_id, current_arrived, expected_count));
         
-        if current_arrived >= barrier.expected_count {
-            let all_tokens = barrier.arrived_tokens.clone();
-            inst.join_barriers.remove(gateway_id);
+        if current_arrived >= expected_count {
+            let all_tokens = inst.join_barriers.remove(gateway_id).unwrap().arrived_tokens;
             
             for t in &all_tokens {
                 if let Some(active) = inst.active_tokens.iter_mut().find(|at| at.token.id == t.id) {
@@ -547,6 +572,8 @@ impl WorkflowEngine {
             merged_token.is_merged = true;
             inst.audit_log.push(format!("🔗 Join '{}' completed. Tokens merged.", gateway_id));
             
+            drop(inst);
+            
             self.record_history_event(
                 instance_id,
                 crate::history::HistoryEventType::TokenJoined,
@@ -562,16 +589,18 @@ impl WorkflowEngine {
         }
     }
 
-    pub(crate) fn complete_branch_token(&mut self, instance_id: Uuid, token_id: Uuid) -> EngineResult<()> {
-        let inst = self.instances.get_mut(&instance_id).ok_or(EngineError::NoSuchInstance(instance_id))?;
+    pub(crate) async fn complete_branch_token(&mut self, instance_id: Uuid, token_id: Uuid) -> EngineResult<()> {
+        let inst_arc = self.instances.get(&instance_id).await.ok_or(EngineError::NoSuchInstance(instance_id))?;
+        let mut inst = inst_arc.write().await;
         if let Some(active) = inst.active_tokens.iter_mut().find(|at| at.token.id == token_id) {
             active.completed = true;
         }
         Ok(())
     }
 
-    pub(crate) fn all_tokens_completed(&self, instance_id: Uuid) -> EngineResult<bool> {
-        let inst = self.instances.get(&instance_id).ok_or(EngineError::NoSuchInstance(instance_id))?;
+    pub(crate) async fn all_tokens_completed(&self, instance_id: Uuid) -> EngineResult<bool> {
+        let inst_arc = self.instances.get(&instance_id).await.ok_or(EngineError::NoSuchInstance(instance_id))?;
+        let inst = inst_arc.read().await;
         if inst.active_tokens.is_empty() {
             // Linear flow
             return Ok(true);
@@ -580,23 +609,24 @@ impl WorkflowEngine {
     }
 
     /// Helper: runs End scripts, commits variables to instance state.
-    pub(crate) fn run_end_scripts(
+    pub(crate) async fn run_end_scripts(
         &mut self,
         instance_id: Uuid,
         token: &mut Token,
         def: &ProcessDefinition,
         node_id: &str,
     ) -> EngineResult<()> {
-        let inst = self.instances.get_mut(&instance_id)
-            .ok_or(EngineError::NoSuchInstance(instance_id))?;
+        let inst_arc = self.instances.get(&instance_id).await.ok_or(EngineError::NoSuchInstance(instance_id))?;
+        let mut inst = inst_arc.write().await;
+        let crate::ProcessInstance { audit_log, variables, .. } = &mut *inst;
         crate::script_runner::run_end_scripts(
             &self.script_engine,
             instance_id,
             token,
             def,
             node_id,
-            &mut inst.audit_log,
-            &mut inst.variables,
+            audit_log,
+            variables,
         )
     }
 }

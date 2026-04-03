@@ -420,7 +420,7 @@ async fn list_instances(
     State(state): State<Arc<AppState>>,
 ) -> Json<Vec<ProcessInstance>> {
     let engine = state.engine.read().await;
-    let instances = engine.list_instances();
+    let instances = engine.list_instances().await;
     Json(instances)
 }
 
@@ -431,7 +431,7 @@ async fn get_instance(
     let engine = state.engine.read().await;
     let instance_id = parse_uuid(&id)?;
 
-    let instance = engine.get_instance_details(instance_id)?;
+    let instance = engine.get_instance_details(instance_id).await?;
 
     Ok(Json(instance))
 }
@@ -720,7 +720,7 @@ async fn upload_instance_file(
 ) -> Result<impl IntoResponse, AppError> {
     let mut engine = state.engine.write().await;
     let instance_id = parse_uuid(&id)?;
-    if engine.get_instance_details(instance_id).is_err() {
+    if engine.get_instance_details(instance_id).await.is_err() {
         return Err(AppError::BadRequest("Instance not found".into()));
     }
     
@@ -757,7 +757,7 @@ async fn get_instance_file(
 ) -> Result<impl IntoResponse, AppError> {
     let engine = state.engine.read().await;
     let instance_id = parse_uuid(&id)?;
-    let instance = engine.get_instance_details(instance_id)?;
+    let instance = engine.get_instance_details(instance_id).await?;
     
     let file_ref = instance.get_file_reference(&var_name)
         .ok_or_else(|| AppError::BadRequest("Variable is not a file".into()))?;
@@ -787,7 +787,7 @@ async fn delete_instance_file(
 ) -> Result<impl IntoResponse, AppError> {
     let mut engine = state.engine.write().await;
     let instance_id = parse_uuid(&id)?;
-    let instance = engine.get_instance_details(instance_id)?;
+    let instance = engine.get_instance_details(instance_id).await?;
     
     let file_ref = instance.get_file_reference(&var_name)
         .ok_or_else(|| AppError::BadRequest("Variable is not a file".into()))?;

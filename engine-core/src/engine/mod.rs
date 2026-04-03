@@ -9,6 +9,7 @@ use crate::error::{EngineError, EngineResult};
 use crate::model::{BpmnElement, ProcessDefinition, Token, FileReference};
 use crate::persistence::WorkflowPersistence;
 pub mod types;
+pub(crate) mod instance_store;
 pub(crate) mod registry;
 pub(crate) mod executor;
 pub(crate) mod gateway;
@@ -20,7 +21,7 @@ pub use types::*;
 /// The central workflow engine managing definitions, instances, and handlers.
 pub struct WorkflowEngine {
     pub(crate) definitions: registry::DefinitionRegistry,
-    pub(crate) instances: HashMap<Uuid, ProcessInstance>,
+    pub(crate) instances: crate::engine::instance_store::InstanceStore,
     pub(crate) pending_user_tasks: Vec<PendingUserTask>,
     pub(crate) pending_service_tasks: Vec<PendingServiceTask>,
     pub(crate) pending_timers: Vec<PendingTimer>,
@@ -35,7 +36,7 @@ impl WorkflowEngine {
         log::info!("WorkflowEngine initialized");
         Self {
             definitions: registry::DefinitionRegistry::new(),
-            instances: HashMap::new(),
+            instances: crate::engine::instance_store::InstanceStore::new(),
             pending_user_tasks: Vec::new(),
             pending_service_tasks: Vec::new(),
             pending_timers: Vec::new(),
@@ -63,9 +64,9 @@ impl WorkflowEngine {
     }
 
     /// Restores a process instance from persistence (e.g. on server startup).
-    pub fn restore_instance(&mut self, instance: ProcessInstance) {
+    pub async fn restore_instance(&mut self, instance: ProcessInstance) {
         log::info!("Restored instance {} (def: {})", instance.id, instance.definition_key);
-        self.instances.insert(instance.id, instance);
+        self.instances.insert(instance.id, instance).await;
     }
 
     /// Restores a pending user task from persistence.
@@ -82,21 +83,25 @@ impl WorkflowEngine {
 
     /// Returns summary statistics for monitoring dashboards.
     pub async fn get_stats(&self) -> EngineStats {
+        let all_insts = self.instances.all().await;
+        let mut running = 0; let mut comp = 0; let mut w_user = 0; let mut w_serv = 0;
+        for lk in all_insts.values() {
+            let st = &lk.read().await.state;
+            match st {
+                InstanceState::Running => running += 1,
+                InstanceState::Completed => comp += 1,
+                InstanceState::WaitingOnUserTask{..} => w_user += 1,
+                InstanceState::WaitingOnServiceTask{..} => w_serv += 1,
+                _ => {}
+            }
+        }
         EngineStats {
             definitions_count: self.definitions.len().await,
-            instances_total: self.instances.len(),
-            instances_running: self.instances.values()
-                .filter(|i| matches!(i.state, InstanceState::Running))
-                .count(),
-            instances_completed: self.instances.values()
-                .filter(|i| matches!(i.state, InstanceState::Completed))
-                .count(),
-            instances_waiting_user: self.instances.values()
-                .filter(|i| matches!(i.state, InstanceState::WaitingOnUserTask { .. }))
-                .count(),
-            instances_waiting_service: self.instances.values()
-                .filter(|i| matches!(i.state, InstanceState::WaitingOnServiceTask { .. }))
-                .count(),
+            instances_total: all_insts.len(),
+            instances_running: running,
+            instances_completed: comp,
+            instances_waiting_user: w_user,
+            instances_waiting_service: w_serv,
             pending_user_tasks: self.pending_user_tasks.len(),
             pending_service_tasks: self.pending_service_tasks.len(),
         }
@@ -120,8 +125,8 @@ impl WorkflowEngine {
         old_state: Option<&ProcessInstance>,
     ) {
         if let Some(p) = &self.persistence {
-            let new_state = self.instances.get(&instance_id);
-            let diff = match (old_state, new_state) {
+            let new_state = if let Some(lk) = self.instances.get(&instance_id).await { Some(lk.read().await.clone()) } else { None };
+            let diff = match (old_state, new_state.as_ref()) {
                 (Some(o), Some(n)) => crate::history::calculate_diff(o, n),
                 _ => crate::history::HistoryDiff { 
                     variables: None, status: None, current_node: None, human_readable: None 
@@ -138,7 +143,7 @@ impl WorkflowEngine {
             if !diff.is_empty() {
                 entry = entry.with_diff(diff);
             }
-            if let Some(curr) = new_state.or(old_state) {
+            if let Some(curr) = new_state.as_ref().or(old_state) {
                 if let Some(def) = self.definitions.get(&curr.definition_key).await {
                     entry.definition_version = Some(def.version);
                 }
@@ -164,8 +169,9 @@ impl WorkflowEngine {
     /// Persists the current state of a process instance (if a persistence
     /// layer is configured). Logs and swallows errors.
     async fn persist_instance(&self, instance_id: Uuid) {
-        if let (Some(p), Some(inst)) = (&self.persistence, self.instances.get(&instance_id)) {
-            if let Err(e) = p.save_instance(inst).await {
+        if let (Some(p), Some(inst_arc)) = (&self.persistence, self.instances.get(&instance_id).await) {
+            let inst = inst_arc.read().await;
+            if let Err(e) = p.save_instance(&inst).await {
                 log::error!("Failed to persist instance {}: {}", instance_id, e);
             }
         }
@@ -356,7 +362,7 @@ impl WorkflowEngine {
             variables.len()
         );
 
-        self.instances.insert(instance_id, instance);
+        self.instances.insert(instance_id, instance).await;
         
         // Record history for start
         self.record_history_event(
@@ -404,8 +410,8 @@ impl WorkflowEngine {
 
     /// Checks if a completed instance has a parent, and if so, resumes the parent.
     pub(crate) async fn resume_parent_if_needed(&mut self, completed_instance_id: Uuid) -> EngineResult<()> {
-        let inst = self.instances.get(&completed_instance_id)
-            .ok_or(EngineError::NoSuchInstance(completed_instance_id))?;
+        let inst_arc = self.instances.get(&completed_instance_id).await.ok_or(EngineError::NoSuchInstance(completed_instance_id))?;
+        let inst = inst_arc.read().await;
             
         let parent_id = match inst.parent_instance_id {
             Some(pid) => pid,
@@ -417,35 +423,31 @@ impl WorkflowEngine {
         // Find the parent
         log::info!("Child instance {completed_instance_id} completed, resuming parent {parent_id}");
         
-        let parent = self.instances.get_mut(&parent_id)
-            .ok_or(EngineError::NoSuchInstance(parent_id))?;
+        let (called_node_id, token_to_resume, def_key) = {
+            let parent_arc = self.instances.get(&parent_id).await.ok_or(EngineError::NoSuchInstance(parent_id))?;
+            let mut parent = parent_arc.write().await;
+                
+            let (called_node_id, mut token_to_resume) = if let InstanceState::WaitingOnCallActivity { token, .. } = &parent.state {
+                let t = token.clone();
+                parent.state = InstanceState::Running;
+                (parent.current_node.clone(), Some(t))
+            } else {
+                return Ok(());
+            };
             
-        let (called_node_id, mut token_to_resume) = if let InstanceState::WaitingOnCallActivity { token, .. } = &parent.state {
-            let t = token.clone();
-            parent.state = InstanceState::Running;
-            (parent.current_node.clone(), Some(t))
-        } else {
-            // Parent isn't actually waiting? Should not happen unless error or cancelled.
-            return Ok(());
+            parent.audit_log.push(format!("🔗 Call Activity '{called_node_id}' completed successfully"));
+            
+            let def_key = parent.definition_key;
+            
+            if let Some(active) = parent.active_tokens.iter_mut().find(|at| at.token.current_node == called_node_id && !at.completed) {
+                active.token.variables.extend(child_vars.clone());
+                token_to_resume = Some(active.token.clone());
+            } else if let Some(ref mut linear_token) = token_to_resume {
+                linear_token.variables.extend(child_vars.clone());
+            }
+            
+            (called_node_id, token_to_resume, def_key)
         };
-        
-        parent.audit_log.push(format!("🔗 Call Activity '{called_node_id}' completed successfully"));
-        
-        // Find the waiting token and give it the child's variables
-        // Wait, how do we resume? We need to find the token in the active registry and inject it into the queue.
-        // Actually, the easiest way to resume is to find the token in `active_tokens` that was at `called_node_id`.
-        
-        let def_key = parent.definition_key;
-        
-        // If the token is not linear but from parallel execution, active_tokens will have it
-        if let Some(active) = parent.active_tokens.iter_mut().find(|at| at.token.current_node == called_node_id && !at.completed) {
-            // Merge variables from child to parent's token
-            active.token.variables.extend(child_vars.clone());
-            token_to_resume = Some(active.token.clone());
-        } else if let Some(ref mut linear_token) = token_to_resume {
-            // It's a linear process, the single token was blocked in the instance state
-            linear_token.variables.extend(child_vars);
-        }
         
         self.record_history_event(
             parent_id,
@@ -458,14 +460,15 @@ impl WorkflowEngine {
 
         if let Some(mut token) = token_to_resume {
             let def = self.definitions.get(&def_key).await
-                .ok_or(EngineError::NoSuchDefinition(def_key))?.clone();
+                .ok_or(EngineError::NoSuchDefinition(def_key))?;
                 
-            self.run_end_scripts(parent_id, &mut token, &def, &called_node_id)?;
+            self.run_end_scripts(parent_id, &mut token, &def, &called_node_id).await?;
                 
             let next_node = crate::engine::executor::resolve_next_target(&def, &called_node_id, &token.variables)?;
             token.current_node = next_node.clone();
             
-            if let Some(p_inst) = self.instances.get_mut(&parent_id) {
+            if let Some(p_inst_arc) = self.instances.get(&parent_id).await {
+            let mut p_inst = p_inst_arc.write().await;
                 p_inst.current_node = next_node;
             }
             
@@ -534,7 +537,7 @@ impl WorkflowEngine {
             provided_duration.as_secs()
         );
 
-        self.instances.insert(instance_id, instance);
+        self.instances.insert(instance_id, instance).await;
 
         // Record history for start
         self.record_history_event(
@@ -604,7 +607,8 @@ impl WorkflowEngine {
         
         for catch in &self.pending_message_catches {
             if catch.message_name == message_name {
-                if let Some(inst) = self.instances.get(&catch.instance_id) {
+                if let Some(inst_arc) = self.instances.get(&catch.instance_id).await {
+            let inst = inst_arc.read().await;
                     if let Some(ref bk) = business_key {
                         if &inst.business_key != bk {
                             continue;
@@ -624,10 +628,10 @@ impl WorkflowEngine {
             let mut token = catch.token;
             token.variables.extend(variables.clone());
             
-            let old_state = self.instances.get(&catch.instance_id).cloned();
+            let old_state = if let Some(lk) = self.instances.get(&catch.instance_id).await { Some(lk.read().await.clone()) } else { None };
             let def_key = {
-                let inst = self.instances.get_mut(&catch.instance_id)
-                    .ok_or(EngineError::NoSuchInstance(catch.instance_id))?;
+                let inst_arc = self.instances.get(&catch.instance_id).await.ok_or(EngineError::NoSuchInstance(catch.instance_id))?;
+        let mut inst = inst_arc.write().await;
                 inst.state = InstanceState::Running;
                 inst.audit_log.push(format!("✉️ Msg '{}' correlated, resuming '{catch_id}'", message_name));
                 inst.definition_key
@@ -648,8 +652,8 @@ impl WorkflowEngine {
             token.current_node = next.clone();
             
             {
-                let inst = self.instances.get_mut(&catch.instance_id)
-                    .ok_or(EngineError::NoSuchInstance(catch.instance_id))?;
+                let inst_arc = self.instances.get(&catch.instance_id).await.ok_or(EngineError::NoSuchInstance(catch.instance_id))?;
+        let mut inst = inst_arc.write().await;
                 inst.current_node = next;
             }
             
@@ -670,7 +674,8 @@ impl WorkflowEngine {
         for def_key in defs_to_start {
             let new_id = self.start_instance_with_variables(def_key, variables.clone()).await?;
             if let Some(ref bk) = business_key {
-                if let Some(inst) = self.instances.get_mut(&new_id) {
+                if let Some(inst_arc) = self.instances.get(&new_id).await {
+            let mut inst = inst_arc.write().await;
                     inst.business_key = bk.clone();
                 }
                 self.persist_instance(new_id).await;
@@ -697,10 +702,10 @@ impl WorkflowEngine {
                 .ok_or_else(|| EngineError::InvalidDefinition(format!("Timer {tid} disappeared")))?;
             let timer = self.pending_timers.remove(idx);
             
-            let old_state = self.instances.get(&timer.instance_id).cloned();
+            let old_state = if let Some(lk) = self.instances.get(&timer.instance_id).await { Some(lk.read().await.clone()) } else { None };
             let def_key = {
-                let inst = self.instances.get_mut(&timer.instance_id)
-                    .ok_or(EngineError::NoSuchInstance(timer.instance_id))?;
+                let inst_arc = self.instances.get(&timer.instance_id).await.ok_or(EngineError::NoSuchInstance(timer.instance_id))?;
+        let mut inst = inst_arc.write().await;
                 inst.state = InstanceState::Running;
                 inst.audit_log.push(format!("⏱ Timer '{}' expired, resuming", timer.node_id));
                 inst.definition_key
@@ -722,8 +727,8 @@ impl WorkflowEngine {
             token.current_node = next.clone();
             
             {
-                let inst = self.instances.get_mut(&timer.instance_id)
-                    .ok_or(EngineError::NoSuchInstance(timer.instance_id))?;
+                let inst_arc = self.instances.get(&timer.instance_id).await.ok_or(EngineError::NoSuchInstance(timer.instance_id))?;
+        let mut inst = inst_arc.write().await;
                 inst.current_node = next;
             }
             
@@ -766,25 +771,25 @@ impl WorkflowEngine {
         self.remove_persisted_user_task(task_id).await;
         self.cancel_boundary_timers(instance_id, &pending.node_id).await;
 
-        let old_state = self.instances.get(&instance_id).cloned();
+        let old_state = if let Some(lk) = self.instances.get(&instance_id).await { Some(lk.read().await.clone()) } else { None };
 
         log::info!(
             "Instance {instance_id}: completed user task '{}' (task_id: {task_id})",
             pending.node_id
         );
 
-        let inst = self
-            .instances
-            .get_mut(&instance_id)
-            .ok_or(EngineError::NoSuchInstance(instance_id))?;
-        inst.audit_log
-            .push(format!("✅ User task '{}' completed", pending.node_id));
-        
-        if !matches!(inst.state, InstanceState::ParallelExecution { .. }) {
-            inst.state = InstanceState::Running;
-        }
-        inst.current_node = pending.node_id.clone();
-        let def_key = inst.definition_key;
+        let def_key = {
+            let inst_arc = self.instances.get(&instance_id).await.ok_or(EngineError::NoSuchInstance(instance_id))?;
+            let mut inst = inst_arc.write().await;
+            inst.audit_log
+                .push(format!("✅ User task '{}' completed", pending.node_id));
+            
+            if !matches!(inst.state, InstanceState::ParallelExecution { .. }) {
+                inst.state = InstanceState::Running;
+            }
+            inst.current_node = pending.node_id.clone();
+            inst.definition_key
+        };
 
         // Advance token to the next node
         let def = self
@@ -792,17 +797,18 @@ impl WorkflowEngine {
             .get(&def_key)
             .await
             .ok_or(EngineError::NoSuchDefinition(def_key))?;
-        let def = Arc::clone(&def);
-
-        self.run_end_scripts(instance_id, &mut token, &def, &pending.node_id)?;
+        // Current node's end scripts
+        self.run_end_scripts(instance_id, &mut token, &def, &pending.node_id).await?;
 
         let next = crate::engine::executor::resolve_next_target(&def, &pending.node_id, &token.variables)?;
 
         token.current_node = next.clone();
         // Update instance current_node so UI highlights correctly
-        let inst = self.instances.get_mut(&instance_id)
-            .ok_or(EngineError::NoSuchInstance(instance_id))?;
-        inst.current_node = next;
+        let inst_arc = self.instances.get(&instance_id).await.ok_or(EngineError::NoSuchInstance(instance_id))?;
+        {
+            let mut inst = inst_arc.write().await;
+            inst.current_node = next;
+        }
         if let Some(p) = &self.persistence {
             if let Err(e) = p.save_token(&token).await {
                 log::error!("Failed to save token after user task: {}", e);
@@ -825,19 +831,21 @@ impl WorkflowEngine {
     // ----- query helpers ---------------------------------------------------
 
     /// Returns the state of a process instance.
-    pub fn get_instance_state(&self, instance_id: Uuid) -> EngineResult<&InstanceState> {
-        self.instances
-            .get(&instance_id)
-            .map(|i| &i.state)
-            .ok_or(EngineError::NoSuchInstance(instance_id))
+    pub async fn get_instance_state(&self, instance_id: Uuid) -> EngineResult<InstanceState> {
+        if let Some(i_arc) = self.instances.get(&instance_id).await {
+            Ok(i_arc.read().await.state.clone())
+        } else {
+            Err(EngineError::NoSuchInstance(instance_id))
+        }
     }
 
     /// Returns the audit log of a process instance.
-    pub fn get_audit_log(&self, instance_id: Uuid) -> EngineResult<&[String]> {
-        self.instances
-            .get(&instance_id)
-            .map(|i| i.audit_log.as_slice())
-            .ok_or(EngineError::NoSuchInstance(instance_id))
+    pub async fn get_audit_log(&self, instance_id: Uuid) -> EngineResult<Vec<String>> {
+        if let Some(i_arc) = self.instances.get(&instance_id).await {
+            Ok(i_arc.read().await.audit_log.clone())
+        } else {
+            Err(EngineError::NoSuchInstance(instance_id))
+        }
     }
 
     /// Returns all currently pending user tasks.
@@ -851,21 +859,28 @@ impl WorkflowEngine {
     }
 
     /// Returns a list of all process instances (cloned).
-    pub fn list_instances(&self) -> Vec<ProcessInstance> {
-        self.instances.values().cloned().collect()
+    pub async fn list_instances(&self) -> Vec<ProcessInstance> {
+        let all = self.instances.all().await;
+        let mut out = Vec::with_capacity(all.len());
+        for lk in all.values() {
+            out.push(lk.read().await.clone());
+        }
+        out
     }
 
     /// Returns full details for a single process instance.
-    pub fn get_instance_details(&self, id: Uuid) -> EngineResult<ProcessInstance> {
-        self.instances
-            .get(&id)
-            .cloned()
-            .ok_or(EngineError::NoSuchInstance(id))
+    pub async fn get_instance_details(&self, id: Uuid) -> EngineResult<ProcessInstance> {
+        if let Some(i_arc) = self.instances.get(&id).await {
+            Ok(i_arc.read().await.clone())
+        } else {
+            Err(EngineError::NoSuchInstance(id))
+        }
     }
 
     /// Helper to cancel any pending boundary timers attached to a task node that is being completed/aborted.
     pub(crate) async fn cancel_boundary_timers(&mut self, instance_id: Uuid, task_node_id: &str) {
-        let def_key = if let Some(inst) = self.instances.get(&instance_id) {
+        let def_key = if let Some(inst_arc) = self.instances.get(&instance_id).await {
+            let inst = inst_arc.read().await;
             inst.definition_key
         } else {
             return;
@@ -894,8 +909,8 @@ impl WorkflowEngine {
 
     /// Deletes a process instance and cleans up associated pending tasks.
     pub async fn delete_instance(&mut self, instance_id: Uuid) -> EngineResult<()> {
-        let removed_inst = self.instances.remove(&instance_id)
-            .ok_or(EngineError::NoSuchInstance(instance_id))?;
+        let removed_inst_arc = self.instances.remove(&instance_id).await.ok_or(EngineError::NoSuchInstance(instance_id))?;
+        let removed_inst = removed_inst_arc.read().await.clone();
 
         if let Some(ref persistence) = self.persistence {
             // Delete associated files
@@ -948,10 +963,13 @@ impl WorkflowEngine {
         }
 
         // Check for instances
-        let associated_instances: Vec<Uuid> = self.instances.values()
-            .filter(|i| i.definition_key == definition_key)
-            .map(|i| i.id)
-            .collect();
+        let all_insts = self.instances.all().await;
+        let mut associated_instances = Vec::new();
+        for lk in all_insts.values() {
+            if lk.read().await.definition_key == definition_key {
+                associated_instances.push(lk.read().await.id);
+            }
+        }
 
         if !associated_instances.is_empty() {
             if !cascade {
@@ -981,13 +999,11 @@ impl WorkflowEngine {
         instance_id: Uuid,
         variables: HashMap<String, Value>,
     ) -> EngineResult<()> {
-        let old_state = self.instances.get(&instance_id).cloned();
+        let old_state = if let Some(lk) = self.instances.get(&instance_id).await { Some(lk.read().await.clone()) } else { None };
 
         let updated_vars = {
-            let instance = self
-                .instances
-                .get_mut(&instance_id)
-                .ok_or(EngineError::NoSuchInstance(instance_id))?;
+            let instance_arc = self.instances.get(&instance_id).await.ok_or(EngineError::NoSuchInstance(instance_id))?;
+        let mut instance = instance_arc.write().await;
 
             let mut added: usize = 0;
             let mut modified: usize = 0;

@@ -44,7 +44,7 @@ async fn restore_from_nats(
         Ok(instances) => {
             let num = instances.len();
             for inst in instances {
-                engine.restore_instance(inst);
+                engine.restore_instance(inst).await;
             }
             log::info!("Restored {} process instance(s).", num);
         }

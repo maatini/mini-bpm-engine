@@ -67,10 +67,10 @@ async fn conditional_routing_on_service_task() {
     complete_all_service_tasks(&mut engine, "worker_1", HashMap::new()).await;
 
     assert_eq!(
-        *engine.get_instance_state(inst_id).unwrap(),
+        engine.get_instance_state(inst_id).await.unwrap(),
         InstanceState::Completed
     );
-    let log = engine.get_audit_log(inst_id).unwrap();
+    let log = engine.get_audit_log(inst_id).await.unwrap();
     let end_entry = log.iter().find(|l| l.contains("Process completed")).unwrap();
     assert!(end_entry.contains("end_b"), "Expected end_b path: {end_entry}");
 }
@@ -83,7 +83,7 @@ async fn start_instance_pauses_at_user_task() {
     complete_all_service_tasks(&mut engine, "worker_1", HashMap::new()).await;
 
     assert_eq!(
-        *engine.get_instance_state(inst_id).unwrap(),
+        engine.get_instance_state(inst_id).await.unwrap(),
         InstanceState::WaitingOnUserTask {
             task_id: engine.pending_user_tasks[0].task_id
         }
@@ -106,7 +106,7 @@ async fn complete_user_task_reaches_end() {
     complete_all_service_tasks(&mut engine, "worker_1", HashMap::new()).await;
 
     assert_eq!(
-        *engine.get_instance_state(inst_id).unwrap(),
+        engine.get_instance_state(inst_id).await.unwrap(),
         InstanceState::Completed
     );
     assert!(engine.pending_user_tasks.is_empty());
@@ -160,7 +160,7 @@ async fn timer_start_succeeds() {
     complete_all_service_tasks(&mut engine, "worker_1", HashMap::new()).await;
 
     assert_eq!(
-        *engine.get_instance_state(inst_id).unwrap(),
+        engine.get_instance_state(inst_id).await.unwrap(),
         InstanceState::Completed
     );
 }
@@ -226,7 +226,7 @@ async fn audit_log_captures_all_steps() {
         .await
         .unwrap();
 
-    let log = engine.get_audit_log(inst_id).unwrap();
+    let log = engine.get_audit_log(inst_id).await.unwrap();
     assert!(log.len() >= 4);
     assert!(log[0].contains("started"));
     assert!(log.last().unwrap().contains("completed"));
@@ -324,10 +324,10 @@ async fn exclusive_gateway_takes_matching_path() {
     complete_all_service_tasks(&mut engine, "worker_1", HashMap::new()).await;
 
     assert_eq!(
-        *engine.get_instance_state(inst_id).unwrap(),
+        engine.get_instance_state(inst_id).await.unwrap(),
         InstanceState::Completed
     );
-    let log = engine.get_audit_log(inst_id).unwrap();
+    let log = engine.get_audit_log(inst_id).await.unwrap();
     let gw_entry = log.iter().find(|l| l.contains("Exclusive gateway")).unwrap();
     assert!(gw_entry.contains("high"), "Expected high path: {gw_entry}");
 }
@@ -368,10 +368,10 @@ async fn exclusive_gateway_uses_default_when_no_match() {
     complete_all_service_tasks(&mut engine, "worker_1", HashMap::new()).await;
 
     assert_eq!(
-        *engine.get_instance_state(inst_id).unwrap(),
+        engine.get_instance_state(inst_id).await.unwrap(),
         InstanceState::Completed
     );
-    let log = engine.get_audit_log(inst_id).unwrap();
+    let log = engine.get_audit_log(inst_id).await.unwrap();
     let gw_entry = log.iter().find(|l| l.contains("Exclusive gateway")).unwrap();
     assert!(gw_entry.contains("low"), "Expected low (default) path: {gw_entry}");
 }
@@ -441,10 +441,10 @@ async fn inclusive_gateway_forks_multiple_paths() {
     complete_all_service_tasks(&mut engine, "worker_1", HashMap::new()).await;
 
     assert_eq!(
-        *engine.get_instance_state(inst_id).unwrap(),
+        engine.get_instance_state(inst_id).await.unwrap(),
         InstanceState::Completed
     );
-    let log = engine.get_audit_log(inst_id).unwrap();
+    let log = engine.get_audit_log(inst_id).await.unwrap();
     let gw_entry = log.iter().find(|l| l.contains("Inclusive gateway")).unwrap();
     assert!(
         gw_entry.contains("2 path(s)"),
@@ -483,7 +483,7 @@ async fn inclusive_gateway_single_match_no_fork() {
     complete_all_service_tasks(&mut engine, "worker_1", HashMap::new()).await;
 
     assert_eq!(
-        *engine.get_instance_state(inst_id).unwrap(),
+        engine.get_instance_state(inst_id).await.unwrap(),
         InstanceState::Completed
     );
 }
@@ -539,12 +539,12 @@ async fn xor_gateway_positive_x_routes_to_user_task_1() {
     assert_eq!(pending[0].assignee, "author");
 
     assert!(matches!(
-        engine.get_instance_state(inst_id).unwrap(),
+        engine.get_instance_state(inst_id).await.unwrap(),
         InstanceState::WaitingOnUserTask { .. }
     ));
 
     // Audit log should show gateway took path to user-task-1
-    let log = engine.get_audit_log(inst_id).unwrap();
+    let log = engine.get_audit_log(inst_id).await.unwrap();
     let gw_entry = log.iter().find(|l| l.contains("Exclusive gateway")).unwrap();
     assert!(
         gw_entry.contains("user-task-1"),
@@ -561,7 +561,7 @@ async fn xor_gateway_positive_x_routes_to_user_task_1() {
     complete_all_service_tasks(&mut engine, "worker_1", HashMap::new()).await;
 
     assert_eq!(
-        *engine.get_instance_state(inst_id).unwrap(),
+        engine.get_instance_state(inst_id).await.unwrap(),
         InstanceState::Completed
     );
     assert!(engine.get_pending_user_tasks().is_empty());
@@ -587,7 +587,7 @@ async fn xor_gateway_negative_x_routes_to_user_task_2() {
     assert_eq!(pending[0].assignee, "reviewer");
 
     // Audit log should show gateway took default path to user-task-2
-    let log = engine.get_audit_log(inst_id).unwrap();
+    let log = engine.get_audit_log(inst_id).await.unwrap();
     let gw_entry = log.iter().find(|l| l.contains("Exclusive gateway")).unwrap();
     assert!(
         gw_entry.contains("user-task-2"),
@@ -604,7 +604,7 @@ async fn xor_gateway_negative_x_routes_to_user_task_2() {
     complete_all_service_tasks(&mut engine, "worker_1", HashMap::new()).await;
 
     assert_eq!(
-        *engine.get_instance_state(inst_id).unwrap(),
+        engine.get_instance_state(inst_id).await.unwrap(),
         InstanceState::Completed
     );
 }
@@ -637,7 +637,7 @@ async fn xor_gateway_zero_x_routes_to_user_task_2() {
     complete_all_service_tasks(&mut engine, "worker_1", HashMap::new()).await;
 
     assert_eq!(
-        *engine.get_instance_state(inst_id).unwrap(),
+        engine.get_instance_state(inst_id).await.unwrap(),
         InstanceState::Completed
     );
 }
@@ -668,12 +668,12 @@ async fn xor_gateway_user_task_merges_variables() {
     complete_all_service_tasks(&mut engine, "worker_1", HashMap::new()).await;
 
     assert_eq!(
-        *engine.get_instance_state(inst_id).unwrap(),
+        engine.get_instance_state(inst_id).await.unwrap(),
         InstanceState::Completed
     );
 
     // Verify both original and merged variables are present
-    let details = engine.get_instance_details(inst_id).unwrap();
+    let details = engine.get_instance_details(inst_id).await.unwrap();
     assert_eq!(
         details.variables.get("x"),
         Some(&Value::Number(10.into())),
@@ -714,11 +714,11 @@ async fn script_mutates_state_and_executes_logic() {
     complete_all_service_tasks(&mut engine, "worker_1", HashMap::new()).await;
 
     assert_eq!(
-        *engine.get_instance_state(inst_id).unwrap(),
+        engine.get_instance_state(inst_id).await.unwrap(),
         InstanceState::Completed
     );
 
-    let details = engine.get_instance_details(inst_id).unwrap();
+    let details = engine.get_instance_details(inst_id).await.unwrap();
 
     complete_all_service_tasks(&mut engine, "worker_1", HashMap::new()).await;
 
@@ -747,12 +747,12 @@ async fn test_delete_instance() {
 
     let key = engine.deploy_definition(def).await;
     let instance_id = engine.start_instance(key).await.unwrap();
-    assert_eq!(engine.instances.len(), 1);
+    assert_eq!(engine.instances.len().await, 1);
 
     engine.delete_instance(instance_id).await.unwrap();
     
-    assert_eq!(engine.instances.len(), 0);
-    assert!(engine.get_instance_details(instance_id).is_err());
+    assert_eq!(engine.instances.len().await, 0);
+    assert!(engine.get_instance_details(instance_id).await.is_err());
 }
 
 #[tokio::test]
@@ -776,7 +776,7 @@ async fn test_delete_definition_cascade() {
     
     let stats = engine.get_stats().await;
     assert_eq!(stats.definitions_count, 0);
-    assert_eq!(engine.instances.len(), 0);
+    assert_eq!(engine.instances.len().await, 0);
 }
 
 // -----------------------------------------------------------------------
@@ -812,9 +812,9 @@ async fn parallel_gateway_forks_and_joins() {
         .unwrap();
 
     // Should be paused in parallel execution waiting for both service tasks
-    let state = engine.get_instance_state(inst_id).unwrap().clone();
+    let state = engine.get_instance_state(inst_id).await.unwrap().clone();
     println!("State after start: {:?}", state);
-    for entry in engine.get_audit_log(inst_id).unwrap() {
+    for entry in engine.get_audit_log(inst_id).await.unwrap() {
         println!("Log: {}", entry);
     }
     assert!(matches!(state, InstanceState::ParallelExecution { active_token_count: 2 }), "State should be parallel execution: {:?}", state);
@@ -831,18 +831,20 @@ async fn parallel_gateway_forks_and_joins() {
     engine.complete_service_task(task_a, "worker", vars_a).await.unwrap();
 
     // After A completes, it should be waiting at the join. Still in parallel state.
-    let state = engine.get_instance_state(inst_id).unwrap().clone();
+    let state = engine.get_instance_state(inst_id).await.unwrap().clone();
     println!("State after A completes: {:?}", state);
-    for entry in engine.get_audit_log(inst_id).unwrap() {
+    for entry in engine.get_audit_log(inst_id).await.unwrap() {
         println!("Log: {}", entry);
     }
     assert!(matches!(state, InstanceState::ParallelExecution { active_token_count: 2 }));
     
     // Check join barrier
-    let inst = engine.instances.get(&inst_id).unwrap();
-    let barrier = inst.join_barriers.get("join").unwrap();
+    let inst = engine.instances.get(&inst_id).await.unwrap();
+    let inst_lock = inst.read().await;
+    let barrier = inst_lock.join_barriers.get("join").unwrap();
     assert_eq!(barrier.expected_count, 2);
     assert_eq!(barrier.arrived_tokens.len(), 1);
+    drop(inst_lock);
 
     // Complete task B
     let task_b = engine.pending_service_tasks.iter().find(|t| t.topic == "task_b").unwrap().id;
@@ -853,7 +855,7 @@ async fn parallel_gateway_forks_and_joins() {
 
     // Now it should be complete!
     assert_eq!(
-        *engine.get_instance_state(inst_id).unwrap(),
+        engine.get_instance_state(inst_id).await.unwrap(),
         InstanceState::Completed
     );
 
@@ -899,7 +901,7 @@ async fn service_task_fail_and_retries() {
 
     // Incident should be logged
     let inst_id = tasks[0].instance_id;
-    let log = engine.get_audit_log(inst_id).unwrap();
+    let log = engine.get_audit_log(inst_id).await.unwrap();
     assert!(log.iter().any(|l| l.contains("INCIDENT")));
     assert!(log.iter().any(|l| l.contains("Fatal")));
 }
@@ -953,7 +955,7 @@ async fn service_task_handle_bpmn_error() {
     // Task should be removed and error logged.
     assert_eq!(engine.get_pending_service_tasks().len(), 0);
     
-    let log = engine.get_audit_log(tasks[0].instance_id).unwrap();
+    let log = engine.get_audit_log(tasks[0].instance_id).await.unwrap();
     assert!(log.iter().any(|l| l.contains("ERR_CODE")));
 }
 
@@ -984,9 +986,9 @@ async fn restore_instance_loads_from_persistence() {
         join_barriers: std::collections::HashMap::new(),
     };
     
-    engine.restore_instance(inst.clone());
+    engine.restore_instance(inst.clone()).await;
     
-    let loaded = engine.get_instance_details(inst.id).unwrap();
+    let loaded = engine.get_instance_details(inst.id).await.unwrap();
     assert_eq!(loaded.id, inst.id);
     assert_eq!(loaded.business_key, "BK1");
 }
@@ -1019,7 +1021,7 @@ async fn mutation_delete_instance_and_variables() {
     vars.insert("val".into(), serde_json::Value::Number(10.into()));
     engine.update_instance_variables(inst_id, vars).await.unwrap();
 
-    let details = engine.get_instance_details(inst_id).unwrap();
+    let details = engine.get_instance_details(inst_id).await.unwrap();
     assert_eq!(details.variables.get("val").unwrap(), &serde_json::Value::Number(10.into()));
     assert_eq!(details.variables.len(), 1); // Test mutant missing logic
     
@@ -1027,7 +1029,7 @@ async fn mutation_delete_instance_and_variables() {
     let mut vars2 = HashMap::new();
     vars2.insert("other".into(), serde_json::Value::Bool(true));
     engine.update_instance_variables(inst_id, vars2).await.unwrap();
-    let details2 = engine.get_instance_details(inst_id).unwrap();
+    let details2 = engine.get_instance_details(inst_id).await.unwrap();
     assert_eq!(details2.variables.len(), 2);
     
     // Create side tasks
@@ -1036,7 +1038,7 @@ async fn mutation_delete_instance_and_variables() {
     
     engine.delete_instance(inst_id).await.unwrap();
     // After delete, list should be 0.
-    assert!(engine.get_instance_state(inst_id).is_err());
+    assert!(engine.get_instance_state(inst_id).await.is_err());
 }
 
 #[tokio::test]
@@ -1120,7 +1122,7 @@ async fn message_start_event_succeeds() {
     assert_eq!(affected.len(), 1);
     
     let inst_id = affected[0];
-    let inst = engine.get_instance_details(inst_id).unwrap();
+    let inst = engine.get_instance_details(inst_id).await.unwrap();
     assert_eq!(inst.state, InstanceState::Completed);
     assert_eq!(inst.business_key, "bk1");
 }
@@ -1140,7 +1142,7 @@ async fn timer_catch_event_succeeds() {
     let def_key = engine.deploy_definition(def).await;
     let inst_id = engine.start_instance(def_key).await.unwrap();
     
-    assert_eq!(engine.get_instance_state(inst_id).unwrap(), &InstanceState::WaitingOnTimer { timer_id: engine.pending_timers[0].id });
+    assert_eq!(engine.get_instance_state(inst_id).await.unwrap(), InstanceState::WaitingOnTimer { timer_id: engine.pending_timers[0].id });
     
     // Won't trigger immediately
     let triggered = engine.process_timers().await.unwrap();
@@ -1151,7 +1153,7 @@ async fn timer_catch_event_succeeds() {
     let triggered = engine.process_timers().await.unwrap();
     assert_eq!(triggered, 1);
     
-    assert_eq!(engine.get_instance_state(inst_id).unwrap(), &InstanceState::Completed);
+    assert_eq!(engine.get_instance_state(inst_id).await.unwrap(), InstanceState::Completed);
 }
 
 #[tokio::test]
@@ -1179,7 +1181,7 @@ async fn boundary_timer_event_cancels_task() {
     let triggered = engine.process_timers().await.unwrap();
     assert_eq!(triggered, 1);
     
-    let inst = engine.get_instance_details(inst_id).unwrap();
+    let inst = engine.get_instance_details(inst_id).await.unwrap();
     assert_eq!(inst.state, InstanceState::Completed);
     assert_eq!(inst.current_node, "end2");
 }
@@ -1207,7 +1209,7 @@ async fn boundary_error_event_catches_error() {
     
     engine.handle_bpmn_error(tasks[0].id, "worker", "ERR_CODE_500").await.unwrap();
     
-    let inst = engine.get_instance_details(inst_id).unwrap();
+    let inst = engine.get_instance_details(inst_id).await.unwrap();
     assert_eq!(inst.state, InstanceState::Completed);
     assert_eq!(inst.current_node, "end2");
 }
@@ -1242,10 +1244,10 @@ async fn call_activity_lifecycle() {
     let parent_id = engine.start_instance(parent_key).await.unwrap();
     
     // Parent should be blocked on Call Activity
-    let parent_inst = engine.get_instance_details(parent_id).unwrap();
+    let parent_inst = engine.get_instance_details(parent_id).await.unwrap();
     if let InstanceState::WaitingOnCallActivity { sub_instance_id, .. } = parent_inst.state {
         // Child instance should exist
-        let child_inst = engine.get_instance_details(sub_instance_id).unwrap();
+        let child_inst = engine.get_instance_details(sub_instance_id).await.unwrap();
         assert_eq!(child_inst.parent_instance_id, Some(parent_id));
         assert!(matches!(child_inst.state, InstanceState::WaitingOnUserTask { .. }));
         assert!(matches!(child_inst.state, InstanceState::WaitingOnUserTask { .. }));
@@ -1263,11 +1265,11 @@ async fn call_activity_lifecycle() {
         engine.complete_user_task(child_task_id, vars).await.unwrap();
         
         // Child should be completed
-        let child_inst = engine.get_instance_details(sub_instance_id).unwrap();
+        let child_inst = engine.get_instance_details(sub_instance_id).await.unwrap();
         assert_eq!(child_inst.state, InstanceState::Completed);
         
         // Parent should now be automatically resumed and completed
-        let parent_inst = engine.get_instance_details(parent_id).unwrap();
+        let parent_inst = engine.get_instance_details(parent_id).await.unwrap();
         assert_eq!(parent_inst.state, InstanceState::Completed);
         assert_eq!(parent_inst.variables.get("from_child").unwrap().as_str().unwrap(), "hello parent");
     } else {
@@ -1313,14 +1315,14 @@ async fn in_memory_simultaneous_timer_and_message_race() {
     engine.correlate_message(msgs[0].message_name.clone(), None, std::collections::HashMap::new()).await.unwrap();
     
     // Since message was processed first, the instance was routed to join, and blocked on parallel gate
-    let _inst = engine.get_instance_details(inst_id).unwrap();
+    let _inst = engine.get_instance_details(inst_id).await.unwrap();
     // (Note: correlate_message blindly resets state to Running visually, but it's still waiting on the other parallel branch inside active_tokens)
     
     // Now if we process timers, it should trigger the timer and join to finish
     let triggered = engine.process_timers().await.unwrap();
     assert_eq!(triggered, 1);
     
-    let inst2 = engine.get_instance_details(inst_id).unwrap();
+    let inst2 = engine.get_instance_details(inst_id).await.unwrap();
     assert_eq!(inst2.state, InstanceState::Completed);
 }
 
@@ -1388,7 +1390,7 @@ async fn in_memory_large_file_variables() {
     
     engine.complete_user_task(tasks[0].task_id, vars).await.unwrap();
     
-    let inst = engine.get_instance_details(inst_id).unwrap();
+    let inst = engine.get_instance_details(inst_id).await.unwrap();
     assert_eq!(inst.state, InstanceState::Completed);
     
     // Validate we can download it back
@@ -1439,13 +1441,13 @@ async fn test_definition_versioning_and_migration() {
     assert_eq!(def_v2_deployed.version, 2);
 
     // Instance v1 should still be on 'task' safely.
-    let inst_v1_data = engine.get_instance_details(inst_v1).unwrap();
+    let inst_v1_data = engine.get_instance_details(inst_v1).await.unwrap();
     assert_eq!(inst_v1_data.current_node, "task");
     assert_eq!(inst_v1_data.definition_key, key_v1);
 
     // Start instance on V2
     let inst_v2 = engine.start_instance(key_v2).await.unwrap();
-    let inst_v2_data = engine.get_instance_details(inst_v2).unwrap();
+    let inst_v2_data = engine.get_instance_details(inst_v2).await.unwrap();
     assert_eq!(inst_v2_data.current_node, "task2");
     assert_eq!(inst_v2_data.definition_key, key_v2);
 }
