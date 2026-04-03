@@ -1273,3 +1273,128 @@ async fn call_activity_lifecycle() {
         panic!("Parent not waiting on call activity: {:?}", parent_inst.state);
     }
 }
+
+// ---------------------------------------------------------------------------
+// Advanced Edge Case Testing with InMemoryPersistence
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn in_memory_simultaneous_timer_and_message_race() {
+    let mut engine = WorkflowEngine::with_in_memory_persistence();
+    
+    let def = ProcessDefinitionBuilder::new("race")
+        .node("start", BpmnElement::StartEvent)
+        .node("fork", BpmnElement::ParallelGateway)
+        .node("timer", BpmnElement::TimerCatchEvent(std::time::Duration::from_millis(50)))
+        .node("msg", BpmnElement::MessageCatchEvent { message_name: "MSG_CANCEL".into() })
+        .node("join", BpmnElement::ParallelGateway)
+        .node("end", BpmnElement::EndEvent)
+        .flow("start", "fork")
+        .flow("fork", "timer")
+        .flow("fork", "msg")
+        .flow("timer", "join")
+        .flow("msg", "join")
+        .flow("join", "end")
+        .build()
+        .unwrap();
+        
+    let def_key = engine.deploy_definition(def).await;
+    let inst_id = engine.start_instance(def_key).await.unwrap();
+    
+    assert_eq!(engine.pending_timers.len(), 1);
+    assert_eq!(engine.pending_message_catches.len(), 1);
+    
+    // Simulate time passing (50ms) BUT before processing timers, we send the message!
+    tokio::time::sleep(tokio::time::Duration::from_millis(60)).await;
+    
+    // Race: The message arrives precisely when the timer is due.
+    let msgs = engine.pending_message_catches.clone();
+    engine.correlate_message(msgs[0].message_name.clone(), None, std::collections::HashMap::new()).await.unwrap();
+    
+    // Since message was processed first, the instance was routed to join, and blocked on parallel gate
+    let _inst = engine.get_instance_details(inst_id).unwrap();
+    // (Note: correlate_message blindly resets state to Running visually, but it's still waiting on the other parallel branch inside active_tokens)
+    
+    // Now if we process timers, it should trigger the timer and join to finish
+    let triggered = engine.process_timers().await.unwrap();
+    assert_eq!(triggered, 1);
+    
+    let inst2 = engine.get_instance_details(inst_id).unwrap();
+    assert_eq!(inst2.state, InstanceState::Completed);
+}
+
+#[tokio::test]
+async fn in_memory_script_robust_failure_handling() {
+    let mut engine = WorkflowEngine::with_in_memory_persistence();
+    let script = "let a = 1; throw \"Intentional crash!\";";
+    
+    let def = ProcessDefinitionBuilder::new("script_crash")
+        .node("start", BpmnElement::StartEvent)
+        .node("task", BpmnElement::UserTask("worker".into()))
+        .node("end", BpmnElement::EndEvent)
+        .flow("start", "task")
+        .flow("task", "end")
+        .listener("start", crate::model::ListenerEvent::Start, script)
+        .build()
+        .unwrap();
+        
+    let def_key = engine.deploy_definition(def).await;
+    
+    // Engine should panic or return error because script is broken
+    let result = engine.start_instance(def_key).await;
+    assert!(result.is_err());
+    assert!(result.unwrap_err().to_string().contains("Intentional crash!"));
+}
+
+#[tokio::test]
+async fn in_memory_large_file_variables() {
+    let mut engine = WorkflowEngine::with_in_memory_persistence();
+    
+    let def = ProcessDefinitionBuilder::new("large_file")
+        .node("start", BpmnElement::StartEvent)
+        .node("task", BpmnElement::UserTask("worker".into()))
+        .node("end", BpmnElement::EndEvent)
+        .flow("start", "task")
+        .flow("task", "end")
+        .build()
+        .unwrap();
+        
+    let def_key = engine.deploy_definition(def).await;
+    let inst_id = engine.start_instance(def_key).await.unwrap();
+    
+    // Create a very large dummy payload (10 MB of zeros to simulate memory stress)
+    // NOTE: In the real engine-server, the file goes to the persistence layer.
+    // In engine-core tests, we can just insert the reference into variables and 
+    // also persist it explicitly to in-memory persistence.
+    let large_payload = vec![0u8; 10 * 1024 * 1024]; 
+    
+    if let Some(p) = &engine.persistence {
+        p.save_file("file:big_data", &large_payload).await.unwrap();
+    }
+    
+    let file_ref = crate::model::FileReference {
+        object_key: "file:big_data".into(),
+        filename: "big_data.bin".into(),
+        mime_type: "application/octet-stream".into(),
+        size_bytes: large_payload.len() as u64,
+        uploaded_at: chrono::Utc::now().to_rfc3339(),
+    };
+    
+    // Inject it into task
+    let tasks = engine.get_pending_user_tasks();
+    let mut vars = std::collections::HashMap::new();
+    vars.insert("my_file".into(), serde_json::to_value(&file_ref).unwrap());
+    
+    engine.complete_user_task(tasks[0].task_id, vars).await.unwrap();
+    
+    let inst = engine.get_instance_details(inst_id).unwrap();
+    assert_eq!(inst.state, InstanceState::Completed);
+    
+    // Validate we can download it back
+    let v = inst.variables.get("my_file").unwrap();
+    let f_ref: crate::model::FileReference = serde_json::from_value(v.clone()).unwrap();
+    if let Some(p) = &engine.persistence {
+        let downloaded = p.load_file(&f_ref.object_key).await.unwrap();
+        assert_eq!(downloaded.len(), 10 * 1024 * 1024);
+    }
+}

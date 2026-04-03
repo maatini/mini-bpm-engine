@@ -44,6 +44,12 @@ impl WorkflowEngine {
         }
     }
 
+    /// Creates a new engine equipped with the InMemoryPersistence backend.
+    pub fn with_in_memory_persistence() -> Self {
+        let p = Arc::new(crate::persistence_in_memory::InMemoryPersistence::new());
+        Self::new().with_persistence(p)
+    }
+
     /// Attaches a persistence layer to the engine.
     pub fn with_persistence(mut self, persistence: Arc<dyn WorkflowPersistence>) -> Self {
         self.persistence = Some(persistence);
