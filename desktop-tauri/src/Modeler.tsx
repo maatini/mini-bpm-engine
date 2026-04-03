@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { open } from '@tauri-apps/api/dialog';
-import { readBpmnFile } from './lib/tauri';
+import { readBpmnFile, uploadInstanceFile } from './lib/tauri';
 import { FilePlus, FolderOpen, UploadCloud, Play, Focus } from 'lucide-react';
 
 // Make sure to ignore TS types for modules that might not have types
@@ -30,7 +30,7 @@ const customProviderModule = {
 
 interface ModelerProps {
   onDeploy: (xml: string) => Promise<void>;
-  onStart: (xml: string, variables: Record<string, unknown>) => Promise<void>;
+  onStart: (xml: string, variables: Record<string, unknown>) => Promise<string>;
   onNewDiagram: () => void;
   onOpenFile: () => void;
   initialXml?: string | null;
@@ -193,11 +193,25 @@ export function Modeler({ onDeploy, onStart, onNewDiagram, onOpenFile, initialXm
       serialized.business_key = businessKey.trim();
     }
 
+    // Collect pending file rows for deferred upload
+    const pendingFiles = startVariables.filter(v => v.type === 'File' && v.pendingFilePath);
+
     setIsStarting(true);
     try {
       const { xml } = await modelerRef.current.saveXML({ format: true });
       setShowVarsDialog(false);
-      await onStart(xml, serialized);
+      const instanceId = await onStart(xml, serialized);
+
+      // Upload pending files after instance creation
+      for (const pf of pendingFiles) {
+        if (pf.pendingFilePath && pf.name.trim()) {
+          try {
+            await uploadInstanceFile(instanceId, pf.name.trim(), pf.pendingFilePath);
+          } catch (uploadErr) {
+            console.error(`Failed to upload file '${pf.name}':`, uploadErr);
+          }
+        }
+      }
     } catch (e: any) {
       alert('Failed to start process: ' + e);
     } finally {
@@ -247,6 +261,7 @@ export function Modeler({ onDeploy, onStart, onNewDiagram, onOpenFile, initialXm
             <VariableEditor
               variables={startVariables}
               onChange={setStartVariables}
+              allowPendingFiles={true}
             />
             <div className="vars-dialog-actions">
               <button className="button" onClick={() => setShowVarsDialog(false)} style={{backgroundColor: '#6b7280'}}>Cancel</button>

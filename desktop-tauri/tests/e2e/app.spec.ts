@@ -1381,4 +1381,40 @@ test.describe('mini-bpm Desktop App – E2E', () => {
     await detail.locator('.file-download-trigger').click();
     
   });
+
+  // ---- 27. File Attachments at Start (Deferred Upload) --------------------
+
+  test('should attach a file in the start dialog and upload after instance creation', async ({ page }) => {
+    await injectTauriMock(page);
+    await page.goto('/');
+    page.on('console', msg => console.log('BROWSER LOG:', msg.text()));
+
+    // Navigate to modeler and wait for it to load
+    await page.locator('.nav-item', { hasText: 'BPMN Modeler' }).click();
+    await expect(page.locator('.bjs-container')).toBeVisible({ timeout: 10_000 });
+
+    // Open start dialog
+    await page.locator('.header-actions button', { hasText: 'Start Instance' }).click();
+    const dialog = page.locator('.vars-dialog');
+    await expect(dialog).toBeVisible({ timeout: 5_000 });
+
+    // The "Attach File" button should be visible in the start dialog
+    const attachBtn = dialog.locator('button', { hasText: 'Attach File' });
+    await expect(attachBtn).toBeVisible();
+
+    // Click attach file – the mock dialog returns a path, prompt asks for var name
+    page.once('dialog', d => d.accept('invoice_pdf'));
+    await attachBtn.click();
+
+    // A pending file row should appear in the variables table
+    await expect(dialog.locator('.file-pending-row')).toBeVisible({ timeout: 3_000 });
+    await expect(dialog.getByText('pending')).toBeVisible();
+    await expect(dialog.locator('input.var-input').first()).toHaveValue('invoice_pdf');
+
+    // Now click "Start" – this will deploy, start, and then upload the pending file
+    await dialog.locator('button', { hasText: 'Start' }).click();
+
+    // Should navigate to Instances tab
+    await expect(page.locator('.nav-item.active')).toHaveText('Instances', { timeout: 10_000 });
+  });
 });

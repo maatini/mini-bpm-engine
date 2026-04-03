@@ -43,20 +43,18 @@ function App() {
     }
   }
 
-  const handleStart = async (xml: string, variables: Record<string, unknown>) => {
-    try {
-      // Auto-deploy the current modeler state
-      const newDefId = await deployDefinition(xml, 'modeler-process')
+  const handleStart = async (xml: string, variables: Record<string, unknown>): Promise<string> => {
+    // Auto-deploy the current modeler state
+    const newDefId = await deployDefinition(xml, 'modeler-process')
 
-      // Start instance with the freshly deployed definition
-      const id = await startInstance(newDefId, variables)
+    // Start instance with the freshly deployed definition
+    const id = await startInstance(newDefId, variables)
 
-      // Navigate to the new instance
-      setSelectedInstanceId(id)
-      setActiveTab('instances')
-    } catch (e) {
-      alert("Error deploying/starting: " + e)
-    }
+    // Navigate to the new instance
+    setSelectedInstanceId(id)
+    setActiveTab('instances')
+
+    return id
   }
 
   // Called when user clicks "View in Modeler" on a deployed definition

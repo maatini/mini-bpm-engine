@@ -18,6 +18,8 @@ export interface VariableRow {
   type: VarType;
   value: unknown;
   isNew?: boolean;
+  /** Local file path for files that are not yet uploaded (deferred upload). */
+  pendingFilePath?: string;
 }
 
 /**
@@ -61,6 +63,8 @@ export function serializeVariables(
 
   for (const v of variables) {
     if (!v.name.trim()) continue; // skip unnamed variables
+    // Skip pending file rows – they are uploaded separately after instance creation
+    if (v.type === 'File' && v.pendingFilePath) continue;
 
     if (v.type === 'Object') {
       try {
@@ -100,6 +104,8 @@ interface VariableEditorProps {
   onDeletedKeysChange?: (keys: Set<string>) => void;
   instanceId?: string;
   onVariablesRefreshRequest?: () => void;
+  /** Allow attaching files as pending (deferred upload, e.g. in start dialog). */
+  allowPendingFiles?: boolean;
 }
 
 /**
@@ -114,6 +120,7 @@ export function VariableEditor({
   onDeletedKeysChange,
   instanceId,
   onVariablesRefreshRequest,
+  allowPendingFiles = false,
 }: VariableEditorProps) {
   const handleChange = (index: number, field: keyof VariableRow, newValue: unknown) => {
     const updated = [...variables];
@@ -139,7 +146,6 @@ export function VariableEditor({
   };
 
   const handleUploadFile = async () => {
-    if (!instanceId) return;
     try {
       const filePaths = await open({
         multiple: false,
@@ -150,10 +156,23 @@ export function VariableEditor({
       const varName = prompt('Enter a variable name for this file:');
       if (!varName || !varName.trim()) return;
 
-      await uploadInstanceFile(instanceId, varName.trim(), filePaths as string);
-      
-      if (onVariablesRefreshRequest) {
-        onVariablesRefreshRequest();
+      if (instanceId) {
+        // Immediate upload to existing instance
+        await uploadInstanceFile(instanceId, varName.trim(), filePaths as string);
+        if (onVariablesRefreshRequest) {
+          onVariablesRefreshRequest();
+        }
+      } else {
+        // Deferred upload: store file path locally as a pending row
+        const fileName = (filePaths as string).split('/').pop() || 'file';
+        const pendingRow: VariableRow = {
+          name: varName.trim(),
+          type: 'File',
+          value: { filename: fileName, pendingPath: filePaths },
+          isNew: true,
+          pendingFilePath: filePaths as string,
+        };
+        onChange([...variables, pendingRow]);
       }
     } catch (e) {
       alert(`Upload failed: ${e}`);
@@ -275,7 +294,14 @@ export function VariableEditor({
                 {v.type === 'Null' && (
                   <span style={{ color: '#94a3b8', fontStyle: 'italic', fontSize: '0.85rem' }}>null</span>
                 )}
-                {v.type === 'File' && (
+                {v.type === 'File' && v.pendingFilePath && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }} className="file-pending-row">
+                    <Paperclip size={14} style={{ color: '#f59e0b' }} />
+                    <span style={{ fontWeight: 500 }}>{(v.value as any)?.filename || v.pendingFilePath.split('/').pop()}</span>
+                    <span style={{ color: '#f59e0b', fontSize: '0.75rem', fontWeight: 600, padding: '1px 6px', background: '#fef3c7', borderRadius: '4px' }}>pending</span>
+                  </div>
+                )}
+                {v.type === 'File' && !v.pendingFilePath && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <div
                       onClick={() => {
@@ -333,7 +359,7 @@ export function VariableEditor({
         >
           + Add Variable
         </button>
-        {instanceId && (
+        {(instanceId || allowPendingFiles) && (
           <button
             className="button"
             onClick={handleUploadFile}
