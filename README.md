@@ -28,7 +28,8 @@ Eine einbettbare BPMN 2.0 Workflow-Engine in Rust.
 | **ServiceTask** | Tasks, die von externen Workern (z.B. agent-orchestrator) per fetch-and-lock abgearbeitet werden. |
 | **UserTask** | Erstellt einen Pending-Task, der extern abgeschlossen werden muss. |
 | **ExclusiveGateway (XOR)** | Genau ein ausgehender Pfad wird gewählt (Bedingungsauswertung). Optionaler Default-Flow. |
-| **InclusiveGateway (OR)** | Alle Pfade, deren Bedingung `true` ergibt, werden parallel verfolgt (Token-Forking). |
+| **ParallelGateway (AND)** | Alle ausgehenden Pfade werden bedingungslos verfolgt (Token-Fork). Als Join wartet es auf **alle** eingehenden Tokens (JoinBarrier) und mergt deren Variablen. |
+| **InclusiveGateway (OR)** | Alle Pfade, deren Bedingung `true` ergibt, werden parallel verfolgt (Token-Forking). Als Join wartet es auf alle erwarteten Tokens. |
 
 ### Zusätzliche Konzepte
 
@@ -191,16 +192,25 @@ Der Server lauscht standardmäßig auf `http://localhost:8081`.
 * `POST /api/complete/:id` - Einen Benutzer-Task abschließen
 * `GET /api/instances` - Alle Prozessinstanzen auflisten
 * `GET /api/instances/:id` - Details einer einzelnen Instanz abrufen
+* `GET /api/instances/:id/history` - Event-Historie einer Instanz abrufen (mit Filter-Query-Params)
+* `GET /api/instances/:id/history/:event_id` - Einzelnes History-Event abrufen
 * `PUT /api/instances/:id/variables` - Variablen einer Prozessinstanz aktualisieren
 * `DELETE /api/instances/:id` - Eine Prozessinstanz löschen
+* `GET /api/definitions` - Alle bereitgestellten Definitionen auflisten
+* `GET /api/definitions/:id/xml` - Das originale BPMN-XML einer Definition abrufen
 * `DELETE /api/definitions/:id` - Eine Prozessdefinition löschen (Query `?cascade=true` zum Mitlöschen aller Instanzen)
 
 #### Service Tasks
+* `GET /api/service-tasks` - Alle ausstehenden Service Tasks auflisten
 * `POST /api/service-task/fetchAndLock` - Tasks für Worker abrufen und sperren (inkl. Long-Polling)
 * `POST /api/service-task/:id/complete` - Einen Service Task erfolgreich abschließen
 * `POST /api/service-task/:id/failure` - Einen Service Task als fehlgeschlagen markieren
 * `POST /api/service-task/:id/extendLock` - Die Sperrdauer eines Tasks verlängern
 * `POST /api/service-task/:id/bpmnError` - Einen BPMN-Fehler für einen Task melden
+
+#### Info & Monitoring
+* `GET /api/info` - Backend-Informationen abrufen (Typ, NATS-URL, Verbindungsstatus)
+* `GET /api/monitoring` - Monitoring-Daten abrufen (Zähler für Definitionen, Instanzen, Tasks, Storage-Info)
 
 ## Desktop-Anwendung (UI) starten
 
@@ -226,9 +236,12 @@ npm run tauri dev
 ### Tauri-Kommandos
 Das Frontend der Desktop-Anwendung nutzt folgende Tauri-Kommandos zur Interaktion mit dem eigenen Backend, welches wiederum die HTTP Rest-Aufrufe zum Engine-Server macht:
 * **Deployment & Start**: `deploy_definition`, `deploy_simple_process`, `start_instance`
-* **Instanzen**: `list_instances`, `get_instance_details`, `update_instance_variables`, `delete_instance`
-* **Tasks**: `get_pending_tasks`, `complete_task`
+* **Instanzen**: `list_instances`, `get_instance_details`, `get_instance_history`, `update_instance_variables`, `delete_instance`
+* **User Tasks**: `get_pending_tasks`, `complete_task`
+* **Service Tasks**: `get_pending_service_tasks`, `fetch_and_lock_service_tasks`, `complete_service_task`
 * **Definitionen**: `list_definitions`, `get_definition_xml`, `delete_definition`
+* **Konfiguration & Monitoring**: `get_api_url`, `set_api_url`, `get_monitoring_data`
+* **Dateisystem**: `read_bpmn_file`
 
 ## Komplette Infrastruktur starten (Docker Compose)
 
