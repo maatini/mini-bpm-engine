@@ -1374,9 +1374,11 @@ test.describe('mini-bpm Desktop App – E2E', () => {
     await expect(detail.getByText('mock-upload.txt')).toBeVisible();
     await expect(detail.getByText('(1.0 KB)')).toBeVisible();
     
-    // Click "Download"
+    // Click "Download" via the explicit button
     await page.locator('button', { hasText: 'Download' }).click();
-    // It should not throw any error (download_instance_file mock resolves instantly)
+    
+    // Click the paperclip / filename (file-download-trigger) to verify it also triggers download
+    await detail.locator('.file-download-trigger').click();
     
   });
 });

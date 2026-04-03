@@ -277,8 +277,19 @@ export function VariableEditor({
                 )}
                 {v.type === 'File' && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Paperclip size={14} />
-                    <span style={{ fontWeight: 500 }}>{(v.value as FileReference)?.filename}</span>
+                    <div
+                      onClick={() => {
+                        if (instanceId) {
+                          handleDownloadFile(v.name, (v.value as FileReference).filename);
+                        }
+                      }}
+                      style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: instanceId ? 'pointer' : 'default', color: instanceId ? '#0f172a' : 'inherit' }}
+                      title={instanceId ? "Download file" : ""}
+                      className="file-download-trigger"
+                    >
+                      <Paperclip size={14} />
+                      <span style={{ fontWeight: 500 }}>{(v.value as FileReference)?.filename}</span>
+                    </div>
                     <span style={{ color: '#94a3b8', fontSize: '0.8rem' }}>
                       ({formatFileSize((v.value as FileReference)?.size_bytes || 0)})
                     </span>
