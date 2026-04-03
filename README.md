@@ -54,6 +54,7 @@ Eine einbettbare BPMN 2.0 Workflow-Engine in Rust.
 * **Conditional Sequence Flows** — Kanten können Bedingungsausdrücke tragen (z.B. `amount > 100`, `status == 'approved'`). Der integrierte Condition-Evaluator unterstützt `==`, `!=`, `>`, `>=`, `<`, `<=` sowie Truthy-Checks.
 * **Execution Listeners** — Nodes können Start- und End-Scripts besitzen, die Prozessvariablen lesen und mutieren (z.B. `x = x * 2; if x > 10 { result = "big" }`).
 * **Dynamische Prozessvariablen** — Variablen laufender Instanzen können zur Laufzeit via REST-API aktualisiert werden. Änderungen werden in der NATS-Persistenz automatisch mit pausierten Tokens von Pending-Tasks synchronisiert.
+* **Datei-Variablen** — Integrierte Unterstützung für Datei-Uploads und Downloads als vollwertige Prozessvariablen, sicher persistiert im NATS JetStream Object Store.
 * **Message Correlation** — Eingehende Nachrichten werden über `messageName` und optional `businessKey` an wartende Instanzen oder als Startimpuls an passende Definitionen korreliert.
 * **Timer-Verarbeitung** — Pending-Timer werden via Polling (`process_timers()`) aufgelöst. Boundary-Timer werden bei Task-Abschluss automatisch storniert (`cancel_boundary_timers`).
 * **BPMN Error Handling** — Service-Tasks können via `bpmnError`-Endpunkt Fehler melden. Die Engine routet den Token an das passende `BoundaryErrorEvent` (Matching via `errorCode`).
@@ -134,11 +135,11 @@ Folgende Tools müssen auf deinem System installiert sein:
 
 | Crate | Unit Tests | Integration Tests | Gesamt |
 |---|---|---|---|
-| **engine-core** | 55 | — | 55 |
+| **engine-core** | 58 | — | 58 |
 | **bpmn-parser** | 12 | — | 12 |
 | **persistence-nats** | 2 | — | 2 |
-| **engine-server** | — | 5 | 5 |
-| **Gesamt** | **69** | **5** | **74** ✅ |
+| **engine-server** | — | 6 | 6 |
+| **Gesamt** | **72** | **6** | **78** ✅ |
 
 ### Code Coverage (cargo-llvm-cov)
 
@@ -175,19 +176,19 @@ Folgende Tools müssen auf deinem System installiert sein:
 
 | Metrik | Wert |
 |---|---|
-| Tests | 5 |
-| Passed | 5 |
+| Tests | 6 |
+| Passed | 6 |
 | **Pass Rate** | **100%** ✅ |
 
 > [!NOTE]
-> Die Rust `engine-server` E2E-Tests validieren Deployments, Variablen-Updates und Event-Historie über den echten Axum REST-API Stack inkl. In-Memory Persistence Mock (`tests/e2e_deploy.rs`, `e2e_variables.rs`, `e2e_history.rs`).
+> Die Rust `engine-server` E2E-Tests validieren Deployments, Variablen-Updates, Datei-Handling und Event-Historie über den echten Axum REST-API Stack inkl. In-Memory Persistence Mock (`tests/e2e_deploy.rs`, `e2e_variables.rs`, `e2e_history.rs`, `e2e_files.rs`).
 
 ### E2E Tests (Playwright, desktop-tauri)
 
 | Metrik | Wert |
 |---|---|
-| Tests | 24 |
-| Passed | 24 |
+| Tests | 27 |
+| Passed | 27 |
 | **E2E Pass Rate** | **100%** ✅ |
 
 ### Coverage ermitteln
@@ -252,6 +253,9 @@ Der Server lauscht standardmäßig auf `http://localhost:8081`.
 * `GET /api/instances/:id/history` - Event-Historie einer Instanz abrufen (mit Filter-Query-Params)
 * `GET /api/instances/:id/history/:event_id` - Einzelnes History-Event abrufen
 * `PUT /api/instances/:id/variables` - Variablen einer Prozessinstanz aktualisieren
+* `POST /api/instances/:id/files/:filename` - Eine Datei als Prozessvariable hochladen (multipart/form-data)
+* `GET /api/instances/:id/files/:filename` - Eine hochgeladene Datei herunterladen
+* `DELETE /api/instances/:id/files/:filename` - Eine Dateivariable löschen
 * `DELETE /api/instances/:id` - Eine Prozessinstanz löschen
 * `GET /api/definitions` - Alle bereitgestellten Definitionen auflisten
 * `GET /api/definitions/:id/xml` - Das originale BPMN-XML einer Definition abrufen
