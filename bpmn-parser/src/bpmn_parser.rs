@@ -325,10 +325,10 @@ pub fn parse_bpmn_xml(xml: &str) -> EngineResult<ProcessDefinition> {
         builder = add_listeners(builder, &node_id, gw.extension_elements);
     }
 
-    // 6c. Parallel gateways — map to InclusiveGateway (temporary)
+    // 6c. Parallel gateways
     for gw in defs.process.parallel_gateways {
         let node_id = gw.id.clone();
-        builder = builder.node(gw.id, BpmnElement::InclusiveGateway);
+        builder = builder.node(gw.id, BpmnElement::ParallelGateway);
         builder = add_listeners(builder, &node_id, gw.extension_elements);
     }
 
@@ -578,5 +578,31 @@ mod tests {
         assert_eq!(task_listeners.len(), 1);
         assert!(matches!(task_listeners[0].event, ListenerEvent::End));
         assert_eq!(task_listeners[0].script, "print(\"Task Ended\");");
+    }
+
+    #[test]
+    fn parse_parallel_gateway() {
+        let xml = r#"
+            <definitions id="def1" xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL">
+                <process id="proc1">
+                    <startEvent id="start1" />
+                    <parallelGateway id="gw1" />
+                    <endEvent id="end1" />
+                    <endEvent id="end2" />
+                    <sequenceFlow id="f1" sourceRef="start1" targetRef="gw1" />
+                    <sequenceFlow id="f2" sourceRef="gw1" targetRef="end1" />
+                    <sequenceFlow id="f3" sourceRef="gw1" targetRef="end2" />
+                </process>
+            </definitions>
+        "#;
+
+        let def = parse_bpmn_xml(xml).unwrap();
+        match def.nodes.get("gw1").unwrap() {
+            BpmnElement::ParallelGateway => {}
+            other => panic!("Expected ParallelGateway, got {:?}", other),
+        }
+        
+        let flows = def.next_nodes("gw1");
+        assert_eq!(flows.len(), 2);
     }
 }
