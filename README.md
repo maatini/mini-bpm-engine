@@ -125,6 +125,17 @@ Folgende Tools müssen auf deinem System installiert sein:
 > [!NOTE]
 > Einer der härtesten Prüfsteine in Rust: Durch unsere fokussierten Edge-Case-Tests (Verifizieren von iterativen Listen, Inkrement-Zuweisungen und String-Exaktheiten) konnte der PIT / Mutanten-Score erfolgreich auf **>90%** angehoben werden!
 
+### API Integration Tests (engine-server)
+
+| Metrik | Wert |
+|---|---|
+| Tests | 5 |
+| Passed | 5 |
+| **Pass Rate** | **100%** ✅ |
+
+> [!NOTE]
+> Die Rust `engine-server` E2E-Tests validieren Deployments, Variablen-Updates und Event-Historie über den echten Axum REST-API Stack inkl. In-Memory NATS Mock (`tests/e2e_deploy.rs`, `e2e_variables.rs`, `e2e_history.rs`).
+
 ### E2E Tests (Playwright, desktop-tauri)
 
 | Metrik | Wert |
