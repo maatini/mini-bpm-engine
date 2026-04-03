@@ -1,0 +1,1003 @@
+openapi: 3.0.0
+info:
+  title: mini-bpm Engine Server API
+  version: 0.0.0
+tags: []
+paths:
+  /api/complete/{id}:
+    post:
+      operationId: Api_completeTask
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: 'There is no content to send for this request, but the headers may be useful. '
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppError'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompleteRequest'
+  /api/definitions:
+    get:
+      operationId: Api_listDefinitions
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DefinitionInfo'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppError'
+  /api/definitions/{id}:
+    delete:
+      operationId: Api_deleteDefinition
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: cascade
+          in: query
+          required: false
+          schema:
+            type: boolean
+          explode: false
+      responses:
+        '204':
+          description: 'There is no content to send for this request, but the headers may be useful. '
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppError'
+  /api/definitions/{id}/xml:
+    get:
+      operationId: Api_getDefinitionXml
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            text/plain:
+              schema:
+                type: string
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppError'
+  /api/deploy:
+    post:
+      operationId: Api_deploy
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeployResponse'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppError'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeployRequest'
+  /api/info:
+    get:
+      operationId: Api_getInfo
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BackendInfo'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppError'
+  /api/instances:
+    get:
+      operationId: Api_listInstances
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ProcessInstance'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppError'
+  /api/instances/{id}:
+    get:
+      operationId: Api_getInstance
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProcessInstance'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppError'
+    delete:
+      operationId: Api_deleteInstance
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: 'There is no content to send for this request, but the headers may be useful. '
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppError'
+  /api/instances/{id}/files/{var_name}:
+    post:
+      operationId: Api_uploadInstanceFile
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: var_name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '201':
+          description: The request has succeeded and a new resource has been created as a result.
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppError'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UploadFileRequest'
+    get:
+      operationId: Api_getInstanceFile
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: var_name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppError'
+    delete:
+      operationId: Api_deleteInstanceFile
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: var_name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: 'There is no content to send for this request, but the headers may be useful. '
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppError'
+  /api/instances/{id}/history:
+    get:
+      operationId: Api_getInstanceHistory
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: event_types
+          in: query
+          required: false
+          schema:
+            type: string
+          explode: false
+        - name: node_id
+          in: query
+          required: false
+          schema:
+            type: string
+          explode: false
+        - name: actor_type
+          in: query
+          required: false
+          schema:
+            type: string
+          explode: false
+        - name: from
+          in: query
+          required: false
+          schema:
+            type: string
+          explode: false
+        - name: to
+          in: query
+          required: false
+          schema:
+            type: string
+          explode: false
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int32
+          explode: false
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int32
+          explode: false
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/HistoryEntry'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppError'
+  /api/instances/{id}/history/{event_id}:
+    get:
+      operationId: Api_getInstanceHistoryEntry
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: event_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HistoryEntry'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppError'
+  /api/instances/{id}/variables:
+    put:
+      operationId: Api_updateInstanceVariables
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: 'There is no content to send for this request, but the headers may be useful. '
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppError'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateVariablesRequest'
+  /api/message:
+    post:
+      operationId: Api_correlateMessage
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CorrelateMessageResponse'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppError'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CorrelateMessageRequest'
+  /api/monitoring:
+    get:
+      operationId: Api_getMonitoring
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MonitoringData'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppError'
+  /api/service-task/fetchAndLock:
+    post:
+      operationId: Api_fetchAndLockServiceTasks
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PendingServiceTask'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppError'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FetchAndLockRequest'
+  /api/service-task/{id}/bpmnError:
+    post:
+      operationId: Api_bpmnError
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: 'There is no content to send for this request, but the headers may be useful. '
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppError'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BpmnErrorRequest'
+  /api/service-task/{id}/complete:
+    post:
+      operationId: Api_completeServiceTask
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: 'There is no content to send for this request, but the headers may be useful. '
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppError'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompleteServiceTaskRequest'
+  /api/service-task/{id}/extendLock:
+    post:
+      operationId: Api_extendLock
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: 'There is no content to send for this request, but the headers may be useful. '
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppError'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExtendLockRequest'
+  /api/service-task/{id}/failure:
+    post:
+      operationId: Api_failServiceTask
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: 'There is no content to send for this request, but the headers may be useful. '
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppError'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FailServiceTaskRequest'
+  /api/service-tasks:
+    get:
+      operationId: Api_getServiceTasks
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PendingServiceTask'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppError'
+  /api/start:
+    post:
+      operationId: Api_start
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StartResponse'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppError'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StartRequest'
+  /api/tasks:
+    get:
+      operationId: Api_getTasks
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PendingUserTask'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppError'
+  /api/timers/process:
+    post:
+      operationId: Api_processTimers
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProcessTimersResponse'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppError'
+components:
+  schemas:
+    AppError:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+    BackendInfo:
+      type: object
+      required:
+        - backend_type
+        - connected
+      properties:
+        backend_type:
+          type: string
+        nats_url:
+          type: string
+        connected:
+          type: boolean
+    BpmnErrorRequest:
+      type: object
+      required:
+        - workerId
+        - errorCode
+      properties:
+        workerId:
+          type: string
+        errorCode:
+          type: string
+    CompleteRequest:
+      type: object
+      properties:
+        variables:
+          type: object
+          additionalProperties: {}
+    CompleteServiceTaskRequest:
+      type: object
+      required:
+        - workerId
+      properties:
+        workerId:
+          type: string
+        variables:
+          type: object
+          additionalProperties: {}
+    CorrelateMessageRequest:
+      type: object
+      required:
+        - messageName
+      properties:
+        messageName:
+          type: string
+        businessKey:
+          type: string
+        variables:
+          type: object
+          additionalProperties: {}
+    CorrelateMessageResponse:
+      type: object
+      required:
+        - affectedInstances
+      properties:
+        affectedInstances:
+          type: array
+          items:
+            type: string
+    DefinitionInfo:
+      type: object
+      required:
+        - key
+        - bpmn_id
+        - node_count
+      properties:
+        key:
+          type: string
+        bpmn_id:
+          type: string
+        node_count:
+          type: integer
+          format: int32
+    DeployRequest:
+      type: object
+      required:
+        - xml
+        - name
+      properties:
+        xml:
+          type: string
+          description: BPMN 2.0 XML
+        name:
+          type: string
+    DeployResponse:
+      type: object
+      required:
+        - definition_key
+      properties:
+        definition_key:
+          type: string
+    ExtendLockRequest:
+      type: object
+      required:
+        - workerId
+        - newDuration
+      properties:
+        workerId:
+          type: string
+        newDuration:
+          type: integer
+          format: int64
+    FailServiceTaskRequest:
+      type: object
+      required:
+        - workerId
+      properties:
+        workerId:
+          type: string
+        retries:
+          type: integer
+          format: int32
+        errorMessage:
+          type: string
+        errorDetails:
+          type: string
+    FetchAndLockRequest:
+      type: object
+      required:
+        - workerId
+        - maxTasks
+        - topics
+      properties:
+        workerId:
+          type: string
+        maxTasks:
+          type: integer
+          format: int32
+        topics:
+          type: array
+          items:
+            $ref: '#/components/schemas/TopicRequest'
+        asyncResponseTimeout:
+          type: integer
+          format: int64
+    HistoryEntry:
+      type: object
+      required:
+        - id
+        - instance_id
+        - event_type
+        - actor_type
+        - timestamp
+        - details
+      properties:
+        id:
+          type: string
+        instance_id:
+          type: string
+        node_id:
+          type: string
+        event_type:
+          type: string
+        actor_type:
+          type: string
+        timestamp:
+          type: string
+        details: {}
+    MonitoringData:
+      type: object
+      required:
+        - definitions_count
+        - instances_total
+        - instances_running
+        - instances_completed
+        - pending_user_tasks
+        - pending_service_tasks
+      properties:
+        definitions_count:
+          type: integer
+          format: int32
+        instances_total:
+          type: integer
+          format: int32
+        instances_running:
+          type: integer
+          format: int32
+        instances_completed:
+          type: integer
+          format: int32
+        pending_user_tasks:
+          type: integer
+          format: int32
+        pending_service_tasks:
+          type: integer
+          format: int32
+        storage_info:
+          $ref: '#/components/schemas/StorageInfo'
+    PendingServiceTask:
+      type: object
+      required:
+        - id
+        - instance_id
+        - node_id
+        - topic
+        - state
+        - variables
+      properties:
+        id:
+          type: string
+        instance_id:
+          type: string
+        node_id:
+          type: string
+        topic:
+          type: string
+        state:
+          type: string
+        locked_by:
+          type: string
+        lock_expires_at:
+          type: string
+        variables:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/VariableValue'
+        retries:
+          type: integer
+          format: int32
+        error_message:
+          type: string
+    PendingUserTask:
+      type: object
+      required:
+        - id
+        - instance_id
+        - node_id
+        - state
+        - created_at
+      properties:
+        id:
+          type: string
+        instance_id:
+          type: string
+        node_id:
+          type: string
+        state:
+          type: string
+          enum:
+            - Pending
+            - Completed
+        created_at:
+          type: string
+    ProcessInstance:
+      type: object
+      required:
+        - id
+        - definition_id
+        - state
+        - started_at
+        - variables
+        - active_nodes
+      properties:
+        id:
+          type: string
+        definition_id:
+          type: string
+        state:
+          type: string
+          enum:
+            - Running
+            - Completed
+            - Suspended
+        started_at:
+          type: string
+        ended_at:
+          type: string
+        variables:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/VariableValue'
+        active_nodes:
+          type: array
+          items:
+            type: string
+    ProcessTimersResponse:
+      type: object
+      required:
+        - triggered
+      properties:
+        triggered:
+          type: integer
+          format: int32
+    StartRequest:
+      type: object
+      required:
+        - definition_key
+      properties:
+        definition_key:
+          type: string
+        variables:
+          type: object
+          additionalProperties: {}
+    StartResponse:
+      type: object
+      required:
+        - instance_id
+      properties:
+        instance_id:
+          type: string
+    StorageInfo:
+      type: object
+      required:
+        - host
+        - port
+        - messages
+        - bytes
+      properties:
+        host:
+          type: string
+        port:
+          type: integer
+          format: int32
+        messages:
+          type: integer
+          format: int32
+        bytes:
+          type: integer
+          format: int64
+    TopicRequest:
+      type: object
+      required:
+        - topicName
+        - lockDuration
+      properties:
+        topicName:
+          type: string
+        lockDuration:
+          type: integer
+          format: int64
+    UpdateVariablesRequest:
+      type: object
+      required:
+        - variables
+      properties:
+        variables:
+          type: object
+          additionalProperties: {}
+    UploadFileRequest:
+      type: object
+      properties:
+        file:
+          type: string
+          format: binary
+      required:
+        - file
+    VariableValue:
+      type: object
+      required:
+        - type
+      properties:
+        type:
+          type: string
+        value: {}
+        filename:
+          type: string
+        size_bytes:
+          type: integer
+          format: int64
+        content_type:
+          type: string
+servers:
+  - url: http://localhost:8081
+    description: Local Engine Server
+    variables: {}

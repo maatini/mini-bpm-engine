@@ -1,0 +1,16 @@
+{
+  "name": "mini-bpm-api-spec",
+  "version": "1.0.0",
+  "description": "TypeSpec API specification for mini-bpm engine-server",
+  "private": true,
+  "scripts": {
+    "compile": "tsp compile main.tsp"
+  },
+  "dependencies": {
+    "@typespec/compiler": "latest",
+    "@typespec/http": "latest",
+    "@typespec/rest": "latest",
+    "@typespec/openapi3": "latest",
+    "@typespec/openapi": "latest"
+  }
+}
