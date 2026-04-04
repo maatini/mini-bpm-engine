@@ -1,0 +1,1 @@
+{"desktop-capability":{"identifier":"desktop-capability","description":"","local":true,"windows":["*"],"permissions":["core:default","dialog:default","fs:default","fs:allow-read-text-file"],"platforms":["macOS","windows","linux"]}}

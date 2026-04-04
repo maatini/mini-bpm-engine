@@ -1,5 +1,8 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/schema.json",
+  "productName": "mini-bpm-desktop",
+  "version": "0.1.0",
+  "identifier": "com.minibpm.dev",
   "build": {
     "beforeDevCommand": "npm run dev",
     "beforeBuildCommand": "npm run build",
@@ -23,7 +26,6 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "identifier": "com.minibpm.dev",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
