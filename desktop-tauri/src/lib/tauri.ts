@@ -112,7 +112,9 @@ export async function updateInstanceVariables(instanceId: string, variables: Rec
 export interface DefinitionInfo {
   key: string;
   bpmn_id: string;
+  version: number;
   node_count: number;
+  is_latest: boolean;
 }
 
 export async function listDefinitions(): Promise<DefinitionInfo[]> {
@@ -147,8 +149,15 @@ export async function setApiUrl(url: string): Promise<void> {
 // Monitoring
 // ---------------------------------------------------------------------------
 
-export interface NatsServerInfo {
-  server_name: string;
+export interface BucketInfo {
+  name: string;
+  bucket_type: string;
+  entries: number;
+  size_bytes: number;
+}
+
+export interface StorageInfo {
+  backend_name: string;
   version: string;
   host: string;
   port: number;
@@ -156,6 +165,7 @@ export interface NatsServerInfo {
   storage_bytes: number;
   streams: number;
   consumers: number;
+  buckets: BucketInfo[];
 }
 
 export interface MonitoringData {
@@ -165,7 +175,9 @@ export interface MonitoringData {
   instances_completed: number;
   pending_user_tasks: number;
   pending_service_tasks: number;
-  nats_server: NatsServerInfo | null;
+  pending_timers: number;
+  pending_message_catches: number;
+  storage_info: StorageInfo | null;
 }
 
 export async function getMonitoringData(): Promise<MonitoringData> {

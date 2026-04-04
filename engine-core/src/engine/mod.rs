@@ -116,12 +116,27 @@ impl WorkflowEngine {
             instances_waiting_service: w_serv,
             pending_user_tasks: self.pending_user_tasks.len(),
             pending_service_tasks: self.pending_service_tasks.len(),
+            pending_timers: self.pending_timers.len(),
+            pending_message_catches: self.pending_message_catches.len(),
         }
     }
 
-    /// Returns a list of all deployed definitions (key, BPMN-ID, node count).
-    pub async fn list_definitions(&self) -> Vec<(Uuid, String, usize)> {
+    /// Returns a list of all deployed definitions (key, BPMN-ID, version, node count).
+    pub async fn list_definitions(&self) -> Vec<(Uuid, String, i32, usize)> {
         self.definitions.list().await
+    }
+    
+    /// Returns a given definition by key
+    pub async fn get_definition(&self, key: &Uuid) -> Option<Arc<ProcessDefinition>> {
+        self.definitions.get(key).await
+    }
+    
+    /// Returns all versions of a specific BPMN process definition, sorted ascending.
+    pub async fn list_definition_versions(&self, bpmn_id: &str) -> Vec<(Uuid, i32, usize)> {
+        self.definitions.all_versions_of(bpmn_id).await
+            .into_iter()
+            .map(|(key, def)| (key, def.version, def.nodes.len()))
+            .collect()
     }
 
     // ----- History Recording -----------------------------------------------
@@ -284,8 +299,8 @@ impl WorkflowEngine {
     /// Deployment semantics: if a definition with the same BPMN process ID already
     /// exists, the new definition receives a fresh UUID key and an incremented version.
     /// Existing running instances continue on their original definition untouched.
-    /// Returns the new definition key (UUID).
-    pub async fn deploy_definition(&mut self, definition: ProcessDefinition) -> Uuid {
+    /// Returns (definition_key, version).
+    pub async fn deploy_definition(&mut self, definition: ProcessDefinition) -> (Uuid, i32) {
         // Find highest version of existing definitions with matching ID
         let highest_version = self.definitions.highest_version(&definition.id).await;
             
@@ -298,7 +313,7 @@ impl WorkflowEngine {
         log::info!("Deployed definition '{}' (v{}, key: {})", def.id, def.version, key);
         self.definitions.insert(key, Arc::new(def)).await;
         self.persist_definition(key).await;
-        key
+        (key, version)
     }
 
     // ----- handler registration --------------------------------------------
@@ -322,6 +337,24 @@ impl WorkflowEngine {
         variables: HashMap<String, Value>,
     ) -> EngineResult<Uuid> {
         self.start_instance_with_variables_and_parent(definition_key, variables, None).await
+    }
+
+    /// Starts a new instance from the latest version of a BPMN process ID.
+    ///
+    /// Looks up the definition with the highest version matching `bpmn_id`
+    /// and starts an instance from it. Returns the (instance_id, definition_key) tuple.
+    pub async fn start_instance_latest(
+        &mut self,
+        bpmn_id: &str,
+        variables: HashMap<String, Value>,
+    ) -> EngineResult<(Uuid, Uuid)> {
+        let (def_key, _) = self.definitions.find_latest_by_bpmn_id(bpmn_id)
+            .await
+            .ok_or_else(|| EngineError::InvalidDefinition(
+                format!("No definition found with BPMN ID '{}'", bpmn_id)
+            ))?;
+        let inst_id = self.start_instance_with_variables(def_key, variables).await?;
+        Ok((inst_id, def_key))
     }
 
     /// Internal method to start an instance and link it to a parent call activity

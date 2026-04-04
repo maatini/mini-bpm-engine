@@ -39,9 +39,9 @@ impl DefinitionRegistry {
         self.inner.read().await.is_empty()
     }
     
-    pub async fn list(&self) -> Vec<(Uuid, String, usize)> {
+    pub async fn list(&self) -> Vec<(Uuid, String, i32, usize)> {
         self.inner.read().await.iter()
-            .map(|(key, def)| (*key, def.id.clone(), def.nodes.len()))
+            .map(|(key, def)| (*key, def.id.clone(), def.version, def.nodes.len()))
             .collect()
     }
     
@@ -57,6 +57,24 @@ impl DefinitionRegistry {
             .filter(|d| d.id == bpmn_id)
             .map(|d| d.version)
             .max()
+    }
+    
+    /// Returns the definition with the highest version for a given BPMN process ID.
+    pub async fn find_latest_by_bpmn_id(&self, bpmn_id: &str) -> Option<(Uuid, Arc<ProcessDefinition>)> {
+        self.inner.read().await.iter()
+            .filter(|(_, def)| def.id == bpmn_id)
+            .max_by_key(|(_, def)| def.version)
+            .map(|(k, v)| (*k, Arc::clone(v)))
+    }
+
+    /// Returns all versions of a given BPMN process ID, sorted by version ascending.
+    pub async fn all_versions_of(&self, bpmn_id: &str) -> Vec<(Uuid, Arc<ProcessDefinition>)> {
+        let mut versions: Vec<_> = self.inner.read().await.iter()
+            .filter(|(_, def)| def.id == bpmn_id)
+            .map(|(k, v)| (*k, Arc::clone(v)))
+            .collect();
+        versions.sort_by_key(|(_, def)| def.version);
+        versions
     }
     
     pub async fn all(&self) -> HashMap<Uuid, Arc<ProcessDefinition>> {

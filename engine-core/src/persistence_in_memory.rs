@@ -197,16 +197,36 @@ impl WorkflowPersistence for InMemoryPersistence {
     async fn get_storage_info(&self) -> EngineResult<Option<StorageInfo>> {
         let f_len = self.files.read().await.len();
         let i_len = self.instances.read().await.len();
-        
+        let d_len = self.definitions.read().await.len();
+        let ut_len = self.user_tasks.read().await.len();
+        let st_len = self.service_tasks.read().await.len();
+        let t_len = self.timers.read().await.len();
+        let m_len = self.message_catches.read().await.len();
+        let h_len: usize = self.history.read().await.values().map(|v| v.len()).sum();
+        let bpmn_len = self.bpmn_xmls.read().await.len();
+
+        let buckets = vec![
+            crate::persistence::BucketInfo { name: "instances".into(), bucket_type: "kv".into(), entries: i_len as u64, size_bytes: (i_len * 512) as u64 },
+            crate::persistence::BucketInfo { name: "definitions".into(), bucket_type: "kv".into(), entries: d_len as u64, size_bytes: (d_len * 256) as u64 },
+            crate::persistence::BucketInfo { name: "user_tasks".into(), bucket_type: "kv".into(), entries: ut_len as u64, size_bytes: (ut_len * 128) as u64 },
+            crate::persistence::BucketInfo { name: "service_tasks".into(), bucket_type: "kv".into(), entries: st_len as u64, size_bytes: (st_len * 128) as u64 },
+            crate::persistence::BucketInfo { name: "timers".into(), bucket_type: "kv".into(), entries: t_len as u64, size_bytes: (t_len * 128) as u64 },
+            crate::persistence::BucketInfo { name: "messages".into(), bucket_type: "kv".into(), entries: m_len as u64, size_bytes: (m_len * 128) as u64 },
+            crate::persistence::BucketInfo { name: "bpmn_xml".into(), bucket_type: "object_store".into(), entries: bpmn_len as u64, size_bytes: 0 },
+            crate::persistence::BucketInfo { name: "instance_files".into(), bucket_type: "object_store".into(), entries: f_len as u64, size_bytes: 0 },
+            crate::persistence::BucketInfo { name: "history".into(), bucket_type: "stream".into(), entries: h_len as u64, size_bytes: 0 },
+        ];
+
         Ok(Some(StorageInfo {
             backend_name: "InMemoryPersistence".to_string(),
             version: "1.0.0".to_string(),
             host: "localhost".to_string(),
             port: 0,
-            memory_bytes: (f_len * 1024 + i_len * 512) as u64, // mock stats
+            memory_bytes: (f_len * 1024 + i_len * 512) as u64,
             storage_bytes: 0,
             streams: 0,
             consumers: 0,
+            buckets,
         }))
     }
 

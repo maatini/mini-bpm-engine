@@ -12,6 +12,14 @@ function formatBytes(bytes: number): string {
   return `${value.toFixed(i === 0 ? 0 : 1)} ${units[i]}`
 }
 
+/** Maps bucket_type to a human-readable label. */
+function bucketTypeLabel(t: string): string {
+  if (t === 'kv') return 'KV Store'
+  if (t === 'object_store') return 'Object Store'
+  if (t === 'stream') return 'Stream'
+  return t
+}
+
 export function Monitoring() {
   const [data, setData] = useState<MonitoringData | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -22,7 +30,7 @@ export function Monitoring() {
       const result = await getMonitoringData()
       setData(result)
       setError(null)
-    } catch (e) {
+    } catch (e: any) {
       setError(String(e))
     }
   }
@@ -73,59 +81,107 @@ export function Monitoring() {
             <div className="metric-value">{data?.pending_service_tasks ?? '–'}</div>
             <div className="metric-label">Pending External Tasks</div>
           </div>
+          <div className="metric-card">
+            <div className="metric-value">{data?.pending_timers ?? '–'}</div>
+            <div className="metric-label">Pending Timers</div>
+          </div>
+          <div className="metric-card">
+            <div className="metric-value">{data?.pending_message_catches ?? '–'}</div>
+            <div className="metric-label">Pending Messages</div>
+          </div>
         </div>
       </div>
 
-      {/* NATS Server Info */}
+      {/* Storage Backend Info */}
       <div className="card">
-        <div className="card-title">📡 NATS Server</div>
-        {data?.nats_server ? (
+        <div className="card-title">📡 Storage Backend</div>
+        {data?.storage_info ? (
           <div className="metric-grid">
             <div className="metric-card">
               <div className="metric-value" style={{ fontSize: '1rem' }}>
-                {data.nats_server.server_name}
+                {data.storage_info.backend_name}
               </div>
-              <div className="metric-label">Server Name</div>
+              <div className="metric-label">Backend</div>
             </div>
             <div className="metric-card">
               <div className="metric-value" style={{ fontSize: '1rem' }}>
-                v{data.nats_server.version}
+                v{data.storage_info.version}
               </div>
               <div className="metric-label">Version</div>
             </div>
             <div className="metric-card">
               <div className="metric-value" style={{ fontSize: '1rem' }}>
-                {data.nats_server.host}:{data.nats_server.port}
+                {data.storage_info.host}:{data.storage_info.port}
               </div>
               <div className="metric-label">Endpoint</div>
             </div>
             <div className="metric-card">
-              <div className="metric-value">{data.nats_server.streams}</div>
-              <div className="metric-label">JetStream Streams</div>
+              <div className="metric-value">{data.storage_info.streams}</div>
+              <div className="metric-label">Streams</div>
             </div>
             <div className="metric-card">
-              <div className="metric-value">{data.nats_server.consumers}</div>
-              <div className="metric-label">JetStream Consumers</div>
+              <div className="metric-value">{data.storage_info.consumers}</div>
+              <div className="metric-label">Consumers</div>
             </div>
             <div className="metric-card">
-              <div className="metric-value">
-                {formatBytes(data.nats_server.memory_bytes)}
-              </div>
+              <div className="metric-value">{formatBytes(data.storage_info.memory_bytes)}</div>
               <div className="metric-label">Memory Usage</div>
             </div>
             <div className="metric-card">
-              <div className="metric-value">
-                {formatBytes(data.nats_server.storage_bytes)}
-              </div>
+              <div className="metric-value">{formatBytes(data.storage_info.storage_bytes)}</div>
               <div className="metric-label">Storage Usage</div>
             </div>
           </div>
         ) : (
           <div style={{ color: '#64748b', fontStyle: 'italic' }}>
-            NATS not connected — switch to NATS in Settings to see server metrics.
+            No storage backend connected — running in-memory only.
           </div>
         )}
       </div>
+
+      {/* Data Storage Details */}
+      {data?.storage_info && data.storage_info.buckets.length > 0 && (
+        <div className="card">
+          <div className="card-title">📦 Data Storage Details</div>
+          <table className="variables-table" style={{ width: '100%' }}>
+            <thead>
+              <tr>
+                <th style={{ textAlign: 'left' }}>Bucket</th>
+                <th style={{ textAlign: 'left' }}>Type</th>
+                <th style={{ textAlign: 'right' }}>Entries</th>
+                <th style={{ textAlign: 'right' }}>Size</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.storage_info.buckets.map((b) => (
+                <tr key={b.name}>
+                  <td style={{ fontWeight: 500 }}>{b.name}</td>
+                  <td>
+                    <span style={{
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      padding: '2px 8px',
+                      borderRadius: '4px',
+                      background: b.bucket_type === 'kv' ? '#dbeafe' :
+                                  b.bucket_type === 'object_store' ? '#fef3c7' : '#d1fae5',
+                      color: b.bucket_type === 'kv' ? '#1e40af' :
+                             b.bucket_type === 'object_store' ? '#92400e' : '#065f46',
+                    }}>
+                      {bucketTypeLabel(b.bucket_type)}
+                    </span>
+                  </td>
+                  <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                    {b.entries.toLocaleString()}
+                  </td>
+                  <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                    {formatBytes(b.size_bytes)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       <div style={{ padding: '0 20px', fontSize: '0.8rem', color: '#94a3b8' }}>
         Auto-refreshing every 5 s

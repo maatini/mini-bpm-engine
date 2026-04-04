@@ -29,7 +29,7 @@ async fn restore_from_nats(
                     if let Ok(old_uuid) = Uuid::parse_str(&nats_key) {
                         def.key = old_uuid;
                     }
-                    let key = engine.deploy_definition(def).await;
+                    let (key, _) = engine.deploy_definition(def).await;
                     deployed_xml.insert(key.to_string(), xml);
                     log::info!("Restored definition (key: {})", key);
                 }

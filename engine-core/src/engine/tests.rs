@@ -36,7 +36,7 @@ async fn setup_linear_engine() -> (WorkflowEngine, Uuid) {
         .build()
         .unwrap();
 
-    let def_key = engine.deploy_definition(def).await;
+    let (def_key, _) = engine.deploy_definition(def).await;
     (engine, def_key)
 }
 
@@ -55,7 +55,7 @@ async fn conditional_routing_on_service_task() {
         .build()
         .unwrap();
 
-    let def_key = engine.deploy_definition(def).await;
+    let (def_key, _) = engine.deploy_definition(def).await;
 
     let mut vars = HashMap::new();
     vars.insert("x".into(), Value::Number(2.into()));
@@ -157,7 +157,7 @@ async fn timer_start_succeeds() {
         .build()
         .unwrap();
 
-    let def_key = engine.deploy_definition(def).await;
+    let (def_key, _) = engine.deploy_definition(def).await;
     let inst_id = engine.trigger_timer_start(def_key, dur).await.unwrap();
 
     complete_all_service_tasks(&mut engine, "worker_1", HashMap::new()).await;
@@ -179,7 +179,7 @@ async fn timer_mismatch_gives_error() {
         .build()
         .unwrap();
 
-    let def_key = engine.deploy_definition(def).await;
+    let (def_key, _) = engine.deploy_definition(def).await;
     let result = engine
         .trigger_timer_start(def_key, Duration::from_secs(30))
         .await;
@@ -197,7 +197,7 @@ async fn plain_start_rejects_timer_def() {
         .build()
         .unwrap();
 
-    let def_key = engine.deploy_definition(def).await;
+    let (def_key, _) = engine.deploy_definition(def).await;
     let result = engine.start_instance(def_key).await;
     assert!(matches!(
         result,
@@ -314,7 +314,7 @@ async fn exclusive_gateway_takes_matching_path() {
         .build()
         .unwrap();
 
-    let def_key = engine.deploy_definition(def).await;
+    let (def_key, _) = engine.deploy_definition(def).await;
 
     // amount = 500 → should take the "high" path
     let mut vars = HashMap::new();
@@ -358,7 +358,7 @@ async fn exclusive_gateway_uses_default_when_no_match() {
         .build()
         .unwrap();
 
-    let def_key = engine.deploy_definition(def).await;
+    let (def_key, _) = engine.deploy_definition(def).await;
 
     // amount = 50 → no condition matches → should use default "low"
     let mut vars = HashMap::new();
@@ -397,7 +397,7 @@ async fn exclusive_gateway_error_when_no_match_no_default() {
         .build()
         .unwrap();
 
-    let def_key = engine.deploy_definition(def).await;
+    let (def_key, _) = engine.deploy_definition(def).await;
 
     // No variables at all → no condition matches → error
     let result = engine.start_instance(def_key).await;
@@ -430,7 +430,7 @@ async fn inclusive_gateway_forks_multiple_paths() {
         .build()
         .unwrap();
 
-    let def_key = engine.deploy_definition(def).await;
+    let (def_key, _) = engine.deploy_definition(def).await;
 
     // Both conditions true → both paths should fire
     let mut vars = HashMap::new();
@@ -473,7 +473,7 @@ async fn inclusive_gateway_single_match_no_fork() {
         .build()
         .unwrap();
 
-    let def_key = engine.deploy_definition(def).await;
+    let (def_key, _) = engine.deploy_definition(def).await;
 
     // Only x == 1 → single match → Continue (not ContinueMultiple)
     let mut vars = HashMap::new();
@@ -525,7 +525,7 @@ fn build_xor_user_task_definition() -> ProcessDefinition {
 #[tokio::test]
 async fn xor_gateway_positive_x_routes_to_user_task_1() {
     let mut engine = WorkflowEngine::new();
-    let def_key = engine.deploy_definition(build_xor_user_task_definition()).await;
+    let (def_key, _) = engine.deploy_definition(build_xor_user_task_definition()).await;
 
     // x = 5 → condition "x > 0" matches → user-task-1
     let mut vars = HashMap::new();
@@ -573,7 +573,7 @@ async fn xor_gateway_positive_x_routes_to_user_task_1() {
 #[tokio::test]
 async fn xor_gateway_negative_x_routes_to_user_task_2() {
     let mut engine = WorkflowEngine::new();
-    let def_key = engine.deploy_definition(build_xor_user_task_definition()).await;
+    let (def_key, _) = engine.deploy_definition(build_xor_user_task_definition()).await;
 
     // x = -3 → condition "x > 0" does NOT match → default → user-task-2
     let mut vars = HashMap::new();
@@ -615,7 +615,7 @@ async fn xor_gateway_negative_x_routes_to_user_task_2() {
 #[tokio::test]
 async fn xor_gateway_zero_x_routes_to_user_task_2() {
     let mut engine = WorkflowEngine::new();
-    let def_key = engine.deploy_definition(build_xor_user_task_definition()).await;
+    let (def_key, _) = engine.deploy_definition(build_xor_user_task_definition()).await;
 
     // x = 0 → boundary: "x > 0" is false → default → user-task-2
     let mut vars = HashMap::new();
@@ -648,7 +648,7 @@ async fn xor_gateway_zero_x_routes_to_user_task_2() {
 #[tokio::test]
 async fn xor_gateway_user_task_merges_variables() {
     let mut engine = WorkflowEngine::new();
-    let def_key = engine.deploy_definition(build_xor_user_task_definition()).await;
+    let (def_key, _) = engine.deploy_definition(build_xor_user_task_definition()).await;
 
     // x = 10 → user-task-1
     let mut vars = HashMap::new();
@@ -704,7 +704,7 @@ fn build_script_test_definition() -> ProcessDefinition {
 #[tokio::test]
 async fn script_mutates_state_and_executes_logic() {
     let mut engine = WorkflowEngine::new();
-    let def_key = engine.deploy_definition(build_script_test_definition()).await;
+    let (def_key, _) = engine.deploy_definition(build_script_test_definition()).await;
 
     let mut vars = HashMap::new();
     vars.insert("x".into(), serde_json::json!(6));
@@ -748,7 +748,7 @@ async fn test_delete_instance() {
         .build()
         .unwrap();
 
-    let key = engine.deploy_definition(def).await;
+    let (key, _) = engine.deploy_definition(def).await;
     let instance_id = engine.start_instance(key).await.unwrap();
     assert_eq!(engine.instances.len().await, 1);
 
@@ -768,7 +768,7 @@ async fn test_delete_definition_cascade() {
         .build()
         .unwrap();
 
-    let key = engine.deploy_definition(def).await;
+    let (key, _) = engine.deploy_definition(def).await;
     let _id1 = engine.start_instance(key).await.unwrap();
     let _id2 = engine.start_instance(key).await.unwrap();
     
@@ -807,7 +807,7 @@ async fn parallel_gateway_forks_and_joins() {
         .build()
         .unwrap();
 
-    let def_key = engine.deploy_definition(def).await;
+    let (def_key, _) = engine.deploy_definition(def).await;
 
     let inst_id = engine
         .start_instance(def_key)
@@ -881,7 +881,7 @@ async fn service_task_fail_and_retries() {
         .build()
         .unwrap();
 
-    let def_key = engine.deploy_definition(def).await;
+    let (def_key, _) = engine.deploy_definition(def).await;
     engine.start_instance(def_key).await.unwrap();
 
     // 1. Fetch task
@@ -921,7 +921,7 @@ async fn service_task_extend_lock() {
         .build()
         .unwrap();
 
-    let def_key = engine.deploy_definition(def).await;
+    let (def_key, _) = engine.deploy_definition(def).await;
     engine.start_instance(def_key).await.unwrap();
 
     let tasks = engine.fetch_and_lock_service_tasks("worker", 1, &["ext".into()], 60).await;
@@ -946,7 +946,7 @@ async fn service_task_handle_bpmn_error() {
         .build()
         .unwrap();
 
-    let def_key = engine.deploy_definition(def).await;
+    let (def_key, _) = engine.deploy_definition(def).await;
     engine.start_instance(def_key).await.unwrap();
 
     let tasks = engine.fetch_and_lock_service_tasks("worker", 1, &["err".into()], 60).await;
@@ -973,7 +973,7 @@ async fn restore_instance_loads_from_persistence() {
         .flow("start", "end")
         .build()
         .unwrap();
-    let def_key = engine.deploy_definition(def).await;
+    let (def_key, _) = engine.deploy_definition(def).await;
 
     // Create a dummy instance
     let inst = ProcessInstance {
@@ -1011,7 +1011,7 @@ async fn mutation_delete_instance_and_variables() {
         .build()
         .unwrap();
 
-    let def_key = engine.deploy_definition(def).await;
+    let (def_key, _) = engine.deploy_definition(def).await;
     
     // Check list definitions formatting
     let defs = engine.list_definitions().await;
@@ -1057,7 +1057,7 @@ async fn mutation_fetch_service_task_boundary() {
         .build()
         .unwrap();
 
-    let def_key = engine.deploy_definition(def).await;
+    let (def_key, _) = engine.deploy_definition(def).await;
     engine.start_instance(def_key).await.unwrap();
 
     // Fetch once
@@ -1093,7 +1093,7 @@ async fn mutation_find_downstream_join() {
         .build()
         .unwrap();
 
-    engine.deploy_definition(def.clone()).await;
+    let _ = engine.deploy_definition(def.clone()).await;
     
     // Testing the logic explicitly via direct call (internal visibility allows this within engine module)
     let engine_local = WorkflowEngine::new();
@@ -1116,7 +1116,7 @@ async fn message_start_event_succeeds() {
         .build()
         .unwrap();
 
-    engine.deploy_definition(def).await;
+    let _ = engine.deploy_definition(def).await;
 
     // Normal start should fail or wait if not message? Actually, correlate_message starts it
     let mut vars = HashMap::new();
@@ -1143,7 +1143,7 @@ async fn timer_catch_event_succeeds() {
         .build()
         .unwrap();
 
-    let def_key = engine.deploy_definition(def).await;
+    let (def_key, _) = engine.deploy_definition(def).await;
     let inst_id = engine.start_instance(def_key).await.unwrap();
     
     assert_eq!(engine.get_instance_state(inst_id).await.unwrap(), InstanceState::WaitingOnTimer { timer_id: engine.pending_timers[0].id });
@@ -1175,7 +1175,7 @@ async fn boundary_timer_event_cancels_task() {
         .build()
         .unwrap();
 
-    let def_key = engine.deploy_definition(def).await;
+    let (def_key, _) = engine.deploy_definition(def).await;
     let inst_id = engine.start_instance(def_key).await.unwrap();
     
     assert_eq!(engine.pending_user_tasks.len(), 1);
@@ -1205,7 +1205,7 @@ async fn boundary_error_event_catches_error() {
         .build()
         .unwrap();
 
-    let def_key = engine.deploy_definition(def).await;
+    let (def_key, _) = engine.deploy_definition(def).await;
     let inst_id = engine.start_instance(def_key).await.unwrap();
     
     let tasks = engine.fetch_and_lock_service_tasks("worker", 1, &["err_topic".into()], 10).await;
@@ -1231,7 +1231,7 @@ async fn call_activity_lifecycle() {
         .flow("child_task", "end")
         .build()
         .unwrap();
-    let _child_key = engine.deploy_definition(child_def).await;
+    let (_child_key, _) = engine.deploy_definition(child_def).await;
     
     // Deploy Parent
     let parent_def = ProcessDefinitionBuilder::new("parent_proc")
@@ -1242,7 +1242,7 @@ async fn call_activity_lifecycle() {
         .flow("call", "end")
         .build()
         .unwrap();
-    let parent_key = engine.deploy_definition(parent_def).await;
+    let (parent_key, _) = engine.deploy_definition(parent_def).await;
     
     // Start Parent
     let parent_id = engine.start_instance(parent_key).await.unwrap();
@@ -1305,7 +1305,7 @@ async fn in_memory_simultaneous_timer_and_message_race() {
         .build()
         .unwrap();
         
-    let def_key = engine.deploy_definition(def).await;
+    let (def_key, _) = engine.deploy_definition(def).await;
     let inst_id = engine.start_instance(def_key).await.unwrap();
     
     assert_eq!(engine.pending_timers.len(), 1);
@@ -1345,7 +1345,7 @@ async fn in_memory_script_robust_failure_handling() {
         .build()
         .unwrap();
         
-    let def_key = engine.deploy_definition(def).await;
+    let (def_key, _) = engine.deploy_definition(def).await;
     
     // Engine should panic or return error because script is broken
     let result = engine.start_instance(def_key).await;
@@ -1366,7 +1366,7 @@ async fn in_memory_large_file_variables() {
         .build()
         .unwrap();
         
-    let def_key = engine.deploy_definition(def).await;
+    let (def_key, _) = engine.deploy_definition(def).await;
     let inst_id = engine.start_instance(def_key).await.unwrap();
     
     // Create a very large dummy payload (10 MB of zeros to simulate memory stress)
@@ -1420,7 +1420,7 @@ async fn test_definition_versioning_and_migration() {
         .build()
         .unwrap();
 
-    let key_v1 = engine.deploy_definition(def_v1).await;
+    let (key_v1, _) = engine.deploy_definition(def_v1).await;
     let def_v1_deployed = engine.definitions.get(&key_v1).await.unwrap();
     assert_eq!(def_v1_deployed.version, 1);
 
@@ -1437,7 +1437,7 @@ async fn test_definition_versioning_and_migration() {
         .build()
         .unwrap();
 
-    let key_v2 = engine.deploy_definition(def_v2).await;
+    let (key_v2, _) = engine.deploy_definition(def_v2).await;
     let def_v2_deployed = engine.definitions.get(&key_v2).await.unwrap();
     
     // Key should be different, version should be bumped
@@ -1509,7 +1509,7 @@ async fn test_nested_parallel_gateways() {
         .build()
         .unwrap();
 
-    let def_key = engine.deploy_definition(def).await;
+    let (def_key, _) = engine.deploy_definition(def).await;
     let inst_id = engine.start_instance(def_key).await.unwrap();
 
     let _ = engine.fetch_and_lock_service_tasks("worker", 10, &["t".into()], 10).await;

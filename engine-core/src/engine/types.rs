@@ -201,4 +201,6 @@ pub struct EngineStats {
     pub instances_waiting_service: usize,
     pub pending_user_tasks: usize,
     pub pending_service_tasks: usize,
+    pub pending_timers: usize,
+    pub pending_message_catches: usize,
 }

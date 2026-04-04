@@ -19,6 +19,19 @@ pub struct HistoryQuery {
     pub offset: Option<usize>,
 }
 
+/// Per-bucket storage details for monitoring dashboards.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BucketInfo {
+    /// Display name of the bucket (e.g. "instances", "bpmn_xml").
+    pub name: String,
+    /// Type of storage: "kv", "object_store", or "stream".
+    pub bucket_type: String,
+    /// Number of entries/messages in the bucket.
+    pub entries: u64,
+    /// Total size in bytes consumed by this bucket.
+    pub size_bytes: u64,
+}
+
 /// Generic storage backend information for monitoring.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StorageInfo {
@@ -30,6 +43,9 @@ pub struct StorageInfo {
     pub storage_bytes: u64,
     pub streams: usize,
     pub consumers: usize,
+    /// Per-bucket breakdown of stored data.
+    #[serde(default)]
+    pub buckets: Vec<BucketInfo>,
 }
 
 /// A trait for persisting workflow engine state.

@@ -116,6 +116,8 @@ struct MonitoringData {
     instances_completed: usize,
     pending_user_tasks: usize,
     pending_service_tasks: usize,
+    pending_timers: usize,
+    pending_message_catches: usize,
     storage_info: Option<StorageInfo>,
 }
 
@@ -128,6 +130,7 @@ struct DeployRequest {
 #[derive(Serialize)]
 struct DeployResponse {
     definition_key: String,
+    version: i32,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -228,6 +231,7 @@ pub fn build_app_with_engine(
     Router::new()
         .route("/api/deploy", post(deploy_definition))
         .route("/api/start", post(start_instance))
+        .route("/api/start/latest", post(start_instance_latest))
         .route("/api/tasks", get(get_tasks))
         .route("/api/complete/:id", post(complete_task))
         .route("/api/instances", get(list_instances))
@@ -268,11 +272,9 @@ async fn deploy_definition(
     Json(payload): Json<DeployRequest>,
 ) -> Result<Json<DeployResponse>, AppError> {
     let mut engine = state.engine.write().await;
-
     let def = bpmn_parser::parse_bpmn_xml(&payload.xml)
         .map_err(|e| AppError::BadRequest(format!("Invalid BPMN XML: {e:?}")))?;
-
-    let key = engine.deploy_definition(def).await;
+    let (key, version) = engine.deploy_definition(def).await;
     let key_str = key.to_string();
 
     if let Some(persistence) = &state.persistence {
@@ -282,28 +284,44 @@ async fn deploy_definition(
     }
     state.deployed_xml.write().await.insert(key_str.clone(), payload.xml.clone());
 
-    Ok(Json(DeployResponse { definition_key: key_str }))
+    Ok(Json(DeployResponse { definition_key: key_str, version }))
 }
 
 #[derive(Serialize)]
 struct DefinitionInfo {
     key: String,
     bpmn_id: String,
+    version: i32,
     node_count: usize,
+    is_latest: bool,
 }
 
 async fn list_definitions(
     State(state): State<Arc<AppState>>,
 ) -> Json<Vec<DefinitionInfo>> {
     let engine = state.engine.read().await;
-    let defs: Vec<DefinitionInfo> = engine
-        .list_definitions()
-        .await
+    let raw = engine.list_definitions().await;
+
+    // Determine the latest version per bpmn_id
+    let mut latest_versions: std::collections::HashMap<String, i32> = std::collections::HashMap::new();
+    for (_, bpmn_id, version, _) in &raw {
+        let entry = latest_versions.entry(bpmn_id.clone()).or_insert(0);
+        if *version > *entry {
+            *entry = *version;
+        }
+    }
+
+    let defs: Vec<DefinitionInfo> = raw
         .into_iter()
-        .map(|(key, bpmn_id, node_count)| DefinitionInfo {
-            key: key.to_string(),
-            bpmn_id,
-            node_count,
+        .map(|(key, bpmn_id, version, node_count)| {
+            let is_latest = latest_versions.get(&bpmn_id).copied() == Some(version);
+            DefinitionInfo {
+                key: key.to_string(),
+                bpmn_id,
+                version,
+                node_count,
+                is_latest,
+            }
         })
         .collect();
     Json(defs)
@@ -345,6 +363,39 @@ async fn start_instance(
     }?;
 
     Ok(Json(StartResponse { instance_id: id.to_string() }))
+}
+
+#[derive(Serialize, Deserialize)]
+struct StartLatestRequest {
+    bpmn_id: String,
+    #[serde(default)]
+    variables: Option<HashMap<String, Value>>,
+}
+
+#[derive(Serialize)]
+struct StartLatestResponse {
+    instance_id: String,
+    definition_key: String,
+    version: i32,
+}
+
+async fn start_instance_latest(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<StartLatestRequest>,
+) -> Result<Json<StartLatestResponse>, AppError> {
+    let mut engine = state.engine.write().await;
+    let vars = payload.variables.unwrap_or_default();
+    let (inst_id, def_key) = engine.start_instance_latest(&payload.bpmn_id, vars).await?;
+
+    let def = engine.get_definition(&def_key).await
+        .ok_or_else(|| AppError::BadRequest("Definition not found".into()))?;
+    let version = def.version;
+
+    Ok(Json(StartLatestResponse {
+        instance_id: inst_id.to_string(),
+        definition_key: def_key.to_string(),
+        version,
+    }))
 }
 
 #[derive(Serialize, Deserialize)]
@@ -709,6 +760,8 @@ async fn get_monitoring_data(
         instances_completed: stats.instances_completed,
         pending_user_tasks: stats.pending_user_tasks,
         pending_service_tasks: stats.pending_service_tasks,
+        pending_timers: stats.pending_timers,
+        pending_message_catches: stats.pending_message_catches,
         storage_info,
     })
 }

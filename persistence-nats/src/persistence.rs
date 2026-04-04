@@ -543,10 +543,75 @@ impl WorkflowPersistence for NatsPersistence {
 
     async fn get_storage_info(&self) -> EngineResult<Option<engine_core::persistence::StorageInfo>> {
         let si = self.client.server_info();
-
         let account = self.js.query_account().await.map_err(|e| {
             EngineError::PersistenceError(format!("Failed to query JetStream account: {}", e))
         })?;
+
+        let mut buckets = Vec::new();
+
+        // Collect KV bucket stats
+        let kv_bucket_names = ["instances", "definitions", "user_tasks", "service_tasks", "timers", "messages"];
+        for name in &kv_bucket_names {
+            match self.js.get_key_value(*name).await {
+                Ok(store) => {
+                    match store.status().await {
+                        Ok(status) => {
+                            buckets.push(engine_core::persistence::BucketInfo {
+                                name: name.to_string(),
+                                bucket_type: "kv".to_string(),
+                                entries: status.values(),
+                                size_bytes: status.info.state.bytes,
+                            });
+                        }
+                        Err(e) => log::warn!("Failed to get status for KV bucket '{}': {}", name, e),
+                    }
+                }
+                Err(e) => log::warn!("Failed to access KV bucket '{}': {}", name, e),
+            }
+        }
+
+        // Collect ObjectStore bucket stats
+        let obj_bucket_names = ["bpmn_xml", "instance_files"];
+        for name in &obj_bucket_names {
+            let stream_name = format!("OBJ_{}", name);
+            match self.js.get_stream(&stream_name).await {
+                Ok(mut stream) => {
+                    match stream.info().await {
+                        Ok(info) => {
+                            buckets.push(engine_core::persistence::BucketInfo {
+                                name: name.to_string(),
+                                bucket_type: "object_store".to_string(),
+                                entries: info.state.messages,
+                                size_bytes: info.state.bytes,
+                            });
+                        }
+                        Err(e) => log::warn!("Failed to get info for underlying ObjectStore stream '{}': {}", name, e),
+                    }
+                }
+                Err(e) => log::warn!("Failed to access underlying ObjectStore stream '{}': {}", name, e),
+            }
+        }
+
+        // Collect Stream stats
+        let stream_names = ["WORKFLOW_EVENTS", "WORKFLOW_HISTORY"];
+        for name in &stream_names {
+            match self.js.get_stream(*name).await {
+                Ok(mut stream) => {
+                    match stream.info().await {
+                        Ok(info) => {
+                            buckets.push(engine_core::persistence::BucketInfo {
+                                name: name.to_string(),
+                                bucket_type: "stream".to_string(),
+                                entries: info.state.messages,
+                                size_bytes: info.state.bytes,
+                            });
+                        }
+                        Err(e) => log::warn!("Failed to get info for stream '{}': {}", name, e),
+                    }
+                }
+                Err(e) => log::warn!("Failed to access stream '{}': {}", name, e),
+            }
+        }
 
         Ok(Some(engine_core::persistence::StorageInfo {
             backend_name: si.server_name.clone(),
@@ -557,6 +622,7 @@ impl WorkflowPersistence for NatsPersistence {
             storage_bytes: account.storage,
             streams: account.streams,
             consumers: account.consumers,
+            buckets,
         }))
     }
 

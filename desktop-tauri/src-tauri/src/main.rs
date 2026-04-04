@@ -16,13 +16,24 @@ struct MonitoringData {
     instances_completed: usize,
     pending_user_tasks: usize,
     pending_service_tasks: usize,
-    nats_server: Option<NatsServerInfo>,
+    #[serde(default)]
+    pending_timers: usize,
+    #[serde(default)]
+    pending_message_catches: usize,
+    storage_info: Option<StorageInfoData>,
 }
 
-/// NATS server and JetStream account information.
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
-struct NatsServerInfo {
-    server_name: String,
+struct BucketInfoData {
+    name: String,
+    bucket_type: String,
+    entries: u64,
+    size_bytes: u64,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Clone)]
+struct StorageInfoData {
+    backend_name: String,
     version: String,
     host: String,
     port: u16,
@@ -30,6 +41,8 @@ struct NatsServerInfo {
     storage_bytes: u64,
     streams: usize,
     consumers: usize,
+    #[serde(default)]
+    buckets: Vec<BucketInfoData>,
 }
 
 struct AppState {
@@ -428,7 +441,9 @@ async fn get_monitoring_data(state: tauri::State<'_, AppState>) -> Result<Monito
                 instances_completed: 0,
                 pending_user_tasks: 0,
                 pending_service_tasks: 0,
-                nats_server: None,
+                pending_timers: 0,
+                pending_message_catches: 0,
+                storage_info: None,
             })
         }
     }

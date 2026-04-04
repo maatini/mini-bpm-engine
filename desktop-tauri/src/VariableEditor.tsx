@@ -13,6 +13,11 @@ function formatFileSize(bytes: number) {
   return mb.toFixed(1) + ' MB';
 }
 
+/** Type guard: checks if a value is a persisted FileReference object. */
+function isFileReference(val: unknown): val is FileReference {
+  return val !== null && typeof val === 'object' && (val as any).type === 'file';
+}
+
 export interface VariableRow {
   name: string;
   type: VarType;
@@ -133,6 +138,7 @@ export function VariableEditor({
       else if (row.type === 'Boolean') row.value = false;
       else if (row.type === 'Null') row.value = null;
       else if (row.type === 'Object') row.value = '{}';
+      else if (row.type === 'File') { row.value = null; row.pendingFilePath = undefined; }
     } else {
       (row as Record<string, unknown>)[field] = newValue;
     }
@@ -174,8 +180,41 @@ export function VariableEditor({
         };
         onChange([...variables, pendingRow]);
       }
-    } catch (e) {
-      alert(`Upload failed: ${e}`);
+      return null;
+    } catch (e: any) {
+      alert(`File upload failed: ${e}`);
+      return null;
+    }
+  };
+
+  /** Opens the native file picker and attaches the selected file to an existing File-type row. */
+  const handlePickFileForRow = async (index: number) => {
+    try {
+      const filePaths = await open({
+        multiple: false,
+        title: 'Select File to Attach'
+      });
+      if (!filePaths || Array.isArray(filePaths)) return;
+
+      const updated = [...variables];
+      const row = { ...updated[index] };
+      const fileName = (filePaths as string).split('/').pop() || 'file';
+
+      if (instanceId) {
+        // Immediate upload to an existing instance
+        await uploadInstanceFile(instanceId, row.name.trim(), filePaths as string);
+        if (onVariablesRefreshRequest) {
+          onVariablesRefreshRequest();
+        }
+      } else {
+        // Deferred upload: store as pending file for upload after instance creation
+        row.value = { filename: fileName, pendingPath: filePaths };
+        row.pendingFilePath = filePaths as string;
+        updated[index] = row;
+        onChange(updated);
+      }
+    } catch (e: any) {
+      alert(`File selection failed: ${e}`);
     }
   };
 
@@ -296,12 +335,38 @@ export function VariableEditor({
                 )}
                 {v.type === 'File' && v.pendingFilePath && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }} className="file-pending-row">
-                    <Paperclip size={14} style={{ color: '#f59e0b' }} />
-                    <span style={{ fontWeight: 500 }}>{(v.value as any)?.filename || v.pendingFilePath.split('/').pop()}</span>
-                    <span style={{ color: '#f59e0b', fontSize: '0.75rem', fontWeight: 600, padding: '1px 6px', background: '#fef3c7', borderRadius: '4px' }}>pending</span>
+                    <span className="file-badge">
+                      <Paperclip size={12} />
+                      {(v.value as any)?.filename || v.pendingFilePath.split('/').pop()}
+                    </span>
+                    <span className="pending-text">(Pending upload...)</span>
                   </div>
                 )}
-                {v.type === 'File' && !v.pendingFilePath && (
+                {v.type === 'File' && !v.pendingFilePath && !isFileReference(v.value) && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <button
+                      className="button"
+                      onClick={() => handlePickFileForRow(idx)}
+                      style={{
+                        background: '#f1f5f9',
+                        color: '#334155',
+                        border: '1px solid #cbd5e1',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        fontSize: '0.85rem',
+                        padding: '4px 10px',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <Paperclip size={14} /> Choose File…
+                    </button>
+                    <span style={{ color: '#94a3b8', fontStyle: 'italic', fontSize: '0.85rem' }}>
+                      No file selected
+                    </span>
+                  </div>
+                )}
+                {v.type === 'File' && !v.pendingFilePath && isFileReference(v.value) && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <div
                       onClick={() => {
