@@ -13,10 +13,15 @@ pub async fn correlate_message(
         "businessKey": business_key,
         "variables": variables.unwrap_or_default()
     });
-    
+
     let data = crate::api_helpers::api_post(&state, "/api/message", &payload).await?;
-    let ids = data["affectedInstances"].as_array()
-        .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+    let ids = data["affectedInstances"]
+        .as_array()
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str().map(String::from))
+                .collect()
+        })
         .unwrap_or_default();
     Ok(ids)
 }

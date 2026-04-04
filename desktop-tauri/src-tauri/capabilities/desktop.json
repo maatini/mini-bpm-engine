@@ -1,0 +1,17 @@
+{
+  "identifier": "desktop-capability",
+  "platforms": [
+    "macOS",
+    "windows",
+    "linux"
+  ],
+  "windows": [
+    "*"
+  ],
+  "permissions": [
+    "core:default",
+    "dialog:default",
+    "fs:default",
+    "fs:allow-read-text-file"
+  ]
+}

@@ -1,5 +1,5 @@
 import { Trash, Paperclip, Download } from 'lucide-react';
-import { open, save } from '@tauri-apps/api/dialog';
+import { open, save } from '@tauri-apps/plugin-dialog';
 import { uploadInstanceFile, downloadInstanceFile, type FileReference } from './lib/tauri';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';

@@ -44,7 +44,8 @@ pub struct AppState {
 }
 
 pub fn get_base_url(state: &AppState) -> Result<String, String> {
-    state.base_url
+    state
+        .base_url
         .lock()
         .map(|guard| guard.clone())
         .map_err(|e| format!("Mutex poisoned: {e}"))

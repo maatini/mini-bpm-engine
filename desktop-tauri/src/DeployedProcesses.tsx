@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { save } from '@tauri-apps/api/dialog';
-import { writeTextFile } from '@tauri-apps/api/fs';
+import { save } from '@tauri-apps/plugin-dialog';
+import { writeTextFile } from '@tauri-apps/plugin-fs';
 import { listDefinitions, getDefinitionXml, listInstances, deleteDefinition, type DefinitionInfo, type ProcessInstance } from './lib/tauri';
 import { RefreshCw, Eye, Download, Activity, Clock, Trash, FileCode2, Network, Key, Boxes, Database } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';

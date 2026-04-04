@@ -13,7 +13,9 @@ pub async fn set_api_url(state: tauri::State<'_, AppState>, url: String) -> Resu
 }
 
 #[tauri::command]
-pub async fn get_monitoring_data(state: tauri::State<'_, AppState>) -> Result<MonitoringData, String> {
+pub async fn get_monitoring_data(
+    state: tauri::State<'_, AppState>,
+) -> Result<MonitoringData, String> {
     let base = crate::state::get_base_url(&state)?;
     let url = format!("{}/api/monitoring", base);
     match state.client.get(&url).send().await {

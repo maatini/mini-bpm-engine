@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { open } from '@tauri-apps/api/dialog';
+import { open } from '@tauri-apps/plugin-dialog';
 import { readBpmnFile, uploadInstanceFile } from './lib/tauri';
 import { FilePlus, FolderOpen, UploadCloud, Play, Focus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';

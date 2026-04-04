@@ -3,20 +3,21 @@
     windows_subsystem = "windows"
 )]
 
-mod state;
 mod api_helpers;
 mod commands;
+mod state;
 
 fn main() {
     let initial_state = state::AppState {
         client: reqwest::Client::new(),
         base_url: std::sync::Mutex::new(
-            std::env::var("ENGINE_API_URL")
-                .unwrap_or_else(|_| "http://localhost:8081".to_string())
+            std::env::var("ENGINE_API_URL").unwrap_or_else(|_| "http://localhost:8081".to_string()),
         ),
     };
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_dialog::init())
         .manage(initial_state)
         .invoke_handler(tauri::generate_handler![
             commands::deploy::deploy_simple_process,
