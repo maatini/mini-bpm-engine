@@ -97,7 +97,7 @@ export function InstanceViewer({ xml, activeNodeId, onNodeClick }: InstanceViewe
           variant="outline"
           size="icon"
           onClick={handleCenter}
-          className="absolute bottom-4 right-4 z-10 shadow-md bg-background/90 backdrop-blur"
+          className="absolute bottom-12 right-4 z-10 shadow-md bg-background/90 backdrop-blur"
           title="Center Workflow"
         >
           <Focus className="h-5 w-5 text-muted-foreground" />

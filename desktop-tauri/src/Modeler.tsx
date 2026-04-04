@@ -252,7 +252,7 @@ export function Modeler({ onDeploy, onStart, onNewDiagram, onOpenFile, initialXm
           variant="outline"
           size="icon"
           onClick={handleCenter}
-          className="absolute bottom-6 right-[320px] z-10 shadow-md bg-background/90 backdrop-blur"
+          className="absolute bottom-14 right-[320px] z-10 shadow-md bg-background/90 backdrop-blur"
           title="Center Workflow"
         >
           <Focus className="h-5 w-5 text-muted-foreground" />
