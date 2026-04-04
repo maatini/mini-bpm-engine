@@ -1,7 +1,7 @@
 ---
 name: nats-persistence
 description: Expert skill for implementing NATS JetStream-based persistence for the mini-bpm workflow engine using KV stores, Object Store, and event streaming.
-version: 2.0
+version: 3.0
 triggers: ["nats", "persistence", "jetstream", "kv store", "object store"]
 author: Maatini
 tags: [rust, nats, jetstream, persistence, async]
@@ -22,12 +22,14 @@ Implements the `WorkflowPersistence` trait from `engine-core` using NATS JetStre
 | Feature | Bucket/Stream | Key Format | Content |
 |---|---|---|---|
 | **Object Store** | `bpmn_xml` | Definition key (UUID) | Original BPMN 2.0 XML (immutable) |
+| **Object Store** | `instance_files` | `{instance_id}/{var_name}` | File variable attachments (binary) |
 | **KV Store** | `definitions` | Definition key (UUID) | `ProcessDefinition` (JSON) |
 | **KV Store** | `instances` | Instance ID (UUID) | `ProcessInstance` (JSON) |
 | **KV Store** | `user_tasks` | Task ID (UUID) | `PendingUserTask` (JSON) |
 | **KV Store** | `service_tasks` | Task ID (UUID) | `PendingServiceTask` (JSON) |
-| **KV Store** | `history` | History ID (UUID) | `HistoryEntry` (JSON) |
-| **JetStream** | `WORKFLOW_EVENTS` | Subjects: `workflow.*` | Audit events |
+| **KV Store** | `timers` | Timer ID (UUID) | `PendingTimer` (JSON) |
+| **KV Store** | `messages` | Message catch ID (UUID) | `PendingMessageCatch` (JSON) |
+| **JetStream** | Stream `HISTORY` | Subjects: `history.instance.*` | History entries per instance |
 
 ## Persistence Trait Extensions (History)
 - `append_history_entry(entry)`
@@ -42,6 +44,7 @@ pub struct NatsPersistence {
     user_tasks: async_nats::jetstream::kv::Store,
     service_tasks: async_nats::jetstream::kv::Store,
     bpmn_xml: async_nats::jetstream::object_store::ObjectStore,
+    instance_files: async_nats::jetstream::object_store::ObjectStore,
     jetstream: async_nats::jetstream::Context,
 }
 

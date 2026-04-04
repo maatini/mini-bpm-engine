@@ -1,16 +1,16 @@
 ---
 name: tauri-frontend
-description: Skill for the Tauri desktop application — React + Vanilla CSS frontend with bpmn-js modeler and dual-mode backend (embedded/HTTP).
-version: 2.0
-triggers: ["tauri", "desktop", "ui", "frontend", "react", "bpmn-js"]
+description: Skill for the Tauri desktop application — React + TailwindCSS + shadcn/ui frontend with bpmn-js modeler and dual-mode backend (embedded/HTTP).
+version: 3.0
+triggers: ["tauri", "desktop", "ui", "frontend", "react", "bpmn-js", "tailwind", "shadcn"]
 author: Maatini
-tags: [tauri, react, typescript, vanilla-css, bpmn-js]
+tags: [tauri, react, typescript, tailwindcss, shadcn-ui, bpmn-js]
 ---
 
 # TAURI FRONTEND SKILL
 
 ## Crate: `desktop-tauri`
-Tauri v1 desktop application with React + Vanilla CSS + bpmn-js.
+Tauri v1 desktop application with React + TailwindCSS + shadcn/ui + bpmn-js.
 
 ## Dual Backend Modes
 - **Embedded (default):** `WorkflowEngine` runs inside Tauri backend (`main.rs`)
@@ -19,20 +19,28 @@ Tauri v1 desktop application with React + Vanilla CSS + bpmn-js.
 ## Architecture
 ```
 desktop-tauri/
-├── src-tauri/src/main.rs    # Tauri backend (all commands, state management)
-├── src/                      # React frontend
-│   ├── App.tsx               # Main app with sidebar navigation
-│   ├── Modeler.tsx           # BPMN Modeler (bpmn-js) with deploy/start
-│   ├── Instances.tsx         # Instance list + detail + variable editor
-│   ├── InstanceViewer.tsx    # Read-only BPMN viewer with node highlighting
-│   ├── HistoryTimeline.tsx   # Compact tabular history with detail dialog
-│   ├── VariableEditor.tsx    # Reusable typed variable editor table
-│   ├── DeployedProcesses.tsx # Definition management
-│   ├── Monitoring.tsx        # Engine metrics dashboard
-│   ├── Settings.tsx          # Backend switching
-│   ├── lib/tauri.ts          # All Tauri command wrappers (typed API)
-│   └── index.css             # All styles (Vanilla CSS, no Tailwind!)
-├── tests/e2e/                # Playwright E2E tests
+├── src-tauri/src/main.rs      # Tauri backend (all commands, state management)
+├── src/                        # React frontend
+│   ├── App.tsx                 # Main app with sidebar navigation
+│   ├── Modeler.tsx             # BPMN Modeler (bpmn-js) with deploy/start
+│   ├── Instances.tsx           # Instance list grouped by process + detail dialog
+│   ├── InstanceViewer.tsx      # Read-only BPMN viewer with node highlighting
+│   ├── HistoryTimeline.tsx     # Compact tabular history with detail dialog
+│   ├── VariableEditor.tsx      # Reusable typed variable editor (with file upload)
+│   ├── DeployedProcesses.tsx   # Definition management (versioning, accordion)
+│   ├── PendingTasks.tsx        # User task + service task cards
+│   ├── IncidentsView.tsx       # Error incident cards
+│   ├── MessageDialog.tsx       # Message correlation dialog
+│   ├── Monitoring.tsx          # Engine metrics dashboard
+│   ├── Settings.tsx            # API URL config + theme toggle
+│   ├── ErrorBoundary.tsx       # React error boundary wrapper
+│   ├── components/ui/          # shadcn/ui components (DO NOT MODIFY)
+│   ├── hooks/use-toast.ts      # Toast notification hook
+│   ├── lib/tauri.ts            # All Tauri command wrappers (typed API)
+│   ├── lib/utils.ts            # cn() utility for Tailwind class merging
+│   └── index.css               # Theme CSS variables (HSL) + bpmn-js helpers
+├── tailwind.config.js          # Tailwind theme with shadcn/ui colors
+├── tests/e2e/                  # Playwright E2E tests
 └── package.json
 ```
 

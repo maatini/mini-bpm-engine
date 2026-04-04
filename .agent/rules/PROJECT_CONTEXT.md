@@ -24,7 +24,7 @@ In-memory for tests, NATS persistence for production.
 | `bpmn-parser` | Parses BPMN 2.0 XML → `ProcessDefinition` |
 | `persistence-nats` | Implements `WorkflowPersistence` trait via NATS KV/Object/JetStream |
 | `engine-server` | Axum HTTP REST API (deploy, start, complete, external tasks) |
-| `desktop-tauri` | Tauri desktop app with React/Vanilla CSS UI |
+| `desktop-tauri` | Tauri desktop app with React/TailwindCSS/shadcn UI |
 | `agent-orchestrator` | External worker orchestration (stub) |
 
 Refer to specific rules based on the crate you are working in.

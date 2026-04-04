@@ -18,11 +18,14 @@ Whenever the user requests NATS integration, persistence, or distributed state s
 | Feature          | Bucket/Stream Name       | Usage in mini-bpm                                   | Why this choice? |
 |------------------|--------------------------|-----------------------------------------------------|------------------|
 | **Object Store** | `bpmn_xml`              | Original BPMN 2.0 XML (immutable)                  | For large artifacts, chunking, versioning |
+| **Object Store** | `instance_files`        | File variable attachments (binary)                  | Binary blobs, separate from KV |
 | **KV Store**     | `definitions`           | ProcessDefinition (JSON)                            | Fast reads/writes, watch support |
 | **KV Store**     | `instances`             | ProcessInstance + Token + Variables + Audit-Log     | Running process state |
 | **KV Store**     | `user_tasks`            | PendingUserTask                                     | Pending tasks for external completion |
 | **KV Store**     | `service_tasks`         | PendingServiceTask (external tasks)                 | Camunda-style external task state |
-| **JetStream**    | Stream `WORKFLOW_EVENTS`| Subjects: `workflow.deploy`, `workflow.start`, `workflow.complete`, `workflow.timer` | Audit, monitoring, future event-sourcing |
+| **KV Store**     | `timers`                | PendingTimer                                        | Timer catch events and boundary timers |
+| **KV Store**     | `messages`              | PendingMessageCatch                                 | Message catch events waiting for correlation |
+| **JetStream**    | Stream `HISTORY`        | Subjects: `history.instance.*`                      | Per-instance audit trail, queryable |
 
 ## 3. Important Principles
 - **On every write** → immediately save to KV + publish event to JetStream (atomic).

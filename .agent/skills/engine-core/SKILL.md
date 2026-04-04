@@ -1,7 +1,7 @@
 ---
 name: engine-core
 description: Skill for the engine-core crate — token-based BPMN execution, gateway routing, condition evaluation, and Rhai script execution.
-version: 2.0
+version: 3.0
 triggers: ["engine", "token", "gateway", "condition", "script", "execute_step", "bpmn", "workflow engine"]
 author: Antigravity
 tags: [rust, bpmn, state-machine, execution]
@@ -15,24 +15,37 @@ Pure state machine — no network code, no NATS, no HTTP. Built with Tokio.
 ## Module Structure
 | File | Purpose |
 |---|---|
-| `model.rs` | `BpmnElement`, `Token`, `ProcessDefinition`, `SequenceFlow`, `ExecutionListener` |
-| `engine.rs` | `WorkflowEngine`, `ProcessInstance`, `InstanceState`, `NextAction` |
+| `model.rs` | `BpmnElement` (15 variants), `Token`, `ProcessDefinition`, `SequenceFlow`, `ExecutionListener` |
+| `engine/mod.rs` | `WorkflowEngine` public API, `deploy_definition()`, `start_instance()`, message correlation |
+| `engine/types.rs` | `ProcessInstance`, `InstanceState` (9 variants), `NextAction` (8 variants), `PendingUserTask`, `PendingTimer`, `PendingMessageCatch`, `ActiveToken` |
+| `engine/executor.rs` | `execute_step()`, `advance_token()` — dispatches on `BpmnElement` |
+| `engine/gateway.rs` | XOR/OR/AND gateway routing and join synchronization |
+| `engine/registry.rs` | `TokenRegistry` for parallel/inclusive gateway join tracking |
+| `engine/instance_store.rs` | Instance query and storage helpers |
+| `engine/boundary.rs` | Boundary event processing (timers, errors) |
 | `engine/service_task.rs` | External task ops (fetch-and-lock, complete, fail, BPMN error) |
+| `engine/tests.rs` | Comprehensive integration tests |
+| `engine/stress_tests.rs` | Concurrency and load stress tests |
 | `condition.rs` | `evaluate_condition()` — condition evaluator for gateway routing |
 | `script_runner.rs` | Rhai execution listeners (start/end scripts) |
 | `persistence.rs` | `WorkflowPersistence` trait definition |
+| `persistence_in_memory.rs` | In-memory persistence for tests |
 | `history.rs` | `HistoryEntry`, `HistoryEventType`, `calculate_diff()` |
-| `error.rs` | `EngineError` enum, `EngineResult<T>` alias |
-| `engine/tests.rs`| Comprehensive integration tests |
+| `error.rs` | `EngineError` enum (14 variants), `EngineResult<T>` alias |
 | `lib.rs` | Public re-exports (including `EngineStats`) |
 
 ## Supported BPMN Elements
-- **StartEvent** / **TimerStartEvent(Duration)**
-- **EndEvent**
+- **StartEvent** / **TimerStartEvent(Duration)** / **MessageStartEvent { message_name }**
+- **EndEvent** / **ErrorEndEvent { error_code }**
 - **ServiceTask** (Camunda-style fetch-and-lock)
 - **UserTask**
 - **ExclusiveGateway** (XOR split)
 - **InclusiveGateway** (OR split)
+- **ParallelGateway** (AND split/join)
+- **TimerCatchEvent(Duration)** (intermediate timer)
+- **BoundaryTimerEvent** / **BoundaryErrorEvent** (boundary events)
+- **MessageCatchEvent** (intermediate message catch)
+- **CallActivity { called_element }** (sub-process invocation)
 
 ## Key Design Decisions
 - `Arc<ProcessDefinition>` for shared definitions
