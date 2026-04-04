@@ -35,6 +35,9 @@ impl WorkflowEngine {
     /// Creates a new, empty engine.
     pub fn new() -> Self {
         log::info!("WorkflowEngine initialized");
+        let mut script_engine = rhai::Engine::new();
+        script_engine.set_max_operations(10_000); // Prevent infinite loops
+
         Self {
             definitions: registry::DefinitionRegistry::new(),
             instances: crate::engine::instance_store::InstanceStore::new(),
@@ -43,7 +46,7 @@ impl WorkflowEngine {
             pending_timers: HashMap::new(),
             pending_message_catches: HashMap::new(),
             persistence: None,
-            script_engine: rhai::Engine::new(),
+            script_engine,
             persistence_error_count: std::sync::atomic::AtomicU64::new(0),
         }
     }
@@ -946,7 +949,7 @@ impl WorkflowEngine {
         if let Some(persistence) = &self.persistence {
             for timer_id in timer_ids_to_delete {
                 if let Err(e) = persistence.delete_timer(timer_id).await {
-                    log::error!("Failed to delete cancelled boundary timer {} from persistence: {}", timer_id, e);
+                    self.log_persistence_error(&format!("delete_boundary_timer({})", timer_id), e);
                 }
             }
         }
@@ -1131,3 +1134,6 @@ impl Default for WorkflowEngine {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod stress_tests;

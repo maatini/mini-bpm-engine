@@ -906,4 +906,33 @@ mod tests {
         assert!(def.nodes.contains_key("Start_1"));
         assert!(def.nodes.contains_key("End_1"));
     }
+
+    #[test]
+    fn parse_massive_xml_robustness_test() {
+        // Generate a 10,000 node XML programmatically to test OOM and stack overflow protection
+        let mut xml = String::with_capacity(1_000_000);
+        xml.push_str(r#"<?xml version="1.0" encoding="UTF-8"?>
+            <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Def_massive">
+              <bpmn:process id="Proc_massive" isExecutable="true">
+                <bpmn:startEvent id="start" />
+        "#);
+
+        for i in 0..10_000 {
+            xml.push_str(&format!(r#"<bpmn:serviceTask id="svc_{i}" />"#));
+            let source = if i == 0 { "start".to_string() } else { format!("svc_{}", i - 1) };
+            xml.push_str(&format!(r#"<bpmn:sequenceFlow id="f_{i}" sourceRef="{source}" targetRef="svc_{i}" />"#));
+        }
+
+        xml.push_str(r#"
+                <bpmn:endEvent id="end" />
+                <bpmn:sequenceFlow id="f_last" sourceRef="svc_9999" targetRef="end" />
+              </bpmn:process>
+            </bpmn:definitions>
+        "#);
+
+        let def = parse_bpmn_xml(&xml).expect("Should parse mass XML without OOM or Stack Overflow");
+        assert_eq!(def.id, "Proc_massive");
+        assert_eq!(def.nodes.len(), 10_002); // start + 10k svc + end
+        assert_eq!(def.flows.len(), 10_001); // 10k flows + 1 last
+    }
 }

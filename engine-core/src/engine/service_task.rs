@@ -109,7 +109,8 @@ impl WorkflowEngine {
         // Verify lock ownership
         verify_lock_ownership(task_id, &task.worker_id, worker_id)?;
 
-        let task = self.pending_service_tasks.remove(&task_id).unwrap();
+        let task = self.pending_service_tasks.remove(&task_id)
+            .ok_or(EngineError::ServiceTaskNotFound(task_id))?;
         let instance_id = task.instance_id;
 
         let old_state = if let Some(lk) = self.instances.get(&instance_id).await { Some(lk.read().await.clone()) } else { None };
@@ -310,7 +311,8 @@ impl WorkflowEngine {
 
         verify_lock_ownership(task_id, &task.worker_id, worker_id)?;
 
-        let task = self.pending_service_tasks.remove(&task_id).unwrap();
+        let task = self.pending_service_tasks.remove(&task_id)
+            .ok_or(EngineError::ServiceTaskNotFound(task_id))?;
         let instance_id = task.instance_id;
 
         let def_key = {

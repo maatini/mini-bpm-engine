@@ -284,6 +284,12 @@ async fn deploy_definition(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<DeployRequest>,
 ) -> Result<Json<DeployResponse>, AppError> {
+    const MAX_XML_BYTES: usize = 10 * 1024 * 1024; // 10MB
+    if payload.xml.len() > MAX_XML_BYTES {
+        return Err(AppError::BadRequest(format!(
+            "XML too large: {} bytes (max {})", payload.xml.len(), MAX_XML_BYTES
+        )));
+    }
     let mut engine = state.engine.write().await;
     let def = bpmn_parser::parse_bpmn_xml(&payload.xml)
         .map_err(|e| AppError::BadRequest(format!("Invalid BPMN XML: {e:?}")))?;
