@@ -141,7 +141,7 @@ impl WorkflowEngine {
     }
 
     /// Checks if a completed instance has a parent, and if so, resumes the parent.
-    pub(crate) async fn resume_parent_if_needed(&mut self, completed_instance_id: Uuid) -> EngineResult<()> {
+    pub(crate) async fn resume_parent_if_needed(&mut self, completed_instance_id: Uuid, error_code: Option<String>) -> EngineResult<()> {
         let inst_arc = self.instances.get(&completed_instance_id).await.ok_or(EngineError::NoSuchInstance(completed_instance_id))?;
         let inst = inst_arc.read().await;
             
@@ -195,8 +195,34 @@ impl WorkflowEngine {
                 .ok_or(EngineError::NoSuchDefinition(def_key))?;
                 
             self.run_end_scripts(parent_id, &mut token, &def, &called_node_id).await?;
+            
+            // Check for BPMN Error handling first
+            let mut handle_as_incident = false;
+            let mut target_boundary = None;
+            
+            if let Some(code) = &error_code {
+                if let Some(boundary_id) = crate::engine::executor::find_boundary_error_event(&def, &called_node_id, code) {
+                    target_boundary = Some(boundary_id);
+                } else {
+                    handle_as_incident = true;
+                }
+            }
+
+            if handle_as_incident {
+                let parent_arc = self.instances.get(&parent_id).await.ok_or(EngineError::NoSuchInstance(parent_id))?;
+                let mut inst = parent_arc.write().await;
+                inst.state = InstanceState::WaitingOnCallActivity { sub_instance_id: completed_instance_id, token: token.clone() };
+                inst.audit_log.push(format!("💥 INCIDENT: Child {completed_instance_id} failed with unhandled BPMN error '{}'", error_code.as_deref().unwrap_or_default()));
+                self.persist_instance(parent_id).await;
+                return Ok(());
+            }
+
+            let next_node = if let Some(bound_id) = target_boundary {
+                bound_id
+            } else {
+                crate::engine::executor::resolve_next_target(&def, &called_node_id, &token.variables)?
+            };
                 
-            let next_node = crate::engine::executor::resolve_next_target(&def, &called_node_id, &token.variables)?;
             token.current_node = next_node.clone();
             
             if let Some(p_inst_arc) = self.instances.get(&parent_id).await {

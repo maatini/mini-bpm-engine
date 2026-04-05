@@ -1526,3 +1526,116 @@ async fn test_nested_parallel_gateways() {
     let state = engine.get_instance_state(inst_id).await.unwrap();
     assert_eq!(state, InstanceState::Completed);
 }
+
+// -----------------------------------------------------------------------
+// Validation / ErrorEndEvent / Call Activity Error Propagation Tests
+// -----------------------------------------------------------------------
+
+#[tokio::test]
+async fn top_level_error_end_event_results_in_completed_with_error() {
+    let mut engine = WorkflowEngine::new();
+    let def = ProcessDefinitionBuilder::new("top_err")
+        .node("start", BpmnElement::StartEvent)
+        .node("err_end", BpmnElement::ErrorEndEvent { error_code: String::from("CRITICAL_FAIL") })
+        .flow("start", "err_end")
+        .build()
+        .unwrap();
+
+    let (key, _) = engine.deploy_definition(def).await;
+    let instance_id = engine.start_instance(key).await.unwrap();
+
+    let state = engine.get_instance_state(instance_id).await.unwrap();
+    assert_eq!(state, InstanceState::CompletedWithError { error_code: "CRITICAL_FAIL".into() });
+
+    let log = engine.get_audit_log(instance_id).await.unwrap();
+    assert!(log.iter().any(|l| l.contains("CRITICAL_FAIL") && l.contains("Error End")));
+}
+
+fn build_child_error_process(code: &str) -> ProcessDefinition {
+    ProcessDefinitionBuilder::new("child_proc")
+        .node("start", BpmnElement::StartEvent)
+        .node("err_end", BpmnElement::ErrorEndEvent { error_code: String::from(code) })
+        .flow("start", "err_end")
+        .build()
+        .unwrap()
+}
+
+#[tokio::test]
+async fn call_activity_propagates_error_to_matching_boundary_event() {
+    let mut engine = WorkflowEngine::new();
+    let (_, _) = engine.deploy_definition(build_child_error_process("ERR_CHILD")).await;
+
+    let parent_def = ProcessDefinitionBuilder::new("parent_proc")
+        .node("start", BpmnElement::StartEvent)
+        .node("call", BpmnElement::CallActivity { called_element: "child_proc".into() })
+        .node("bound_err", BpmnElement::BoundaryErrorEvent { attached_to: "call".into(), error_code: Some("ERR_CHILD".into()) })
+        .node("end_normal", BpmnElement::EndEvent)
+        .node("end_error", BpmnElement::EndEvent)
+        .flow("start", "call")
+        .flow("call", "end_normal")
+        .flow("bound_err", "end_error")
+        .build()
+        .unwrap();
+
+    let (key, _) = engine.deploy_definition(parent_def).await;
+    let instance_id = engine.start_instance(key).await.unwrap();
+
+    let state = engine.get_instance_state(instance_id).await.unwrap();
+    assert_eq!(state, InstanceState::Completed);
+
+    let log = engine.get_audit_log(instance_id).await.unwrap();
+    // Verify it took the error path
+    assert!(log.iter().any(|l| l.contains("'end_error'")));
+}
+
+#[tokio::test]
+async fn call_activity_propagates_error_to_wildcard_boundary_event() {
+    let mut engine = WorkflowEngine::new();
+    let (_, _) = engine.deploy_definition(build_child_error_process("ANY_ERR_CODE")).await;
+
+    let parent_def = ProcessDefinitionBuilder::new("parent_wildcard")
+        .node("start", BpmnElement::StartEvent)
+        .node("call", BpmnElement::CallActivity { called_element: "child_proc".into() })
+        .node("bound_err", BpmnElement::BoundaryErrorEvent { attached_to: "call".into(), error_code: None }) // Wildcard
+        .node("end_normal", BpmnElement::EndEvent)
+        .node("end_error", BpmnElement::EndEvent)
+        .flow("start", "call")
+        .flow("call", "end_normal")
+        .flow("bound_err", "end_error")
+        .build()
+        .unwrap();
+
+    let (key, _) = engine.deploy_definition(parent_def).await;
+    let instance_id = engine.start_instance(key).await.unwrap();
+
+    let state = engine.get_instance_state(instance_id).await.unwrap();
+    assert_eq!(state, InstanceState::Completed);
+
+    let log = engine.get_audit_log(instance_id).await.unwrap();
+    assert!(log.iter().any(|l| l.contains("'end_error'")));
+}
+
+#[tokio::test]
+async fn call_activity_unhandled_error_becomes_incident() {
+    let mut engine = WorkflowEngine::new();
+    let (_, _) = engine.deploy_definition(build_child_error_process("UNHANDLED_CODE")).await;
+
+    let parent_def = ProcessDefinitionBuilder::new("parent_unhandled")
+        .node("start", BpmnElement::StartEvent)
+        .node("call", BpmnElement::CallActivity { called_element: "child_proc".into() })
+        .node("end_normal", BpmnElement::EndEvent)
+        .flow("start", "call")
+        .flow("call", "end_normal")
+        .build()
+        .unwrap();
+
+    let (key, _) = engine.deploy_definition(parent_def).await;
+    let instance_id = engine.start_instance(key).await.unwrap();
+
+    // Check state is waiting on call activity because it's an incident
+    let state = engine.get_instance_state(instance_id).await.unwrap();
+    assert!(matches!(state, InstanceState::WaitingOnCallActivity { .. }));
+
+    let log = engine.get_audit_log(instance_id).await.unwrap();
+    assert!(log.iter().any(|l| l.contains("INCIDENT") && l.contains("UNHANDLED_CODE")));
+}

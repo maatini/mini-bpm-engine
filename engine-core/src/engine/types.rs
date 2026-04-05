@@ -108,6 +108,8 @@ pub enum NextAction {
     WaitForMessage(PendingMessageCatch),
     /// The process reached an end event.
     Complete,
+    /// Ends the current process instance with an error code (for error propagation).
+    ErrorEnd { error_code: String },
     /// The engine must pause — a call activity (sub-process) is pending.
     WaitForCallActivity { called_element: String, token: Token },
 }
@@ -128,6 +130,8 @@ pub enum InstanceState {
     ParallelExecution { active_token_count: usize },
     WaitingOnCallActivity { sub_instance_id: Uuid, token: Token },
     Completed,
+    /// Process ended in an ErrorEndEvent.
+    CompletedWithError { error_code: String },
 }
 
 // ---------------------------------------------------------------------------

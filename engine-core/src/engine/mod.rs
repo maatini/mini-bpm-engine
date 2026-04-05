@@ -1,11 +1,20 @@
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::Duration;
-use serde_json::Value;
 use uuid::Uuid;
 
+// Re-export model types used by test modules via `use super::*`
+#[cfg(test)]
+use serde_json::Value;
+#[cfg(test)]
+#[allow(unused_imports)]
+use std::time::Duration;
+#[cfg(test)]
+#[allow(unused_imports)]
 use crate::error::{EngineError, EngineResult};
+#[cfg(test)]
+#[allow(unused_imports)]
 use crate::model::{BpmnElement, ProcessDefinition, Token, FileReference};
+
 use crate::persistence::WorkflowPersistence;
 
 pub mod types;

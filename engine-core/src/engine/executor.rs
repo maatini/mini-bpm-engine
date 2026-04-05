@@ -30,6 +30,21 @@ pub(crate) fn resolve_next_target(
         .ok_or_else(|| EngineError::InvalidDefinition(format!("No matching outgoing flow from '{from}'")))
 }
 
+pub(crate) fn find_boundary_error_event(
+    def: &ProcessDefinition,
+    attached_to_node: &str,
+    error_code: &str,
+) -> Option<String> {
+    def.nodes.iter().find_map(|(node_id, node)| {
+        if let BpmnElement::BoundaryErrorEvent { attached_to, error_code: bound_err } = node {
+            if attached_to == attached_to_node && (bound_err.is_none() || bound_err.as_deref() == Some(error_code)) {
+                return Some(node_id.clone());
+            }
+        }
+        None
+    })
+}
+
 impl WorkflowEngine {
     /// Non-recursive batched execution loop.
     pub(crate) async fn run_instance_batch(
@@ -58,6 +73,7 @@ impl WorkflowEngine {
                 NextAction::WaitForMessage(_) => (crate::history::HistoryEventType::TokenAdvanced, "Waiting for message".to_string()),
                 NextAction::WaitForCallActivity { .. } => (crate::history::HistoryEventType::CallActivityStarted, "Spawned call activity".to_string()),
                 NextAction::Complete => (crate::history::HistoryEventType::BranchCompleted, "Execution path completed".to_string()),
+                NextAction::ErrorEnd { error_code } => (crate::history::HistoryEventType::BranchCompleted, format!("Execution path completed with error '{}'", error_code)),
             };
             
             self.record_history_event(
@@ -220,6 +236,16 @@ impl WorkflowEngine {
                         // It's safe to just call the method here.
                     }
                 }
+                NextAction::ErrorEnd { error_code } => {
+                    self.complete_branch_token(instance_id, token.id).await?;
+                    if self.all_tokens_completed(instance_id).await? {
+                        if let Some(inst_arc) = self.instances.get(&instance_id).await {
+                            let mut inst = inst_arc.write().await;
+                            inst.state = InstanceState::CompletedWithError { error_code: error_code.clone() };
+                            inst.audit_log.push(format!("💥 All tokens completed at Error End with code '{error_code}'"));
+                        }
+                    }
+                }
             }
         } // end while
 
@@ -229,12 +255,18 @@ impl WorkflowEngine {
         
         // After batch finishes for this instance, if it completed, check parent
         let mut completed = false;
+        let mut error_code_to_propagate = None;
         if let Some(inst_arc) = self.instances.get(&instance_id).await {
             let inst = inst_arc.read().await;
-            completed = matches!(inst.state, InstanceState::Completed);
+            if matches!(inst.state, InstanceState::Completed) {
+                completed = true;
+            } else if let InstanceState::CompletedWithError { error_code } = &inst.state {
+                completed = true;
+                error_code_to_propagate = Some(error_code.clone());
+            }
         }
         if completed {
-            self.resume_parent_if_needed(instance_id).await?;
+            self.resume_parent_if_needed(instance_id, error_code_to_propagate).await?;
         }
 
         Ok(())
@@ -449,8 +481,8 @@ impl WorkflowEngine {
                 let inst_arc = self.instances.get(&instance_id).await.ok_or(EngineError::NoSuchInstance(instance_id))?;
         let mut inst = inst_arc.write().await;
                 inst.current_node = current_id.clone();
-                inst.audit_log.push(format!("💥 Process completed at error end '{current_id}' with code '{error_code}'"));
-                Ok(NextAction::Complete)
+                inst.audit_log.push(format!("💥 Process completed at error end '{current_id}' with error '{error_code}'"));
+                Ok(NextAction::ErrorEnd { error_code: error_code.clone() })
             }
             
             BpmnElement::BoundaryTimerEvent { .. } | BpmnElement::BoundaryErrorEvent { .. } => {

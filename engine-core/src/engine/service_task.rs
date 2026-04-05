@@ -323,17 +323,11 @@ impl WorkflowEngine {
         
         self.cancel_boundary_timers(instance_id, &task.node_id).await;
         
-        let mut target_boundary = None;
-        if let Some(def) = self.definitions.get(&def_key).await {
-            for (node_id, node) in &def.nodes {
-                if let crate::model::BpmnElement::BoundaryErrorEvent { attached_to, error_code: bound_err } = node {
-                    if attached_to == &task.node_id && (bound_err.is_none() || bound_err.as_deref() == Some(error_code)) {
-                        target_boundary = Some(node_id.clone());
-                        break;
-                    }
-                }
-            }
-        }
+        let target_boundary = if let Some(def) = self.definitions.get(&def_key).await {
+            crate::engine::executor::find_boundary_error_event(&def, &task.node_id, error_code)
+        } else {
+            None
+        };
         
         if let Some(boundary_id) = target_boundary {
             let old_state = if let Some(lk) = self.instances.get(&instance_id).await { Some(lk.read().await.clone()) } else { None };

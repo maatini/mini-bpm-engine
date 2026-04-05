@@ -16,7 +16,7 @@ impl WorkflowEngine {
             let st = &lk.read().await.state;
             match st {
                 InstanceState::Running => running += 1,
-                InstanceState::Completed => comp += 1,
+                InstanceState::Completed | InstanceState::CompletedWithError { .. } => comp += 1,
                 InstanceState::WaitingOnUserTask{..} => w_user += 1,
                 InstanceState::WaitingOnServiceTask{..} => w_serv += 1,
                 _ => {}

@@ -1,0 +1,51 @@
+name: Build macOS Binary
+
+on:
+  # Allows manual triggering of the workflow from the GitHub UI
+  workflow_dispatch:
+
+jobs:
+  build-tauri:
+    runs-on: macos-latest
+    permissions:
+      contents: write
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+
+      - name: Install UI Dependencies
+        working-directory: desktop-tauri
+        run: npm install
+
+      - name: Build Tauri App (macOS)
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: desktop-tauri
+          # Automatically creates a draft release containing the .dmg / .app
+          tagName: app-v__VERSION__ 
+          releaseName: 'macOS Build v__VERSION__'
+          releaseDraft: true
+          prerelease: false
+
+      - name: Upload macOS Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-binary
+          path: |
+            desktop-tauri/src-tauri/target/release/bundle/dmg/*.dmg
+            desktop-tauri/src-tauri/target/release/bundle/macos/*.app
