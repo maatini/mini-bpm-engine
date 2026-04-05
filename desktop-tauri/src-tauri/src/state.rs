@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 
 /// Engine + NATS metrics returned to the Monitoring page.
 #[derive(serde::Serialize, serde::Deserialize, Clone)]

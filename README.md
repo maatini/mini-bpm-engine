@@ -1,10 +1,12 @@
-# mini-bpm
+# BPMNinja
 
 [![Rust](https://img.shields.io/badge/Rust-stable-brightgreen.svg?style=flat-square)](https://www.rust-lang.org/)
 [![Tests](https://img.shields.io/badge/Tests-136_passing-success?style=flat-square)]()
 [![Mutation Score](https://img.shields.io/badge/Mutation_Score-93%25-blue?style=flat-square)]()
 
-![mini-bpm-engine](readme-assets/mini-bpm-engine.jpeg)
+<div align="center">
+  <img src="desktop-tauri/public/logo.png" alt="BPMNinja Logo" width="300" />
+</div>
 
 **Eine einbettbare BPMN 2.0 Workflow-Engine in Rust** — token-basierte Ausführung, NATS-Persistenz, REST-API und Desktop-UI.
 
@@ -27,7 +29,7 @@
 
 ## Überblick
 
-mini-bpm ist eine leichtgewichtige, embeddable BPMN 2.0 Engine mit folgenden Kernfeatures:
+bpmninja ist eine leichtgewichtige, embeddable BPMN 2.0 Engine mit folgenden Kernfeatures:
 
 - **Token-basierte Ausführung** — jeder Pfad wird als eigenständiger Token verfolgt
 - **16 BPMN-Elemente** — Start/End Events, User/Service Tasks, Gateways, Timer, Messages, Boundary Events

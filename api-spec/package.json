@@ -1,7 +1,7 @@
 {
-  "name": "mini-bpm-api-spec",
+  "name": "bpmninja-api-spec",
   "version": "0.1.0",
-  "description": "TypeSpec API specification for mini-bpm engine-server",
+  "description": "TypeSpec API specification for bpmninja engine-server",
   "private": true,
   "scripts": {
     "compile": "tsp compile main.tsp"

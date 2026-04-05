@@ -1,14 +1,14 @@
 openapi: 3.0.3
 info:
-  title: mini-bpm Engine API
+  title: bpmninja Engine API
   description: |
-    REST API for the mini-bpm BPMN 2.0 Workflow Engine.
+    REST API for the bpmninja BPMN 2.0 Workflow Engine.
     
     Built with Axum (Rust). Supports BPMN process deployment, instance management,
     user/service task handling, message correlation, timer processing, and file attachments.
   version: 1.0.0
   contact:
-    name: mini-bpm
+    name: bpmninja
   license:
     name: MIT
 

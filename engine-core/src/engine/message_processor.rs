@@ -38,6 +38,30 @@ impl WorkflowEngine {
             // Event-Based Gateway support: If this message catch triggered, clear any sibling wait states
             self.clear_wait_states_for_token(catch.instance_id, &catch.token_id).await;
             
+            if catch.token_id.is_nil() {
+                // This is a Scope Event Listener (Event Sub-Process) trigger
+                let child_bpmn_id = catch.node_id.clone();
+                let child_def_key = {
+                    let (k, _) = self.definitions.find_latest_by_bpmn_id(&child_bpmn_id).await
+                        .ok_or_else(|| EngineError::InvalidDefinition(format!("Event Subprocess '{child_bpmn_id}' not found")))?;
+                    k
+                };
+                
+                // Get the instance variables to pass down, merged with correlation variables
+                let mut instance_vars = {
+                    let inst_arc = self.instances.get(&catch.instance_id).await.unwrap();
+                    let inst = inst_arc.read().await;
+                    inst.variables.clone()
+                };
+                instance_vars.extend(variables.clone());
+                
+                // Spawn the call activity loosely
+                let _child_id = self.spawn_call_activity(child_def_key, catch.instance_id, child_bpmn_id.clone(), instance_vars).await?;
+                
+                self.remove_persisted_message_catch(catch_id).await;
+                continue;
+            }
+
             // Retrieve token from central store
             let mut token = {
                 let inst_arc = self.instances.get(&catch.instance_id).await.ok_or(EngineError::NoSuchInstance(catch.instance_id))?;

@@ -40,6 +40,14 @@ impl WorkflowEngine {
         let mut def = definition;
         def.key = key;
         def.version = version;
+        
+        let sub_processes = std::mem::take(&mut def.sub_processes);
+        for mut sub in sub_processes {
+            // Assign a sub-process ID if needed, although it already has one.
+            sub.version = version;
+            Box::pin(self.deploy_definition(sub)).await;
+        }
+
         tracing::info!("Deployed definition '{}' (v{}, key: {})", def.id, def.version, key);
         self.definitions.insert(key, Arc::new(def)).await;
         self.persist_definition(key).await;

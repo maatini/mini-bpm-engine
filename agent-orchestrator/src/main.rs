@@ -22,7 +22,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let client = reqwest::Client::new();
 
-    tracing::info!("Starting mini-bpm agent-orchestrator (HTTP mode)...");
+    tracing::info!("Starting bpmninja agent-orchestrator (HTTP mode)...");
     tracing::info!("Engine API: {}", base_url);
 
     // 1. Deploy example BPMN

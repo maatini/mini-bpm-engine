@@ -7,7 +7,7 @@ using TypeSpec.Rest;
 using TypeSpec.OpenAPI;
 
 @service(#{
-  title: "mini-bpm Engine Server API"
+  title: "bpmninja Engine Server API"
 })
 @server("http://localhost:8081", "Local Engine Server")
 namespace MiniBpm;

@@ -4,7 +4,9 @@ use std::time::Duration;
 use uuid::Uuid;
 
 use crate::error::{EngineError, EngineResult};
-use crate::model::{BpmnElement, Token};
+use crate::model::{BpmnElement, Token, ScopeEventListener};
+use chrono::Utc;
+use crate::engine::types::{PendingTimer, PendingMessageCatch};
 
 use super::{InstanceState, ProcessInstance, WorkflowEngine};
 
@@ -111,6 +113,35 @@ impl WorkflowEngine {
         ).await;
 
         let token = Token::with_variables(start_id, variables);
+        
+        // Register Scope Event Listeners (Event Sub-Processes)
+        for listener in &def.event_listeners {
+            match listener {
+                ScopeEventListener::Timer { duration, is_interrupting: _, target_definition } => {
+                    let pending = PendingTimer {
+                        id: Uuid::new_v4(),
+                        instance_id,
+                        node_id: target_definition.clone(), // Abusing node_id to store the target definition for Scope Events! Or we need a special token? Wait!
+                        expires_at: Utc::now() + chrono::Duration::from_std(*duration).unwrap_or(chrono::Duration::seconds(0)),
+                        token_id: Uuid::nil(), // No specific token, applies to whole instance
+                    };
+                    self.pending_timers.insert(pending.id, pending);
+                }
+                ScopeEventListener::Message { message_name, is_interrupting: _, target_definition } => {
+                    let pending = PendingMessageCatch {
+                        id: Uuid::new_v4(),
+                        instance_id,
+                        node_id: target_definition.clone(),
+                        message_name: message_name.clone(),
+                        token_id: Uuid::nil(),
+                    };
+                    self.pending_message_catches.insert(pending.id, pending);
+                }
+                ScopeEventListener::Error { .. } => {
+                    // Error is checked dynamically when an ErrorEndEvent is hit or engine panics.
+                }
+            }
+        }
 
         Box::pin(self.run_instance_batch(instance_id, token)).await?;
         self.persist_instance(instance_id).await;

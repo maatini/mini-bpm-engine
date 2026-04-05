@@ -113,7 +113,7 @@ async fn main() -> anyhow::Result<()> {
             .init();
     }
 
-    tracing::info!("Starting mini-bpm engine-server...");
+    tracing::info!("Starting bpmninja engine-server...");
 
     let nats_url = env::var("NATS_URL").unwrap_or_else(|_| "nats://localhost:4222".to_string());
     

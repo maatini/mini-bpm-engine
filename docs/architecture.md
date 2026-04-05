@@ -1,4 +1,4 @@
-# mini-bpm — Architektur-Dokumentation
+# bpmninja — Architektur-Dokumentation
 
 > BPMN 2.0 Workflow Engine in Rust, token-basierte Execution
 > Stand: 2026-04-05

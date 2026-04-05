@@ -1,6 +1,6 @@
 # AGENT_GUIDELINES.md
 
-## Welcome to the mini-bpm Multi-Agent Project
+## Welcome to the bpmninja Multi-Agent Project
 
 This project uses a strict **Agent-First Modular Architecture**. Instead of one AI agent trying to understand and build the whole project, we have isolated the project into multiple single-responsibility crates.
 

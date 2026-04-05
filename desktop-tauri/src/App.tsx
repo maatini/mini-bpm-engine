@@ -7,7 +7,7 @@ import { Settings } from './Settings'
 import { Monitoring } from './Monitoring'
 import { PendingTasks } from './PendingTasks'
 import { MessageDialog } from './MessageDialog'
-import { PenTool, Database, ListTodo, Layers, BarChart2, Settings as SettingsIcon, Mail, AlertTriangle, Activity } from 'lucide-react'
+import { PenTool, Database, ListTodo, Layers, BarChart2, Settings as SettingsIcon, Mail, AlertTriangle } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { IncidentsView } from './IncidentsView'
 import { cn } from '@/lib/utils'
@@ -94,9 +94,9 @@ function App() {
       {/* SIDEBAR */}
       <div className="w-[250px] bg-muted/20 border-r flex flex-col flex-shrink-0">
         <div className="p-5 border-b bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
-          <div className="flex items-center gap-2.5">
-            <Activity className="h-6 w-6" />
-            <span className="text-xl font-bold tracking-tight">Mini BPM</span>
+          <div className="flex items-center gap-3">
+            <img src="/logo.png" alt="BPMNinja Logo" className="h-16 w-16 object-contain drop-shadow-md rounded" />
+            <span className="text-2xl font-bold tracking-tight">BPMNinja</span>
           </div>
           <span className="text-xs text-blue-200 mt-1 block">Workflow Engine</span>
         </div>

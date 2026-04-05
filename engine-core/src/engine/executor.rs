@@ -531,7 +531,7 @@ impl WorkflowEngine {
                 Ok(NextAction::WaitForMessage(pending))
             }
             
-            BpmnElement::CallActivity { called_element } => {
+            BpmnElement::CallActivity { called_element } | BpmnElement::SubProcess { called_element } => {
                 let pending_timers = setup_boundary_events(&def_clone, &current_id, instance_id, token);
                 for t in pending_timers {
                     self.pending_timers.insert(t.id, t);
@@ -540,8 +540,8 @@ impl WorkflowEngine {
                 let inst_arc = self.instances.get(&instance_id).await.ok_or(EngineError::NoSuchInstance(instance_id))?;
         let mut inst = inst_arc.write().await;
                 inst.current_node = current_id.clone();
-                inst.audit_log.push(format!("🔗 Call Activity '{current_id}' invoking process '{called_element}'"));
-                tracing::info!("Instance {instance_id}: call activity '{current_id}' invoking '{called_element}'");
+                inst.audit_log.push(format!("🔗 Call Activity/Sub Process '{current_id}' invoking '{called_element}'"));
+                tracing::info!("Instance {instance_id}: '{current_id}' invoking '{called_element}'");
                 
                 Ok(NextAction::WaitForCallActivity { called_element: called_element.clone(), token: token.clone() })
             }

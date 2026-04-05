@@ -293,7 +293,66 @@ pub(crate) struct BpmnBoundaryEvent {
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct BpmnSubProcess {
-    #[allow(dead_code)]
     #[serde(rename = "@id")]
     pub id: String,
+
+    #[serde(rename = "@triggeredByEvent", default)]
+    pub triggered_by_event: Option<bool>,
+
+    #[serde(rename = "extensionElements")]
+    pub extension_elements: Option<BpmnExtensionElements>,
+    
+    #[serde(rename = "startEvent", default)]
+    pub start_events: Vec<BpmnStartEvent>,
+    
+    #[serde(rename = "endEvent", default)]
+    pub end_events: Vec<BpmnEndEvent>,
+    
+    #[serde(rename = "serviceTask", default)]
+    pub service_tasks: Vec<BpmnServiceTask>,
+    
+    #[serde(rename = "userTask", default)]
+    pub user_tasks: Vec<BpmnUserTask>,
+    
+    #[serde(rename = "sequenceFlow", default)]
+    pub sequence_flows: Vec<BpmnSequenceFlow>,
+
+    #[serde(rename = "boundaryEvent", default)]
+    pub boundary_events: Vec<BpmnBoundaryEvent>,
+
+    #[serde(rename = "task", default)]
+    pub generic_tasks: Vec<BpmnGenericTask>,
+
+    #[serde(rename = "scriptTask", default)]
+    pub script_tasks: Vec<BpmnGenericTask>,
+    #[serde(rename = "sendTask", default)]
+    pub send_tasks: Vec<BpmnGenericTask>,
+    #[serde(rename = "receiveTask", default)]
+    pub receive_tasks: Vec<BpmnGenericTask>,
+    #[serde(rename = "manualTask", default)]
+    pub manual_tasks: Vec<BpmnGenericTask>,
+    #[serde(rename = "businessRuleTask", default)]
+    pub business_rule_tasks: Vec<BpmnGenericTask>,
+    #[serde(rename = "callActivity", default)]
+    pub call_activities: Vec<BpmnGenericTask>,
+
+    #[serde(rename = "exclusiveGateway", default)]
+    pub exclusive_gateways: Vec<BpmnExclusiveGateway>,
+    #[serde(rename = "parallelGateway", default)]
+    pub parallel_gateways: Vec<BpmnGateway>,
+    #[serde(rename = "inclusiveGateway", default)]
+    pub inclusive_gateways: Vec<BpmnGateway>,
+    #[serde(rename = "eventBasedGateway", default)]
+    pub event_based_gateways: Vec<BpmnGateway>,
+
+    #[serde(rename = "intermediateThrowEvent", default)]
+    pub intermediate_throw_events: Vec<BpmnGenericTask>,
+    #[serde(rename = "intermediateCatchEvent", default)]
+    pub intermediate_catch_events: Vec<BpmnIntermediateCatchEvent>,
+
+    // Note: We don't support infinitely nested subProcesses recursively right now
+    // to avoid infinite JSON tree size in some serde setups, but usually it works.
+    // Let's add it recursively:
+    #[serde(rename = "subProcess", default)]
+    pub sub_processes: Vec<BpmnSubProcess>,
 }

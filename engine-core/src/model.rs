@@ -76,6 +76,30 @@ pub enum BpmnElement {
     ErrorEndEvent { error_code: String },
     /// A Call Activity that invokes another process definition.
     CallActivity { called_element: String },
+    /// An Embedded Sub-Process that references a child process definition.
+    SubProcess { called_element: String },
+}
+
+// ---------------------------------------------------------------------------
+// Scope Event Listeners (Event Sub-Processes)
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum ScopeEventListener {
+    Timer {
+        duration: Duration,
+        is_interrupting: bool,
+        target_definition: String,
+    },
+    Message {
+        message_name: String,
+        is_interrupting: bool,
+        target_definition: String,
+    },
+    Error {
+        error_code: Option<String>,
+        target_definition: String,
+    },
 }
 
 // ---------------------------------------------------------------------------
@@ -224,6 +248,10 @@ pub struct ProcessDefinition {
     pub flows: HashMap<String, Vec<SequenceFlow>>,
     #[serde(default)]
     pub listeners: HashMap<String, Vec<ExecutionListener>>,
+    #[serde(default)]
+    pub event_listeners: Vec<ScopeEventListener>,
+    #[serde(default)]
+    pub sub_processes: Vec<ProcessDefinition>,
 }
 
 impl ProcessDefinition {
@@ -241,6 +269,8 @@ impl ProcessDefinition {
         nodes: HashMap<String, BpmnElement>,
         flows: HashMap<String, Vec<SequenceFlow>>,
         listeners: HashMap<String, Vec<ExecutionListener>>,
+        event_listeners: Vec<ScopeEventListener>,
+        sub_processes: Vec<ProcessDefinition>,
     ) -> EngineResult<Self> {
         let id = id.into();
 
@@ -342,7 +372,16 @@ impl ProcessDefinition {
             }
         }
 
-        Ok(Self { key: Uuid::new_v4(), id, version, nodes, flows, listeners })
+        Ok(Self {
+            key: Uuid::new_v4(),
+            id,
+            version,
+            nodes,
+            flows,
+            listeners,
+            event_listeners,
+            sub_processes,
+        })
     }
 
     /// Returns the (id, element) of the start event.
@@ -422,6 +461,8 @@ pub struct ProcessDefinitionBuilder {
     nodes: HashMap<String, BpmnElement>,
     flows: HashMap<String, Vec<SequenceFlow>>,
     listeners: HashMap<String, Vec<ExecutionListener>>,
+    event_listeners: Vec<ScopeEventListener>,
+    sub_processes: Vec<ProcessDefinition>,
 }
 
 impl ProcessDefinitionBuilder {
@@ -433,6 +474,8 @@ impl ProcessDefinitionBuilder {
             nodes: HashMap::new(),
             flows: HashMap::new(),
             listeners: HashMap::new(),
+            event_listeners: Vec::new(),
+            sub_processes: Vec::new(),
         }
     }
 
@@ -489,9 +532,29 @@ impl ProcessDefinitionBuilder {
         self
     }
 
+    /// Adds a scope event listener.
+    pub fn scope_event(mut self, listener: ScopeEventListener) -> Self {
+        self.event_listeners.push(listener);
+        self
+    }
+
+    /// Adds an embedded sub-process definition.
+    pub fn sub_process(mut self, sub_process: ProcessDefinition) -> Self {
+        self.sub_processes.push(sub_process);
+        self
+    }
+
     /// Builds and validates the definition.
     pub fn build(self) -> EngineResult<ProcessDefinition> {
-        let mut def = ProcessDefinition::new(self.id, self.version, self.nodes, self.flows, self.listeners)?;
+        let mut def = ProcessDefinition::new(
+            self.id,
+            self.version,
+            self.nodes,
+            self.flows,
+            self.listeners,
+            self.event_listeners,
+            self.sub_processes,
+        )?;
         if let Some(key) = self.key {
             def.key = key;
         }

@@ -416,7 +416,7 @@ async function collectToasts(
 // Tests
 // ---------------------------------------------------------------------------
 
-test.describe('mini-bpm Desktop App – E2E', () => {
+test.describe('bpmninja Desktop App – E2E', () => {
 
   // ---- 1. Layout & Navigation -----------------------------------------
 

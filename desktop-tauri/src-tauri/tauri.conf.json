@@ -1,6 +1,6 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/schema.json",
-  "productName": "mini-bpm-desktop",
+  "productName": "bpmninja-desktop",
   "version": "0.1.0",
   "identifier": "com.minibpm.dev",
   "build": {
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "mini-bpm-desktop",
+        "title": "bpmninja-desktop",
         "width": 800,
         "height": 600,
         "resizable": true,
