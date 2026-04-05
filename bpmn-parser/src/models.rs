@@ -10,7 +10,7 @@ pub(crate) struct BpmnExtensionElements {
 pub(crate) struct BpmnExecutionListener {
     #[serde(rename = "@event")]
     pub event: String,
-    
+
     #[serde(rename = "script")]
     pub script: Option<BpmnScript>,
 }
@@ -20,7 +20,7 @@ pub(crate) struct BpmnScript {
     #[serde(rename = "@scriptFormat")]
     #[allow(dead_code)]
     pub script_format: String,
-    
+
     #[serde(rename = "$value")]
     pub content: String,
 }
@@ -30,21 +30,21 @@ pub(crate) struct BpmnDefinitions {
     #[allow(dead_code)]
     #[serde(rename = "@id", default)]
     pub id: Option<String>,
-    
+
     #[serde(rename = "process", default)]
     pub processes: Vec<BpmnProcess>,
 
     #[allow(dead_code)]
     #[serde(rename = "collaboration", default)]
     pub collaborations: Vec<IgnoredElement>,
-    
+
     #[allow(dead_code)]
     #[serde(rename = "BPMNDiagram", default)]
     pub bpmndiagrams: Vec<IgnoredElement>,
 
     #[serde(rename = "message", default)]
     pub messages: Vec<BpmnMessage>,
-    
+
     #[serde(rename = "error", default)]
     pub errors: Vec<BpmnErrorDef>,
 }
@@ -82,22 +82,22 @@ pub(crate) struct BpmnProcess {
 
     #[serde(rename = "@isExecutable", default)]
     pub is_executable: Option<bool>,
-    
+
     #[serde(rename = "extensionElements")]
     pub extension_elements: Option<BpmnExtensionElements>,
-    
+
     #[serde(rename = "startEvent", default)]
     pub start_events: Vec<BpmnStartEvent>,
-    
+
     #[serde(rename = "endEvent", default)]
     pub end_events: Vec<BpmnEndEvent>,
-    
+
     #[serde(rename = "serviceTask", default)]
     pub service_tasks: Vec<BpmnServiceTask>,
-    
+
     #[serde(rename = "userTask", default)]
     pub user_tasks: Vec<BpmnUserTask>,
-    
+
     #[serde(rename = "sequenceFlow", default)]
     pub sequence_flows: Vec<BpmnSequenceFlow>,
 
@@ -118,7 +118,7 @@ pub(crate) struct BpmnProcess {
     // --- Future/Unsupported Elements ---
     #[serde(rename = "subProcess", default)]
     pub sub_processes: Vec<BpmnSubProcess>,
-    
+
     #[serde(rename = "boundaryEvent", default)]
     pub boundary_events: Vec<BpmnBoundaryEvent>,
 
@@ -302,19 +302,19 @@ pub(crate) struct BpmnSubProcess {
 
     #[serde(rename = "extensionElements")]
     pub extension_elements: Option<BpmnExtensionElements>,
-    
+
     #[serde(rename = "startEvent", default)]
     pub start_events: Vec<BpmnStartEvent>,
-    
+
     #[serde(rename = "endEvent", default)]
     pub end_events: Vec<BpmnEndEvent>,
-    
+
     #[serde(rename = "serviceTask", default)]
     pub service_tasks: Vec<BpmnServiceTask>,
-    
+
     #[serde(rename = "userTask", default)]
     pub user_tasks: Vec<BpmnUserTask>,
-    
+
     #[serde(rename = "sequenceFlow", default)]
     pub sequence_flows: Vec<BpmnSequenceFlow>,
 

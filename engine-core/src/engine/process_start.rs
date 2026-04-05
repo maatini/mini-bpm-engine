@@ -1,12 +1,12 @@
-use std::collections::HashMap;
 use serde_json::Value;
+use std::collections::HashMap;
 use std::time::Duration;
 use uuid::Uuid;
 
+use crate::engine::types::{PendingMessageCatch, PendingTimer};
 use crate::error::{EngineError, EngineResult};
-use crate::model::{BpmnElement, Token, ScopeEventListener};
+use crate::model::{BpmnElement, ScopeEventListener, Token};
 use chrono::Utc;
-use crate::engine::types::{PendingTimer, PendingMessageCatch};
 
 use super::{InstanceState, ProcessInstance, WorkflowEngine};
 
@@ -16,7 +16,8 @@ impl WorkflowEngine {
     /// The definition must have a plain `StartEvent`.
     /// Delegates to `start_instance_with_variables` with an empty variable map.
     pub async fn start_instance(&self, definition_key: Uuid) -> EngineResult<Uuid> {
-        self.start_instance_with_variables(definition_key, HashMap::new()).await
+        self.start_instance_with_variables(definition_key, HashMap::new())
+            .await
     }
 
     /// Starts a new process instance with pre-populated variables.
@@ -28,7 +29,8 @@ impl WorkflowEngine {
         definition_key: Uuid,
         variables: HashMap<String, Value>,
     ) -> EngineResult<Uuid> {
-        self.start_instance_with_variables_and_parent(definition_key, variables, None).await
+        self.start_instance_with_variables_and_parent(definition_key, variables, None)
+            .await
     }
 
     /// Starts a new instance from the latest version of a BPMN process ID.
@@ -40,12 +42,19 @@ impl WorkflowEngine {
         bpmn_id: &str,
         variables: HashMap<String, Value>,
     ) -> EngineResult<(Uuid, Uuid)> {
-        let (def_key, _) = self.definitions.find_latest_by_bpmn_id(bpmn_id)
+        let (def_key, _) = self
+            .definitions
+            .find_latest_by_bpmn_id(bpmn_id)
             .await
-            .ok_or_else(|| EngineError::InvalidDefinition(
-                format!("No definition found with BPMN ID '{}'", bpmn_id)
-            ))?;
-        let inst_id = self.start_instance_with_variables(def_key, variables).await?;
+            .ok_or_else(|| {
+                EngineError::InvalidDefinition(format!(
+                    "No definition found with BPMN ID '{}'",
+                    bpmn_id
+                ))
+            })?;
+        let inst_id = self
+            .start_instance_with_variables(def_key, variables)
+            .await?;
         Ok((inst_id, def_key))
     }
 
@@ -101,7 +110,7 @@ impl WorkflowEngine {
         );
 
         self.instances.insert(instance_id, instance).await;
-        
+
         // Record history for start
         self.record_history_event(
             instance_id,
@@ -109,25 +118,36 @@ impl WorkflowEngine {
             &format!("Started instance of process '{}'", def.id),
             crate::history::ActorType::Engine,
             None,
-            None
-        ).await;
+            None,
+        )
+        .await;
 
         let token = Token::with_variables(start_id, variables);
-        
+
         // Register Scope Event Listeners (Event Sub-Processes)
         for listener in &def.event_listeners {
             match listener {
-                ScopeEventListener::Timer { duration, is_interrupting: _, target_definition } => {
+                ScopeEventListener::Timer {
+                    duration,
+                    is_interrupting: _,
+                    target_definition,
+                } => {
                     let pending = PendingTimer {
                         id: Uuid::new_v4(),
                         instance_id,
                         node_id: target_definition.clone(), // Abusing node_id to store the target definition for Scope Events! Or we need a special token? Wait!
-                        expires_at: Utc::now() + chrono::Duration::from_std(*duration).unwrap_or(chrono::Duration::seconds(0)),
+                        expires_at: Utc::now()
+                            + chrono::Duration::from_std(*duration)
+                                .unwrap_or(chrono::Duration::seconds(0)),
                         token_id: Uuid::nil(), // No specific token, applies to whole instance
                     };
                     self.pending_timers.insert(pending.id, pending);
                 }
-                ScopeEventListener::Message { message_name, is_interrupting: _, target_definition } => {
+                ScopeEventListener::Message {
+                    message_name,
+                    is_interrupting: _,
+                    target_definition,
+                } => {
                     let pending = PendingMessageCatch {
                         id: Uuid::new_v4(),
                         instance_id,
@@ -157,82 +177,123 @@ impl WorkflowEngine {
         called_node: String,
         variables: HashMap<String, Value>,
     ) -> EngineResult<Uuid> {
-        let child_id = self.start_instance_with_variables_and_parent(child_def_key, variables, Some(parent_instance_id)).await?;
-        
+        let child_id = self
+            .start_instance_with_variables_and_parent(
+                child_def_key,
+                variables,
+                Some(parent_instance_id),
+            )
+            .await?;
+
         self.record_history_event(
             parent_instance_id,
             crate::history::HistoryEventType::CallActivityStarted,
-            &format!("Started Call Activity '{}' (child instance {})", called_node, child_id),
+            &format!(
+                "Started Call Activity '{}' (child instance {})",
+                called_node, child_id
+            ),
             crate::history::ActorType::Engine,
             None,
-            None
-        ).await;
-        
+            None,
+        )
+        .await;
+
         Ok(child_id)
     }
 
     /// Checks if a completed instance has a parent, and if so, resumes the parent.
-    pub(crate) async fn resume_parent_if_needed(&self, completed_instance_id: Uuid, error_code: Option<String>) -> EngineResult<()> {
-        let inst_arc = self.instances.get(&completed_instance_id).await.ok_or(EngineError::NoSuchInstance(completed_instance_id))?;
+    pub(crate) async fn resume_parent_if_needed(
+        &self,
+        completed_instance_id: Uuid,
+        error_code: Option<String>,
+    ) -> EngineResult<()> {
+        let inst_arc = self
+            .instances
+            .get(&completed_instance_id)
+            .await
+            .ok_or(EngineError::NoSuchInstance(completed_instance_id))?;
         let inst = inst_arc.read().await;
-            
+
         let parent_id = match inst.parent_instance_id {
             Some(pid) => pid,
             None => return Ok(()),
         };
-        
+
         let child_vars = inst.variables.clone();
-        
+
         // Find the parent
-        tracing::info!("Child instance {completed_instance_id} completed, resuming parent {parent_id}");
-        
+        tracing::info!(
+            "Child instance {completed_instance_id} completed, resuming parent {parent_id}"
+        );
+
         let (called_node_id, token_to_resume, def_key) = {
-            let parent_arc = self.instances.get(&parent_id).await.ok_or(EngineError::NoSuchInstance(parent_id))?;
+            let parent_arc = self
+                .instances
+                .get(&parent_id)
+                .await
+                .ok_or(EngineError::NoSuchInstance(parent_id))?;
             let mut parent = parent_arc.write().await;
-                
-            let (called_node_id, mut token_to_resume) = if let InstanceState::WaitingOnCallActivity { token, .. } = &parent.state {
-                let t = token.clone();
-                parent.state = InstanceState::Running;
-                (parent.current_node.clone(), Some(t))
-            } else {
-                return Ok(());
-            };
-            
-            parent.audit_log.push(format!("🔗 Call Activity '{called_node_id}' completed successfully"));
-            
+
+            let (called_node_id, mut token_to_resume) =
+                if let InstanceState::WaitingOnCallActivity { token, .. } = &parent.state {
+                    let t = token.clone();
+                    parent.state = InstanceState::Running;
+                    (parent.current_node.clone(), Some(t))
+                } else {
+                    return Ok(());
+                };
+
+            parent.audit_log.push(format!(
+                "🔗 Call Activity '{called_node_id}' completed successfully"
+            ));
+
             let def_key = parent.definition_key;
-            
-            if let Some(active) = parent.active_tokens.iter_mut().find(|at| at.token.current_node == called_node_id && !at.completed) {
+
+            if let Some(active) = parent
+                .active_tokens
+                .iter_mut()
+                .find(|at| at.token.current_node == called_node_id && !at.completed)
+            {
                 active.token.variables.extend(child_vars.clone());
                 token_to_resume = Some(active.token.clone());
             } else if let Some(ref mut linear_token) = token_to_resume {
                 linear_token.variables.extend(child_vars.clone());
             }
-            
+
             (called_node_id, token_to_resume, def_key)
         };
-        
+
         self.record_history_event(
             parent_id,
             crate::history::HistoryEventType::CallActivityCompleted,
-            &format!("Call Activity '{}' completed (child instance {})", called_node_id, completed_instance_id),
+            &format!(
+                "Call Activity '{}' completed (child instance {})",
+                called_node_id, completed_instance_id
+            ),
             crate::history::ActorType::Engine,
             None,
-            None
-        ).await;
+            None,
+        )
+        .await;
 
         if let Some(mut token) = token_to_resume {
-            let def = self.definitions.get(&def_key).await
+            let def = self
+                .definitions
+                .get(&def_key)
+                .await
                 .ok_or(EngineError::NoSuchDefinition(def_key))?;
-                
-            self.run_end_scripts(parent_id, &mut token, &def, &called_node_id).await?;
-            
+
+            self.run_end_scripts(parent_id, &mut token, &def, &called_node_id)
+                .await?;
+
             // Check for BPMN Error handling first
             let mut handle_as_incident = false;
             let mut target_boundary = None;
-            
+
             if let Some(code) = &error_code {
-                if let Some(boundary_id) = crate::engine::executor::find_boundary_error_event(&def, &called_node_id, code) {
+                if let Some(boundary_id) =
+                    crate::engine::executor::find_boundary_error_event(&def, &called_node_id, code)
+                {
                     target_boundary = Some(boundary_id);
                 } else {
                     handle_as_incident = true;
@@ -240,9 +301,16 @@ impl WorkflowEngine {
             }
 
             if handle_as_incident {
-                let parent_arc = self.instances.get(&parent_id).await.ok_or(EngineError::NoSuchInstance(parent_id))?;
+                let parent_arc = self
+                    .instances
+                    .get(&parent_id)
+                    .await
+                    .ok_or(EngineError::NoSuchInstance(parent_id))?;
                 let mut inst = parent_arc.write().await;
-                inst.state = InstanceState::WaitingOnCallActivity { sub_instance_id: completed_instance_id, token: token.clone() };
+                inst.state = InstanceState::WaitingOnCallActivity {
+                    sub_instance_id: completed_instance_id,
+                    token: token.clone(),
+                };
                 inst.audit_log.push(format!("💥 INCIDENT: Child {completed_instance_id} failed with unhandled BPMN error '{}'", error_code.as_deref().unwrap_or_default()));
                 self.persist_instance(parent_id).await;
                 return Ok(());
@@ -251,20 +319,24 @@ impl WorkflowEngine {
             let next_node = if let Some(bound_id) = target_boundary {
                 bound_id
             } else {
-                crate::engine::executor::resolve_next_target(&def, &called_node_id, &token.variables)?
+                crate::engine::executor::resolve_next_target(
+                    &def,
+                    &called_node_id,
+                    &token.variables,
+                )?
             };
-                
+
             token.current_node = next_node.clone();
-            
+
             if let Some(p_inst_arc) = self.instances.get(&parent_id).await {
-            let mut p_inst = p_inst_arc.write().await;
+                let mut p_inst = p_inst_arc.write().await;
                 p_inst.current_node = next_node;
             }
-            
+
             // Run the batch for the parent
             Box::pin(self.run_instance_batch(parent_id, token)).await?;
         }
-        
+
         Ok(())
     }
 
@@ -336,8 +408,9 @@ impl WorkflowEngine {
             &format!("Timer fired for instance of process '{}'", def.id),
             crate::history::ActorType::Timer,
             None,
-            None
-        ).await;
+            None,
+        )
+        .await;
 
         let token = Token::new(&start_id);
 

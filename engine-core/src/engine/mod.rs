@@ -1,39 +1,39 @@
-use std::sync::Arc;
 use dashmap::DashMap;
+use std::sync::Arc;
 use uuid::Uuid;
 
 // Re-export model types used by test modules via `use super::*`
-#[cfg(test)]
-use std::collections::HashMap;
-#[cfg(test)]
-use serde_json::Value;
-#[cfg(test)]
-#[allow(unused_imports)]
-use std::time::Duration;
 #[cfg(test)]
 #[allow(unused_imports)]
 use crate::error::{EngineError, EngineResult};
 #[cfg(test)]
 #[allow(unused_imports)]
-use crate::model::{BpmnElement, ProcessDefinition, Token, FileReference};
+use crate::model::{BpmnElement, FileReference, ProcessDefinition, Token};
+#[cfg(test)]
+use serde_json::Value;
+#[cfg(test)]
+use std::collections::HashMap;
+#[cfg(test)]
+#[allow(unused_imports)]
+use std::time::Duration;
 
 use crate::persistence::WorkflowPersistence;
 
-pub mod types;
-pub(crate) mod instance_store;
-pub(crate) mod registry;
+pub(crate) mod boundary;
+mod definition_ops;
 pub(crate) mod executor;
 pub(crate) mod gateway;
-pub(crate) mod boundary;
-mod service_task;
-mod persistence_ops;
-mod timer_processor;
-mod message_processor;
-mod user_task;
-mod process_start;
 mod instance_ops;
-mod definition_ops;
+pub(crate) mod instance_store;
+mod message_processor;
+mod persistence_ops;
+mod process_start;
+pub(crate) mod registry;
 pub(crate) mod retry_queue;
+mod service_task;
+mod timer_processor;
+pub mod types;
+mod user_task;
 
 pub use types::*;
 
@@ -125,31 +125,53 @@ impl WorkflowEngine {
 
     /// Restores a process instance from persistence (e.g. on server startup).
     pub async fn restore_instance(&self, instance: ProcessInstance) {
-        tracing::info!("Restored instance {} (def: {})", instance.id, instance.definition_key);
+        tracing::info!(
+            "Restored instance {} (def: {})",
+            instance.id,
+            instance.definition_key
+        );
         self.instances.insert(instance.id, instance).await;
     }
 
     /// Restores a pending user task from persistence.
     pub fn restore_user_task(&self, task: PendingUserTask) {
-        tracing::info!("Restored user task {} (instance: {})", task.task_id, task.instance_id);
+        tracing::info!(
+            "Restored user task {} (instance: {})",
+            task.task_id,
+            task.instance_id
+        );
         self.pending_user_tasks.insert(task.task_id, task);
     }
 
     /// Restores a pending service task from persistence.
     pub fn restore_service_task(&self, task: PendingServiceTask) {
-        tracing::info!("Restored service task {} (instance: {})", task.id, task.instance_id);
+        tracing::info!(
+            "Restored service task {} (instance: {})",
+            task.id,
+            task.instance_id
+        );
         self.pending_service_tasks.insert(task.id, task);
     }
 
     /// Restores a pending timer from persistence (e.g. on server startup).
     pub fn restore_timer(&self, timer: PendingTimer) {
-        tracing::info!("Restored timer {} (instance: {}, node: {})", timer.id, timer.instance_id, timer.node_id);
+        tracing::info!(
+            "Restored timer {} (instance: {}, node: {})",
+            timer.id,
+            timer.instance_id,
+            timer.node_id
+        );
         self.pending_timers.insert(timer.id, timer);
     }
 
     /// Restores a pending message catch from persistence (e.g. on server startup).
     pub fn restore_message_catch(&self, catch: PendingMessageCatch) {
-        tracing::info!("Restored message catch {} (instance: {}, message: {})", catch.id, catch.instance_id, catch.message_name);
+        tracing::info!(
+            "Restored message catch {} (instance: {}, message: {})",
+            catch.id,
+            catch.instance_id,
+            catch.message_name
+        );
         self.pending_message_catches.insert(catch.id, catch);
     }
 
@@ -161,11 +183,13 @@ impl WorkflowEngine {
         } else {
             return;
         };
-        
+
         let bound_timers: Vec<String> = if let Some(def) = self.definitions.get(&def_key).await {
-            def.nodes.iter()
+            def.nodes
+                .iter()
                 .filter_map(|(id, node)| {
-                    if let crate::model::BpmnElement::BoundaryTimerEvent { attached_to, .. } = node {
+                    if let crate::model::BpmnElement::BoundaryTimerEvent { attached_to, .. } = node
+                    {
                         if attached_to == task_node_id {
                             Some(id.clone())
                         } else {
@@ -179,15 +203,18 @@ impl WorkflowEngine {
         } else {
             Vec::new()
         };
-        
+
         // Collect timer IDs to delete from persistence
-        let timer_ids_to_delete: std::collections::HashSet<Uuid> = self.pending_timers.iter()
+        let timer_ids_to_delete: std::collections::HashSet<Uuid> = self
+            .pending_timers
+            .iter()
             .filter(|r| r.instance_id == instance_id && bound_timers.contains(&r.node_id))
             .map(|r| r.id)
             .collect();
-            
-        self.pending_timers.retain(|_, t| !(t.instance_id == instance_id && bound_timers.contains(&t.node_id)));
-        
+
+        self.pending_timers
+            .retain(|_, t| !(t.instance_id == instance_id && bound_timers.contains(&t.node_id)));
+
         // Delete from persistence
         if let Some(persistence) = &self.persistence {
             for timer_id in timer_ids_to_delete {
@@ -202,29 +229,39 @@ impl WorkflowEngine {
     /// Used by Event-Based Gateways to cancel alternative events when one fires.
     pub async fn clear_wait_states_for_token(&self, instance_id: Uuid, token_id: &Uuid) {
         // Collect timer IDs to delete
-        let timers_to_delete: Vec<Uuid> = self.pending_timers.iter()
+        let timers_to_delete: Vec<Uuid> = self
+            .pending_timers
+            .iter()
             .filter(|r| r.instance_id == instance_id && &r.token_id == token_id)
             .map(|r| r.id)
             .collect();
 
         // Collect message catch IDs to delete
-        let messages_to_delete: Vec<Uuid> = self.pending_message_catches.iter()
+        let messages_to_delete: Vec<Uuid> = self
+            .pending_message_catches
+            .iter()
             .filter(|r| r.instance_id == instance_id && &r.token_id == token_id)
             .map(|r| r.id)
             .collect();
-            
+
         // Log to instance audit log
         if !timers_to_delete.is_empty() || !messages_to_delete.is_empty() {
             if let Some(inst_arc) = self.instances.get(&instance_id).await {
                 let mut inst = inst_arc.write().await;
                 if !timers_to_delete.is_empty() {
-                    inst.audit_log.push(format!("⭮ Event-based gateway: {} alternative timer(s) cancelled", timers_to_delete.len()));
+                    inst.audit_log.push(format!(
+                        "⭮ Event-based gateway: {} alternative timer(s) cancelled",
+                        timers_to_delete.len()
+                    ));
                 }
                 if !messages_to_delete.is_empty() {
-                    inst.audit_log.push(format!("⭮ Event-based gateway: {} alternative message catch(es) cancelled", messages_to_delete.len()));
+                    inst.audit_log.push(format!(
+                        "⭮ Event-based gateway: {} alternative message catch(es) cancelled",
+                        messages_to_delete.len()
+                    ));
                 }
             }
-            
+
             // Add custom history trace
             self.record_history_event(
                 instance_id,
@@ -232,13 +269,16 @@ impl WorkflowEngine {
                 "Alternative EventBasedGateway paths cancelled",
                 crate::history::ActorType::Engine,
                 None,
-                None
-            ).await;
+                None,
+            )
+            .await;
         }
 
         // Remove from DashMap
-        self.pending_timers.retain(|_, t| !(t.instance_id == instance_id && &t.token_id == token_id));
-        self.pending_message_catches.retain(|_, m| !(m.instance_id == instance_id && &m.token_id == token_id));
+        self.pending_timers
+            .retain(|_, t| !(t.instance_id == instance_id && &t.token_id == token_id));
+        self.pending_message_catches
+            .retain(|_, m| !(m.instance_id == instance_id && &m.token_id == token_id));
 
         // Delete from persistence
         if let Some(persistence) = &self.persistence {

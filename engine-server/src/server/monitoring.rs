@@ -1,8 +1,8 @@
-use axum::{extract::State, response::IntoResponse, Json};
+use crate::server::state::AppState;
+use axum::{Json, extract::State, response::IntoResponse};
+use engine_core::persistence::StorageInfo;
 use serde::Serialize;
 use std::sync::Arc;
-use engine_core::persistence::StorageInfo;
-use crate::server::state::AppState;
 
 #[derive(Serialize)]
 pub(crate) struct BackendInfo {
@@ -28,15 +28,17 @@ pub(crate) struct MonitoringData {
 pub(crate) async fn ready_endpoint(State(state): State<Arc<AppState>>) -> axum::response::Response {
     if let Some(ref p) = state.persistence {
         if p.get_storage_info().await.is_err() {
-            return (axum::http::StatusCode::SERVICE_UNAVAILABLE, "NATS disconnected").into_response();
+            return (
+                axum::http::StatusCode::SERVICE_UNAVAILABLE,
+                "NATS disconnected",
+            )
+                .into_response();
         }
     }
     (axum::http::StatusCode::OK, "Ready").into_response()
 }
 
-pub(crate) async fn get_backend_info(
-    State(state): State<Arc<AppState>>,
-) -> Json<BackendInfo> {
+pub(crate) async fn get_backend_info(State(state): State<Arc<AppState>>) -> Json<BackendInfo> {
     if let Some(ref p) = state.persistence {
         let info = p.get_storage_info().await.ok().flatten();
         Json(BackendInfo {
@@ -69,7 +71,9 @@ pub(crate) async fn get_monitoring_data(
     Json(MonitoringData {
         definitions_count: stats.definitions_count,
         instances_total: stats.instances_total,
-        instances_running: stats.instances_running + stats.instances_waiting_user + stats.instances_waiting_service,
+        instances_running: stats.instances_running
+            + stats.instances_waiting_user
+            + stats.instances_waiting_service,
         instances_completed: stats.instances_completed,
         pending_user_tasks: stats.pending_user_tasks,
         pending_service_tasks: stats.pending_service_tasks,
@@ -95,12 +99,21 @@ pub(crate) async fn get_bucket_entries(
     let limit = query.limit.unwrap_or(50).clamp(1, 1000);
 
     if let Some(ref persistence) = state.persistence {
-        match persistence.get_bucket_entries(&bucket_name, offset, limit).await {
+        match persistence
+            .get_bucket_entries(&bucket_name, offset, limit)
+            .await
+        {
             Ok(entries) => Json(entries).into_response(),
-            Err(e) => (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+            Err(e) => {
+                (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response()
+            }
         }
     } else {
-        (axum::http::StatusCode::SERVICE_UNAVAILABLE, "No persistence layer configured").into_response()
+        (
+            axum::http::StatusCode::SERVICE_UNAVAILABLE,
+            "No persistence layer configured",
+        )
+            .into_response()
     }
 }
 
@@ -109,11 +122,18 @@ pub(crate) async fn get_bucket_entry_detail(
     axum::extract::Path((bucket_name, key)): axum::extract::Path<(String, String)>,
 ) -> axum::response::Response {
     if let Some(ref persistence) = state.persistence {
-        match persistence.get_bucket_entry_detail(&bucket_name, &key).await {
+        match persistence
+            .get_bucket_entry_detail(&bucket_name, &key)
+            .await
+        {
             Ok(detail) => Json(detail).into_response(),
             Err(e) => (axum::http::StatusCode::NOT_FOUND, e.to_string()).into_response(),
         }
     } else {
-        (axum::http::StatusCode::SERVICE_UNAVAILABLE, "No persistence layer configured").into_response()
+        (
+            axum::http::StatusCode::SERVICE_UNAVAILABLE,
+            "No persistence layer configured",
+        )
+            .into_response()
     }
 }

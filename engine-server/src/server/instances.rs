@@ -1,10 +1,15 @@
-use axum::{extract::{Path, State}, Json, http::StatusCode, response::IntoResponse};
+use crate::server::state::{AppError, AppState, parse_uuid};
+use axum::{
+    Json,
+    extract::{Path, State},
+    http::StatusCode,
+    response::IntoResponse,
+};
+use engine_core::ProcessInstance;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
-use engine_core::ProcessInstance;
-use crate::server::state::{AppError, AppState, parse_uuid};
 
 #[derive(Serialize, Deserialize)]
 pub(crate) struct StartRequest {
@@ -25,15 +30,13 @@ pub(crate) async fn start_instance(
     let engine = &state.engine;
     let def_key = parse_uuid(&payload.definition_key)?;
     let id = match payload.variables {
-        Some(vars) if !vars.is_empty() => {
-            engine
-                .start_instance_with_variables(def_key, vars)
-                .await
-        }
+        Some(vars) if !vars.is_empty() => engine.start_instance_with_variables(def_key, vars).await,
         _ => engine.start_instance(def_key).await,
     }?;
 
-    Ok(Json(StartResponse { instance_id: id.to_string() }))
+    Ok(Json(StartResponse {
+        instance_id: id.to_string(),
+    }))
 }
 
 #[derive(Serialize, Deserialize)]
@@ -58,7 +61,9 @@ pub(crate) async fn start_instance_latest(
     let vars = payload.variables.unwrap_or_default();
     let (inst_id, def_key) = engine.start_instance_latest(&payload.bpmn_id, vars).await?;
 
-    let def = engine.get_definition(&def_key).await
+    let def = engine
+        .get_definition(&def_key)
+        .await
         .ok_or_else(|| AppError::BadRequest("Definition not found".into()))?;
     let version = def.version;
 
@@ -102,7 +107,9 @@ pub(crate) async fn update_instance_variables(
     let engine = &state.engine;
     let instance_id = parse_uuid(&id)?;
 
-    engine.update_instance_variables(instance_id, payload.variables).await?;
+    engine
+        .update_instance_variables(instance_id, payload.variables)
+        .await?;
 
     Ok(StatusCode::NO_CONTENT)
 }

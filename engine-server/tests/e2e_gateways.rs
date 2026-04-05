@@ -43,10 +43,16 @@ async fn deploy_and_execute_parallel_gateway() {
     let res = client
         .post(format!("{}/api/deploy", base))
         .json(&serde_json::json!({ "xml": PARALLEL_XML, "name": "Parallel" }))
-        .send().await.expect("deploy request failed");
-    
+        .send()
+        .await
+        .expect("deploy request failed");
+
     let text = res.text().await.unwrap();
-    assert!(text.contains("definition_key"), "deploy failed with response: {}", text);
+    assert!(
+        text.contains("definition_key"),
+        "deploy failed with response: {}",
+        text
+    );
     let body: Value = serde_json::from_str(&text).unwrap();
     let def_key = body["definition_key"].as_str().unwrap();
 
@@ -54,9 +60,11 @@ async fn deploy_and_execute_parallel_gateway() {
     let res = client
         .post(format!("{}/api/start", base))
         .json(&serde_json::json!({ "definition_key": def_key }))
-        .send().await.expect("start failed");
+        .send()
+        .await
+        .expect("start failed");
     assert_eq!(res.status(), 200, "start instance failed");
-    
+
     let body: Value = res.json().await.unwrap();
     let instance_id = body["instance_id"].as_str().unwrap();
 
@@ -68,10 +76,13 @@ async fn deploy_and_execute_parallel_gateway() {
     let tasks: Vec<Value> = fetch_res.json().await.unwrap();
     assert_eq!(tasks.len(), 1, "Expected 1 task for worker1");
     let t1_id = tasks[0]["id"].as_str().unwrap();
-    
-    client.post(format!("{}/api/service-task/{}/complete", base, t1_id))
+
+    client
+        .post(format!("{}/api/service-task/{}/complete", base, t1_id))
         .json(&serde_json::json!({ "workerId": "w1" }))
-        .send().await.expect("complete t1 failed");
+        .send()
+        .await
+        .expect("complete t1 failed");
 
     // Fetch and complete t2
     let fetch_res = client.post(format!("{}/api/service-task/fetchAndLock", base))
@@ -81,15 +92,22 @@ async fn deploy_and_execute_parallel_gateway() {
     let tasks: Vec<Value> = fetch_res.json().await.unwrap();
     assert_eq!(tasks.len(), 1, "Expected 1 task for worker2");
     let t2_id = tasks[0]["id"].as_str().unwrap();
-    
-    client.post(format!("{}/api/service-task/{}/complete", base, t2_id))
+
+    client
+        .post(format!("{}/api/service-task/{}/complete", base, t2_id))
         .json(&serde_json::json!({ "workerId": "w2" }))
-        .send().await.expect("complete t2 failed");
+        .send()
+        .await
+        .expect("complete t2 failed");
 
     tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
 
     // Check complete
-    let details_res = client.get(format!("{}/api/instances/{}", base, instance_id)).send().await.unwrap();
+    let details_res = client
+        .get(format!("{}/api/instances/{}", base, instance_id))
+        .send()
+        .await
+        .unwrap();
     let details: Value = details_res.json().await.unwrap();
     assert_eq!(details["state"], "Completed");
 }

@@ -12,7 +12,7 @@ use uuid::Uuid;
 
 use crate::error::{EngineError, EngineResult};
 
-use super::{PendingServiceTask, InstanceState, WorkflowEngine};
+use super::{InstanceState, PendingServiceTask, WorkflowEngine};
 
 /// Verifies that the given worker holds the lock on an service task.
 ///
@@ -24,12 +24,10 @@ fn verify_lock_ownership(
     worker_id: &str,
 ) -> EngineResult<()> {
     match locked_worker {
-        Some(locked_by) if locked_by != worker_id => {
-            Err(EngineError::ServiceTaskLocked {
-                task_id,
-                worker_id: locked_by.clone(),
-            })
-        }
+        Some(locked_by) if locked_by != worker_id => Err(EngineError::ServiceTaskLocked {
+            task_id,
+            worker_id: locked_by.clone(),
+        }),
         None => Err(EngineError::ServiceTaskNotLocked(task_id)),
         _ => Ok(()),
     }
@@ -73,12 +71,13 @@ impl WorkflowEngine {
 
             // Lock the task
             task.worker_id = Some(worker_id.to_string());
-            task.lock_expiration =
-                Some(now + TimeDelta::seconds(lock_duration));
+            task.lock_expiration = Some(now + TimeDelta::seconds(lock_duration));
 
             tracing::info!(
                 "Service task {} locked by worker '{}' for {}s",
-                task.id, worker_id, lock_duration
+                task.id,
+                worker_id,
+                lock_duration
             );
 
             result.push(task.clone());
@@ -110,32 +109,53 @@ impl WorkflowEngine {
         verify_lock_ownership(task_id, &task_ref.worker_id, worker_id)?;
         drop(task_ref);
 
-        let task = self.pending_service_tasks.remove(&task_id).map(|(_, v)| v)
+        let task = self
+            .pending_service_tasks
+            .remove(&task_id)
+            .map(|(_, v)| v)
             .ok_or(EngineError::ServiceTaskNotFound(task_id))?;
         let instance_id = task.instance_id;
 
-        let old_state = if let Some(lk) = self.instances.get(&instance_id).await { Some(lk.read().await.clone()) } else { None };
+        let old_state = if let Some(lk) = self.instances.get(&instance_id).await {
+            Some(lk.read().await.clone())
+        } else {
+            None
+        };
 
         // Retrieve token from central store and merge variables
         let mut token = {
-            let inst_arc = self.instances.get(&instance_id).await.ok_or(EngineError::NoSuchInstance(instance_id))?;
+            let inst_arc = self
+                .instances
+                .get(&instance_id)
+                .await
+                .ok_or(EngineError::NoSuchInstance(instance_id))?;
             let mut inst = inst_arc.write().await;
-            inst.tokens.remove(&task.token_id)
-                .ok_or_else(|| EngineError::InvalidDefinition(format!("Token {} not found in instance", task.token_id)))?
+            inst.tokens.remove(&task.token_id).ok_or_else(|| {
+                EngineError::InvalidDefinition(format!(
+                    "Token {} not found in instance",
+                    task.token_id
+                ))
+            })?
         };
         for (k, v) in variables {
             token.variables.insert(k, v);
         }
-        
-        self.cancel_boundary_timers(instance_id, &task.node_id).await;
+
+        self.cancel_boundary_timers(instance_id, &task.node_id)
+            .await;
 
         tracing::info!(
             "Instance {}: completed service task '{}' (task_id: {task_id})",
-            instance_id, task.node_id
+            instance_id,
+            task.node_id
         );
 
         let def_key = {
-            let inst_arc = self.instances.get(&instance_id).await.ok_or(EngineError::NoSuchInstance(instance_id))?;
+            let inst_arc = self
+                .instances
+                .get(&instance_id)
+                .await
+                .ok_or(EngineError::NoSuchInstance(instance_id))?;
             let mut inst = inst_arc.write().await;
             inst.audit_log.push(format!(
                 "✅ Service task '{}' completed by worker '{}'",
@@ -158,9 +178,17 @@ impl WorkflowEngine {
 
         // Run end scripts
         {
-            let inst_arc = self.instances.get(&instance_id).await.ok_or(EngineError::NoSuchInstance(instance_id))?;
+            let inst_arc = self
+                .instances
+                .get(&instance_id)
+                .await
+                .ok_or(EngineError::NoSuchInstance(instance_id))?;
             let mut inst = inst_arc.write().await;
-            let crate::ProcessInstance { audit_log, variables, .. } = &mut *inst;
+            let crate::ProcessInstance {
+                audit_log,
+                variables,
+                ..
+            } = &mut *inst;
             let script_engine = crate::engine::create_script_engine();
             crate::script_runner::run_end_scripts(
                 &script_engine,
@@ -173,16 +201,20 @@ impl WorkflowEngine {
             )?;
         }
 
-        let next = crate::engine::executor::resolve_next_target(&def, &task.node_id, &token.variables)?;
+        let next =
+            crate::engine::executor::resolve_next_target(&def, &task.node_id, &token.variables)?;
 
         token.current_node = next.clone();
         // Update instance current_node so UI highlights correctly
-        let inst_arc = self.instances.get(&instance_id).await.ok_or(EngineError::NoSuchInstance(instance_id))?;
+        let inst_arc = self
+            .instances
+            .get(&instance_id)
+            .await
+            .ok_or(EngineError::NoSuchInstance(instance_id))?;
         {
             let mut inst = inst_arc.write().await;
             inst.current_node = next;
         }
-
 
         self.remove_persisted_service_task(task_id).await;
 
@@ -192,8 +224,9 @@ impl WorkflowEngine {
             &format!("Service task '{}' completed", task.node_id),
             crate::history::ActorType::ServiceWorker,
             Some(worker_id.to_string()),
-            old_state.as_ref()
-        ).await;
+            old_state.as_ref(),
+        )
+        .await;
 
         self.run_instance_batch(instance_id, token).await
     }
@@ -227,23 +260,21 @@ impl WorkflowEngine {
             // Release the lock so it can be retried (or becomes incident)
             task.worker_id = None;
             task.lock_expiration = None;
-            
+
             let instance_id = task.instance_id;
             let node_id = task.node_id.clone();
 
             if new_retries <= 0 {
                 // Incident: log and record on the instance
                 if let Some(inst_arc) = self.instances.get(&instance_id).await {
-            let mut inst = inst_arc.write().await;
+                    let mut inst = inst_arc.write().await;
                     let msg = error_message.unwrap_or_else(|| "Unknown error".into());
                     inst.audit_log.push(format!(
                         "🚨 INCIDENT: Service task '{}' failed with 0 retries — {}",
                         node_id, msg
                     ));
                 }
-                tracing::warn!(
-                    "Service task {task_id}: incident created (retries exhausted)"
-                );
+                tracing::warn!("Service task {task_id}: incident created (retries exhausted)");
             } else {
                 tracing::info!(
                     "Service task {task_id}: failed, {} retries remaining",
@@ -259,8 +290,9 @@ impl WorkflowEngine {
             &format!("Service task '{}' failed", task_id),
             crate::history::ActorType::ServiceWorker,
             Some(worker_id.to_string()),
-            None // State variables didn't fundamentally change, but it's an error record
-        ).await;
+            None, // State variables didn't fundamentally change, but it's an error record
+        )
+        .await;
 
         self.persist_service_task(task_id).await;
         self.persist_instance(instance_id).await;
@@ -283,12 +315,9 @@ impl WorkflowEngine {
 
             verify_lock_ownership(task_id, &task.worker_id, worker_id)?;
 
-            task.lock_expiration =
-                Some(Utc::now() + TimeDelta::seconds(additional_duration));
+            task.lock_expiration = Some(Utc::now() + TimeDelta::seconds(additional_duration));
 
-            tracing::info!(
-                "Service task {task_id}: lock extended by {additional_duration}s"
-            );
+            tracing::info!("Service task {task_id}: lock extended by {additional_duration}s");
         }
 
         self.persist_service_task(task_id).await;
@@ -314,60 +343,95 @@ impl WorkflowEngine {
         verify_lock_ownership(task_id, &task_ref.worker_id, worker_id)?;
         drop(task_ref);
 
-        let task = self.pending_service_tasks.remove(&task_id).map(|(_, v)| v)
+        let task = self
+            .pending_service_tasks
+            .remove(&task_id)
+            .map(|(_, v)| v)
             .ok_or(EngineError::ServiceTaskNotFound(task_id))?;
         let instance_id = task.instance_id;
 
         let def_key = {
-            let inst_arc = self.instances.get(&instance_id).await.ok_or(EngineError::NoSuchInstance(instance_id))?;
-        let inst = inst_arc.read().await;
+            let inst_arc = self
+                .instances
+                .get(&instance_id)
+                .await
+                .ok_or(EngineError::NoSuchInstance(instance_id))?;
+            let inst = inst_arc.read().await;
             inst.definition_key
         };
-        
-        self.cancel_boundary_timers(instance_id, &task.node_id).await;
-        
+
+        self.cancel_boundary_timers(instance_id, &task.node_id)
+            .await;
+
         let target_boundary = if let Some(def) = self.definitions.get(&def_key).await {
             crate::engine::executor::find_boundary_error_event(&def, &task.node_id, error_code)
         } else {
             None
         };
-        
+
         if let Some(boundary_id) = target_boundary {
-            let old_state = if let Some(lk) = self.instances.get(&instance_id).await { Some(lk.read().await.clone()) } else { None };
+            let old_state = if let Some(lk) = self.instances.get(&instance_id).await {
+                Some(lk.read().await.clone())
+            } else {
+                None
+            };
             {
-                let inst_arc = self.instances.get(&instance_id).await.ok_or(EngineError::NoSuchInstance(instance_id))?;
+                let inst_arc = self
+                    .instances
+                    .get(&instance_id)
+                    .await
+                    .ok_or(EngineError::NoSuchInstance(instance_id))?;
                 let mut inst = inst_arc.write().await;
-                inst.audit_log.push(format!("💥 BPMN Error '{error_code}' caught by boundary event '{boundary_id}'"));
+                inst.audit_log.push(format!(
+                    "💥 BPMN Error '{error_code}' caught by boundary event '{boundary_id}'"
+                ));
                 inst.state = InstanceState::Running;
             }
-            
+
             self.record_history_event(
                 instance_id,
                 crate::history::HistoryEventType::TokenAdvanced,
                 &format!("Error '{error_code}' caught"),
                 crate::history::ActorType::Engine,
                 None,
-                old_state.as_ref()
-            ).await;
-            
+                old_state.as_ref(),
+            )
+            .await;
+
             // Retrieve token from central store
             let mut token = {
-                let inst_arc = self.instances.get(&instance_id).await.ok_or(EngineError::NoSuchInstance(instance_id))?;
+                let inst_arc = self
+                    .instances
+                    .get(&instance_id)
+                    .await
+                    .ok_or(EngineError::NoSuchInstance(instance_id))?;
                 let mut inst = inst_arc.write().await;
-                inst.tokens.remove(&task.token_id)
-                    .ok_or_else(|| EngineError::InvalidDefinition(format!("Token {} not found in instance", task.token_id)))?
+                inst.tokens.remove(&task.token_id).ok_or_else(|| {
+                    EngineError::InvalidDefinition(format!(
+                        "Token {} not found in instance",
+                        task.token_id
+                    ))
+                })?
             };
-            let def = self.definitions.get(&def_key).await
+            let def = self
+                .definitions
+                .get(&def_key)
+                .await
                 .ok_or(EngineError::NoSuchDefinition(def_key))?;
-            let next = crate::engine::executor::resolve_next_target(&def, &boundary_id, &token.variables)?;
-            
+            let next =
+                crate::engine::executor::resolve_next_target(&def, &boundary_id, &token.variables)?;
+
             token.current_node = next.clone();
             {
-                let inst_arc = self.instances.get(&instance_id).await.ok_or(EngineError::NoSuchInstance(instance_id))?;
-        let mut inst = inst_arc.write().await;
+                let inst_arc = self
+                    .instances
+                    .get(&instance_id)
+                    .await
+                    .ok_or(EngineError::NoSuchInstance(instance_id))?;
+                let mut inst = inst_arc.write().await;
                 inst.current_node = next;
             }
-            
+
             self.remove_persisted_service_task(task_id).await;
             self.persist_instance(instance_id).await;
             self.run_instance_batch(instance_id, token).await?;
@@ -386,7 +450,7 @@ impl WorkflowEngine {
         tracing::warn!(
             "Service task {task_id}: unhandled BPMN error '{error_code}' from worker '{worker_id}'"
         );
-        
+
         self.remove_persisted_service_task(task_id).await;
         self.persist_instance(instance_id).await;
 

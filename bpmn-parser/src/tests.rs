@@ -23,16 +23,16 @@ fn parse_simple_bpmn() {
     assert!(def.nodes.contains_key("svc1"));
     assert!(def.nodes.contains_key("ut1"));
     assert!(def.nodes.contains_key("end1"));
-    
+
     assert_eq!(def.next_node("start1"), Some("svc1"));
     assert_eq!(def.next_node("svc1"), Some("ut1"));
     assert_eq!(def.next_node("ut1"), Some("end1"));
-    
+
     match def.nodes.get("svc1").unwrap() {
         BpmnElement::ServiceTask { topic } => assert_eq!(topic, "my_handler"),
         _ => panic!("Expected ServiceTask"),
     }
-    
+
     match def.nodes.get("ut1").unwrap() {
         BpmnElement::UserTask(a) => assert_eq!(a, "alice"),
         _ => panic!("Expected UserTask"),
@@ -70,10 +70,10 @@ fn parse_conditional_flows() {
 
     let flows = def.next_nodes("gw1");
     assert_eq!(flows.len(), 2);
-    
+
     let flow1 = flows.iter().find(|f| f.target == "end1").unwrap();
     assert_eq!(flow1.condition, Some("amount > 100".to_string()));
-    
+
     let flow2 = flows.iter().find(|f| f.target == "end2").unwrap();
     assert_eq!(flow2.condition, None);
 }
@@ -206,13 +206,13 @@ fn test_parse_execution_listeners_and_scripts() {
 </bpmn:definitions>
 "#;
     let p = parse_bpmn_xml(xml).expect("Should parse");
-    
+
     let mut process_listeners = p.listeners.get("Process_1").cloned().unwrap_or_default();
     process_listeners.sort_by_key(|l| match l.event {
         ListenerEvent::Start => 1,
         ListenerEvent::End => 2,
     });
-    
+
     assert_eq!(process_listeners.len(), 1);
     assert!(matches!(process_listeners[0].event, ListenerEvent::Start));
     assert_eq!(process_listeners[0].script, "print(\"Process Started\");");
@@ -247,8 +247,14 @@ fn parse_parallel_gateway() {
     "#;
 
     let def = parse_bpmn_xml(xml).unwrap();
-    assert!(matches!(def.nodes.get("fork").unwrap(), BpmnElement::ParallelGateway));
-    assert!(matches!(def.nodes.get("join").unwrap(), BpmnElement::ParallelGateway));
+    assert!(matches!(
+        def.nodes.get("fork").unwrap(),
+        BpmnElement::ParallelGateway
+    ));
+    assert!(matches!(
+        def.nodes.get("join").unwrap(),
+        BpmnElement::ParallelGateway
+    ));
     assert_eq!(def.next_nodes("fork").len(), 2);
 }
 
@@ -273,7 +279,10 @@ fn parse_inclusive_gateway() {
     "#;
 
     let def = parse_bpmn_xml(xml).unwrap();
-    assert!(matches!(def.nodes.get("gw1").unwrap(), BpmnElement::InclusiveGateway));
+    assert!(matches!(
+        def.nodes.get("gw1").unwrap(),
+        BpmnElement::InclusiveGateway
+    ));
     assert_eq!(def.next_nodes("gw1").len(), 2);
 }
 
@@ -399,7 +408,11 @@ fn parse_boundary_timer_event() {
 
     let def = parse_bpmn_xml(xml).unwrap();
     match def.nodes.get("timeout").unwrap() {
-        BpmnElement::BoundaryTimerEvent { attached_to, duration, cancel_activity } => {
+        BpmnElement::BoundaryTimerEvent {
+            attached_to,
+            duration,
+            cancel_activity,
+        } => {
             assert_eq!(attached_to, "task1");
             assert_eq!(duration.as_secs(), 300);
             assert!(*cancel_activity);
@@ -430,7 +443,10 @@ fn parse_boundary_error_event() {
 
     let def = parse_bpmn_xml(xml).unwrap();
     match def.nodes.get("on_error").unwrap() {
-        BpmnElement::BoundaryErrorEvent { attached_to, error_code } => {
+        BpmnElement::BoundaryErrorEvent {
+            attached_to,
+            error_code,
+        } => {
             assert_eq!(attached_to, "task1");
             assert_eq!(error_code.as_deref(), Some("PAYMENT_FAILED"));
         }
@@ -462,7 +478,9 @@ fn parse_picks_executable_process() {
 #[test]
 fn parse_duration_rejects_invalid_input() {
     // P1D (days not supported), empty, garbage — all must fail
-    let template = |dur: &str| format!(r#"
+    let template = |dur: &str| {
+        format!(
+            r#"
         <definitions id="def1" xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL">
             <process id="proc1">
                 <startEvent id="s1">
@@ -473,7 +491,10 @@ fn parse_duration_rejects_invalid_input() {
                 <endEvent id="e1" />
                 <sequenceFlow id="f1" sourceRef="s1" targetRef="e1" />
             </process>
-        </definitions>"#, dur);
+        </definitions>"#,
+            dur
+        )
+    };
 
     // Valid inputs must still work
     assert!(parse_bpmn_xml(&template("PT5S")).is_ok());
@@ -481,10 +502,22 @@ fn parse_duration_rejects_invalid_input() {
     assert!(parse_bpmn_xml(&template("PT0S")).is_ok());
 
     // Invalid inputs must now fail
-    assert!(parse_bpmn_xml(&template("P1D")).is_err(), "P1D should be rejected");
-    assert!(parse_bpmn_xml(&template("")).is_err(), "Empty duration should be rejected");
-    assert!(parse_bpmn_xml(&template("HELLO")).is_err(), "Garbage should be rejected");
-    assert!(parse_bpmn_xml(&template("PT")).is_err(), "PT without value should be rejected");
+    assert!(
+        parse_bpmn_xml(&template("P1D")).is_err(),
+        "P1D should be rejected"
+    );
+    assert!(
+        parse_bpmn_xml(&template("")).is_err(),
+        "Empty duration should be rejected"
+    );
+    assert!(
+        parse_bpmn_xml(&template("HELLO")).is_err(),
+        "Garbage should be rejected"
+    );
+    assert!(
+        parse_bpmn_xml(&template("PT")).is_err(),
+        "PT without value should be rejected"
+    );
 }
 
 #[test]
@@ -516,7 +549,10 @@ fn parse_event_based_gateway() {
 
     let def = parse_bpmn_xml(xml).unwrap();
     assert!(
-        matches!(def.nodes.get("ebgw").unwrap(), BpmnElement::EventBasedGateway),
+        matches!(
+            def.nodes.get("ebgw").unwrap(),
+            BpmnElement::EventBasedGateway
+        ),
         "Expected EventBasedGateway"
     );
     assert_eq!(def.next_nodes("ebgw").len(), 2);
@@ -553,7 +589,11 @@ fn parse_event_subprocess_accepted() {
 
     // Event sub-processes (triggeredByEvent="true") must NOT cause a parse error
     let result = parse_bpmn_xml(xml);
-    assert!(result.is_ok(), "Event sub-process should be accepted: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "Event sub-process should be accepted: {:?}",
+        result.err()
+    );
 }
 
 #[test]

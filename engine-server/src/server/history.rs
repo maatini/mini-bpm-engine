@@ -1,7 +1,10 @@
-use axum::{extract::{Path, State}, Json};
+use crate::server::state::{AppError, AppState, parse_uuid};
+use axum::{
+    Json,
+    extract::{Path, State},
+};
 use serde::Deserialize;
 use std::sync::Arc;
-use crate::server::state::{AppError, AppState, parse_uuid};
 
 #[derive(Deserialize, Default)]
 pub(crate) struct ServerHistoryQuery {
@@ -23,13 +26,13 @@ pub(crate) async fn get_instance_history(
     if let Some(p) = &state.persistence {
         let parsed_event_types = query.event_types.map(|s| {
             s.split(',')
-             .filter_map(|part| serde_json::from_value(serde_json::json!(part.trim())).ok())
-             .collect::<Vec<_>>()
+                .filter_map(|part| serde_json::from_value(serde_json::json!(part.trim())).ok())
+                .collect::<Vec<_>>()
         });
-        
-        let parsed_actor_type = query.actor_type.and_then(|s| {
-             serde_json::from_value(serde_json::json!(s.trim())).ok()
-        });
+
+        let parsed_actor_type = query
+            .actor_type
+            .and_then(|s| serde_json::from_value(serde_json::json!(s.trim())).ok());
 
         let history_query = engine_core::persistence::HistoryQuery {
             instance_id,
@@ -41,10 +44,12 @@ pub(crate) async fn get_instance_history(
             limit: query.limit,
             offset: query.offset,
         };
-        
-        let history = p.query_history(history_query).await
+
+        let history = p
+            .query_history(history_query)
+            .await
             .map_err(|e| AppError::BadRequest(format!("Failed to query history: {:?}", e)))?;
-            
+
         Ok(Json(history))
     } else {
         Ok(Json(vec![]))
@@ -57,18 +62,25 @@ pub(crate) async fn get_instance_history_entry(
 ) -> Result<Json<engine_core::history::HistoryEntry>, AppError> {
     let instance_id = parse_uuid(&id)?;
     let event_uuid = parse_uuid(&event_id)?;
-    
+
     if let Some(p) = &state.persistence {
-        let history = p.query_history(engine_core::persistence::HistoryQuery {
-            instance_id,
-            ..Default::default()
-        }).await.map_err(|e| AppError::BadRequest(format!("Failed to query history: {:?}", e)))?;
+        let history = p
+            .query_history(engine_core::persistence::HistoryQuery {
+                instance_id,
+                ..Default::default()
+            })
+            .await
+            .map_err(|e| AppError::BadRequest(format!("Failed to query history: {:?}", e)))?;
         if let Some(entry) = history.into_iter().find(|e| e.id == event_uuid) {
             Ok(Json(entry))
         } else {
-            Err(AppError::BadRequest(format!("History entry {event_uuid} not found")))
+            Err(AppError::BadRequest(format!(
+                "History entry {event_uuid} not found"
+            )))
         }
     } else {
-        Err(AppError::BadRequest("No persistence configured".to_string()))
+        Err(AppError::BadRequest(
+            "No persistence configured".to_string(),
+        ))
     }
 }

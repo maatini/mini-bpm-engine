@@ -3,11 +3,15 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-use crate::engine::{ProcessInstance, PendingUserTask, PendingServiceTask, PendingTimer, PendingMessageCatch};
+use crate::engine::{
+    PendingMessageCatch, PendingServiceTask, PendingTimer, PendingUserTask, ProcessInstance,
+};
 use crate::error::EngineResult;
-use crate::model::{Token, ProcessDefinition};
-use crate::history::{HistoryEntry};
-use crate::persistence::{WorkflowPersistence, StorageInfo, HistoryQuery, BucketEntry, BucketEntryDetail};
+use crate::history::HistoryEntry;
+use crate::model::{ProcessDefinition, Token};
+use crate::persistence::{
+    BucketEntry, BucketEntryDetail, HistoryQuery, StorageInfo, WorkflowPersistence,
+};
 
 #[derive(Default, Clone)]
 pub struct InMemoryPersistence {
@@ -41,7 +45,7 @@ impl WorkflowPersistence for InMemoryPersistence {
         // Actually, load_tokens is by process_id! Which means save_token should store them under process_id!
         // But save_token only has the single Token. How does it know the process_id?
         // Wait, the real `persistence-nats` save_token currently ignores tokens completely because tokens are embedded in `ProcessInstance` via `active_tokens`.
-        
+
         // Let's implement it generic:
         t.insert(token.id.to_string(), vec![token.clone()]);
         Ok(())
@@ -167,7 +171,9 @@ impl WorkflowPersistence for InMemoryPersistence {
 
     async fn load_file(&self, object_key: &str) -> EngineResult<Vec<u8>> {
         let f = self.files.read().await;
-        f.get(object_key).cloned().ok_or_else(|| crate::error::EngineError::PersistenceError("File not found".into()))
+        f.get(object_key)
+            .cloned()
+            .ok_or_else(|| crate::error::EngineError::PersistenceError("File not found".into()))
     }
 
     async fn delete_file(&self, object_key: &str) -> EngineResult<()> {
@@ -184,9 +190,11 @@ impl WorkflowPersistence for InMemoryPersistence {
 
     async fn load_bpmn_xml(&self, definition_key: &str) -> EngineResult<String> {
         let b = self.bpmn_xmls.read().await;
-        b.get(definition_key).cloned().ok_or_else(|| crate::error::EngineError::NoSuchDefinition(
-            uuid::Uuid::parse_str(definition_key).unwrap_or_default()
-        ))
+        b.get(definition_key).cloned().ok_or_else(|| {
+            crate::error::EngineError::NoSuchDefinition(
+                uuid::Uuid::parse_str(definition_key).unwrap_or_default(),
+            )
+        })
     }
 
     async fn list_bpmn_xml_ids(&self) -> EngineResult<Vec<String>> {
@@ -206,15 +214,60 @@ impl WorkflowPersistence for InMemoryPersistence {
         let bpmn_len = self.bpmn_xmls.read().await.len();
 
         let buckets = vec![
-            crate::persistence::BucketInfo { name: "instances".into(), bucket_type: "kv".into(), entries: i_len as u64, size_bytes: (i_len * 512) as u64 },
-            crate::persistence::BucketInfo { name: "definitions".into(), bucket_type: "kv".into(), entries: d_len as u64, size_bytes: (d_len * 256) as u64 },
-            crate::persistence::BucketInfo { name: "user_tasks".into(), bucket_type: "kv".into(), entries: ut_len as u64, size_bytes: (ut_len * 128) as u64 },
-            crate::persistence::BucketInfo { name: "service_tasks".into(), bucket_type: "kv".into(), entries: st_len as u64, size_bytes: (st_len * 128) as u64 },
-            crate::persistence::BucketInfo { name: "timers".into(), bucket_type: "kv".into(), entries: t_len as u64, size_bytes: (t_len * 128) as u64 },
-            crate::persistence::BucketInfo { name: "messages".into(), bucket_type: "kv".into(), entries: m_len as u64, size_bytes: (m_len * 128) as u64 },
-            crate::persistence::BucketInfo { name: "bpmn_xml".into(), bucket_type: "object_store".into(), entries: bpmn_len as u64, size_bytes: 0 },
-            crate::persistence::BucketInfo { name: "instance_files".into(), bucket_type: "object_store".into(), entries: f_len as u64, size_bytes: 0 },
-            crate::persistence::BucketInfo { name: "history".into(), bucket_type: "stream".into(), entries: h_len as u64, size_bytes: 0 },
+            crate::persistence::BucketInfo {
+                name: "instances".into(),
+                bucket_type: "kv".into(),
+                entries: i_len as u64,
+                size_bytes: (i_len * 512) as u64,
+            },
+            crate::persistence::BucketInfo {
+                name: "definitions".into(),
+                bucket_type: "kv".into(),
+                entries: d_len as u64,
+                size_bytes: (d_len * 256) as u64,
+            },
+            crate::persistence::BucketInfo {
+                name: "user_tasks".into(),
+                bucket_type: "kv".into(),
+                entries: ut_len as u64,
+                size_bytes: (ut_len * 128) as u64,
+            },
+            crate::persistence::BucketInfo {
+                name: "service_tasks".into(),
+                bucket_type: "kv".into(),
+                entries: st_len as u64,
+                size_bytes: (st_len * 128) as u64,
+            },
+            crate::persistence::BucketInfo {
+                name: "timers".into(),
+                bucket_type: "kv".into(),
+                entries: t_len as u64,
+                size_bytes: (t_len * 128) as u64,
+            },
+            crate::persistence::BucketInfo {
+                name: "messages".into(),
+                bucket_type: "kv".into(),
+                entries: m_len as u64,
+                size_bytes: (m_len * 128) as u64,
+            },
+            crate::persistence::BucketInfo {
+                name: "bpmn_xml".into(),
+                bucket_type: "object_store".into(),
+                entries: bpmn_len as u64,
+                size_bytes: 0,
+            },
+            crate::persistence::BucketInfo {
+                name: "instance_files".into(),
+                bucket_type: "object_store".into(),
+                entries: f_len as u64,
+                size_bytes: 0,
+            },
+            crate::persistence::BucketInfo {
+                name: "history".into(),
+                bucket_type: "stream".into(),
+                entries: h_len as u64,
+                size_bytes: 0,
+            },
         ];
 
         Ok(Some(StorageInfo {
@@ -232,14 +285,16 @@ impl WorkflowPersistence for InMemoryPersistence {
 
     async fn append_history_entry(&self, entry: &HistoryEntry) -> EngineResult<()> {
         let mut h = self.history.write().await;
-        h.entry(entry.instance_id).or_insert_with(Vec::new).push(entry.clone());
+        h.entry(entry.instance_id)
+            .or_insert_with(Vec::new)
+            .push(entry.clone());
         Ok(())
     }
 
     async fn query_history(&self, query: HistoryQuery) -> EngineResult<Vec<HistoryEntry>> {
         let h = self.history.read().await;
         let mut events = h.get(&query.instance_id).cloned().unwrap_or_default();
-        
+
         // Filter support
         if let Some(types) = &query.event_types {
             events.retain(|e| types.contains(&e.event_type));
@@ -250,17 +305,17 @@ impl WorkflowPersistence for InMemoryPersistence {
         if let Some(actor) = &query.actor_type {
             events.retain(|e| e.actor_type == *actor);
         }
-        
+
         if let Some(from) = query.from {
             events.retain(|e| e.timestamp >= from);
         }
         if let Some(to) = query.to {
             events.retain(|e| e.timestamp <= to);
         }
-        
+
         // Sorting matches query logic (usually ascending by timestamp)
         events.sort_by_key(|e| e.timestamp);
-        
+
         // Pagination
         if let Some(offset) = query.offset {
             events = events.into_iter().skip(offset).collect();
@@ -268,17 +323,30 @@ impl WorkflowPersistence for InMemoryPersistence {
         if let Some(limit) = query.limit {
             events.truncate(limit);
         }
-        
+
         Ok(events)
     }
 
-    async fn get_bucket_entries(&self, bucket_name: &str, offset: usize, limit: usize) -> EngineResult<Vec<BucketEntry>> {
+    async fn get_bucket_entries(
+        &self,
+        bucket_name: &str,
+        offset: usize,
+        limit: usize,
+    ) -> EngineResult<Vec<BucketEntry>> {
         let _ = (bucket_name, offset, limit);
-        Err(crate::error::EngineError::PersistenceError("Bucket browsing not implemented for in-memory persistence".into()))
+        Err(crate::error::EngineError::PersistenceError(
+            "Bucket browsing not implemented for in-memory persistence".into(),
+        ))
     }
 
-    async fn get_bucket_entry_detail(&self, bucket_name: &str, key: &str) -> EngineResult<BucketEntryDetail> {
+    async fn get_bucket_entry_detail(
+        &self,
+        bucket_name: &str,
+        key: &str,
+    ) -> EngineResult<BucketEntryDetail> {
         let _ = (bucket_name, key);
-        Err(crate::error::EngineError::PersistenceError("Bucket detail browsing not implemented for in-memory persistence".into()))
+        Err(crate::error::EngineError::PersistenceError(
+            "Bucket detail browsing not implemented for in-memory persistence".into(),
+        ))
     }
 }

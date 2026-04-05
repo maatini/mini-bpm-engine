@@ -1,19 +1,22 @@
-use axum::{extract::{Path, State}, Json, http::StatusCode, response::IntoResponse};
+use crate::server::state::{AppError, AppState, parse_uuid};
+use axum::{
+    Json,
+    extract::{Path, State},
+    http::StatusCode,
+    response::IntoResponse,
+};
+use engine_core::engine::{PendingServiceTask, PendingUserTask};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
-use engine_core::engine::{PendingServiceTask, PendingUserTask};
-use crate::server::state::{AppError, AppState, parse_uuid};
 
 #[derive(Serialize, Deserialize)]
 pub(crate) struct CompleteRequest {
     pub variables: Option<HashMap<String, Value>>,
 }
 
-pub(crate) async fn get_tasks(
-    State(state): State<Arc<AppState>>,
-) -> Json<Vec<PendingUserTask>> {
+pub(crate) async fn get_tasks(State(state): State<Arc<AppState>>) -> Json<Vec<PendingUserTask>> {
     let engine = &state.engine;
     let tasks = engine.get_pending_user_tasks().to_vec();
     Json(tasks)
@@ -61,8 +64,16 @@ pub(crate) async fn fetch_and_lock_service_tasks(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<FetchAndLockRequest>,
 ) -> Json<Vec<PendingServiceTask>> {
-    let topics: Vec<String> = payload.topics.iter().map(|t| t.topic_name.clone()).collect();
-    let lock_duration = payload.topics.first().map(|t| t.lock_duration).unwrap_or(30);
+    let topics: Vec<String> = payload
+        .topics
+        .iter()
+        .map(|t| t.topic_name.clone())
+        .collect();
+    let lock_duration = payload
+        .topics
+        .first()
+        .map(|t| t.lock_duration)
+        .unwrap_or(30);
     let timeout_ms = payload.async_response_timeout.unwrap_or(0);
 
     let poll_interval = tokio::time::Duration::from_millis(500);
@@ -72,12 +83,14 @@ pub(crate) async fn fetch_and_lock_service_tasks(
     loop {
         let tasks = {
             let engine = &state.engine;
-            engine.fetch_and_lock_service_tasks(
-                &payload.worker_id,
-                payload.max_tasks,
-                &topics,
-                lock_duration,
-            ).await
+            engine
+                .fetch_and_lock_service_tasks(
+                    &payload.worker_id,
+                    payload.max_tasks,
+                    &topics,
+                    lock_duration,
+                )
+                .await
         };
 
         if !tasks.is_empty() || timeout_ms == 0 {
@@ -132,13 +145,15 @@ pub(crate) async fn fail_service_task(
     let engine = &state.engine;
     let task_id = parse_uuid(&id)?;
 
-    engine.fail_service_task(
-        task_id,
-        &payload.worker_id,
-        payload.retries,
-        payload.error_message,
-        payload.error_details,
-    ).await?;
+    engine
+        .fail_service_task(
+            task_id,
+            &payload.worker_id,
+            payload.retries,
+            payload.error_message,
+            payload.error_details,
+        )
+        .await?;
 
     Ok(StatusCode::NO_CONTENT)
 }
@@ -158,7 +173,9 @@ pub(crate) async fn extend_lock(
     let engine = &state.engine;
     let task_id = parse_uuid(&id)?;
 
-    engine.extend_lock(task_id, &payload.worker_id, payload.new_duration).await?;
+    engine
+        .extend_lock(task_id, &payload.worker_id, payload.new_duration)
+        .await?;
 
     Ok(StatusCode::NO_CONTENT)
 }
@@ -178,7 +195,9 @@ pub(crate) async fn bpmn_error(
     let engine = &state.engine;
     let task_id = parse_uuid(&id)?;
 
-    engine.handle_bpmn_error(task_id, &payload.worker_id, &payload.error_code).await?;
+    engine
+        .handle_bpmn_error(task_id, &payload.worker_id, &payload.error_code)
+        .await?;
 
     Ok(StatusCode::NO_CONTENT)
 }

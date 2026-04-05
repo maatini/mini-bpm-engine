@@ -1,8 +1,8 @@
-use async_nats::jetstream::{self, context::Context, stream::Config as StreamConfig};
-use async_nats::jetstream::object_store::Config as ObjectStoreConfig;
 use async_nats::Client;
-use futures::StreamExt;
+use async_nats::jetstream::object_store::Config as ObjectStoreConfig;
+use async_nats::jetstream::{self, context::Context, stream::Config as StreamConfig};
 use engine_core::error::{EngineError, EngineResult};
+use futures::StreamExt;
 
 #[derive(Clone)]
 pub struct NatsPersistence {
@@ -16,9 +16,9 @@ impl NatsPersistence {
         let client = async_nats::connect(url).await.map_err(|e| {
             EngineError::PersistenceError(format!("Failed to connect to NATS: {}", e))
         })?;
-        
+
         let js = jetstream::new(client.clone());
-        
+
         // Optional: Ensure the stream exists.
         // We ignore the error if it already exists.
         let _ = js
@@ -42,7 +42,9 @@ impl NatsPersistence {
         let _ = js
             .create_object_store(ObjectStoreConfig {
                 bucket: "instance_files".to_string(),
-                description: Some("Binary file attachments for process instance variables".to_string()),
+                description: Some(
+                    "Binary file attachments for process instance variables".to_string(),
+                ),
                 ..Default::default()
             })
             .await;
@@ -107,7 +109,7 @@ impl NatsPersistence {
                 ..Default::default()
             })
             .await;
-            
+
         Ok(Self {
             client,
             js,
@@ -115,7 +117,11 @@ impl NatsPersistence {
         })
     }
 
-    pub(crate) async fn list_kv_entries<T: serde::de::DeserializeOwned>(&self, bucket: &str, entity_name: &str) -> EngineResult<Vec<T>> {
+    pub(crate) async fn list_kv_entries<T: serde::de::DeserializeOwned>(
+        &self,
+        bucket: &str,
+        entity_name: &str,
+    ) -> EngineResult<Vec<T>> {
         let store = self.js.get_key_value(bucket).await.map_err(|e| {
             EngineError::PersistenceError(format!("Failed to get {bucket} KV: {}", e))
         })?;
@@ -127,18 +133,16 @@ impl NatsPersistence {
         let mut entries = Vec::new();
         while let Ok(ref mut stream) = keys {
             match stream.next().await {
-                Some(Ok(key)) => {
-                    match store.get(&key).await {
-                        Ok(Some(entry)) => {
-                            match serde_json::from_slice::<T>(&entry) {
-                                Ok(item) => entries.push(item),
-                                Err(e) => tracing::warn!("Failed to deserialize {entity_name} '{}': {}", key, e),
-                            }
+                Some(Ok(key)) => match store.get(&key).await {
+                    Ok(Some(entry)) => match serde_json::from_slice::<T>(&entry) {
+                        Ok(item) => entries.push(item),
+                        Err(e) => {
+                            tracing::warn!("Failed to deserialize {entity_name} '{}': {}", key, e)
                         }
-                        Ok(None) => {}
-                        Err(e) => tracing::warn!("Failed to get {entity_name} '{key}': {}", e),
-                    }
-                }
+                    },
+                    Ok(None) => {}
+                    Err(e) => tracing::warn!("Failed to get {entity_name} '{key}': {}", e),
+                },
                 Some(Err(e)) => tracing::warn!("Failed to stream {entity_name} key: {}", e),
                 None => break,
             }

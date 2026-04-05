@@ -184,16 +184,22 @@ impl Token {
 /// The JSON stored in variables has `"type": "file"` as discriminator.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct FileReference {
-    pub object_key: String,    // "file:instance-{uuid}-{varname}-{filename}"
-    pub filename: String,      // "report.pdf"
-    pub mime_type: String,     // "application/pdf"
-    pub size_bytes: u64,       // 1245678
-    pub uploaded_at: String,   // ISO 8601 timestamp
+    pub object_key: String,  // "file:instance-{uuid}-{varname}-{filename}"
+    pub filename: String,    // "report.pdf"
+    pub mime_type: String,   // "application/pdf"
+    pub size_bytes: u64,     // 1245678
+    pub uploaded_at: String, // ISO 8601 timestamp
 }
 
 impl FileReference {
     /// Creates a new FileReference and generates the object_key.
-    pub fn new(instance_id: Uuid, var_name: &str, filename: &str, mime_type: &str, size_bytes: u64) -> Self {
+    pub fn new(
+        instance_id: Uuid,
+        var_name: &str,
+        filename: &str,
+        mime_type: &str,
+        size_bytes: u64,
+    ) -> Self {
         let object_key = format!("file:{instance_id}-{var_name}-{filename}");
         Self {
             object_key,
@@ -277,7 +283,14 @@ impl ProcessDefinition {
         // --- exactly one start event ---
         let start_count = nodes
             .values()
-            .filter(|e| matches!(e, BpmnElement::StartEvent | BpmnElement::TimerStartEvent(_) | BpmnElement::MessageStartEvent { .. }))
+            .filter(|e| {
+                matches!(
+                    e,
+                    BpmnElement::StartEvent
+                        | BpmnElement::TimerStartEvent(_)
+                        | BpmnElement::MessageStartEvent { .. }
+                )
+            })
             .count();
 
         if start_count == 0 {
@@ -329,7 +342,10 @@ impl ProcessDefinition {
 
         // --- every non-end node must have an outgoing flow ---
         for (node_id, element) in &nodes {
-            if matches!(element, BpmnElement::EndEvent | BpmnElement::ErrorEndEvent { .. }) {
+            if matches!(
+                element,
+                BpmnElement::EndEvent | BpmnElement::ErrorEndEvent { .. }
+            ) {
                 continue;
             }
             let outgoing = flows.get(node_id).map_or(0, |v| v.len());
@@ -344,23 +360,34 @@ impl ProcessDefinition {
         for (node_id, element) in &nodes {
             if matches!(
                 element,
-                BpmnElement::ExclusiveGateway { .. } | BpmnElement::InclusiveGateway | BpmnElement::ParallelGateway | BpmnElement::EventBasedGateway
+                BpmnElement::ExclusiveGateway { .. }
+                    | BpmnElement::InclusiveGateway
+                    | BpmnElement::ParallelGateway
+                    | BpmnElement::EventBasedGateway
             ) {
                 let outgoing = flows.get(node_id).map_or(0, |v| v.len());
-                let incoming = flows.values().flat_map(|f| f.iter()).filter(|sf| &sf.target == node_id).count();
+                let incoming = flows
+                    .values()
+                    .flat_map(|f| f.iter())
+                    .filter(|sf| &sf.target == node_id)
+                    .count();
                 if outgoing < 2 && incoming < 2 {
                     return Err(EngineError::InvalidDefinition(format!(
                         "Gateway '{node_id}' must have at least 2 incoming or 2 outgoing flows"
                     )));
                 }
             }
-            
+
             // --- EventBasedGateway constraints ---
             if matches!(element, BpmnElement::EventBasedGateway) {
                 if let Some(outgoing_flows) = flows.get(node_id) {
                     for sf in outgoing_flows {
                         if let Some(target_element) = nodes.get(&sf.target) {
-                            if !matches!(target_element, BpmnElement::MessageCatchEvent { .. } | BpmnElement::TimerCatchEvent(_)) {
+                            if !matches!(
+                                target_element,
+                                BpmnElement::MessageCatchEvent { .. }
+                                    | BpmnElement::TimerCatchEvent(_)
+                            ) {
                                 return Err(EngineError::InvalidDefinition(format!(
                                     "EventBasedGateway '{node_id}' can only connect to MessageCatchEvent or TimerCatchEvent targets. Node '{}' is invalid.",
                                     sf.target
@@ -387,7 +414,12 @@ impl ProcessDefinition {
     /// Returns the (id, element) of the start event.
     pub fn start_event(&self) -> Option<(&str, &BpmnElement)> {
         self.nodes.iter().find_map(|(id, e)| {
-            if matches!(e, BpmnElement::StartEvent | BpmnElement::TimerStartEvent(_) | BpmnElement::MessageStartEvent { .. }) {
+            if matches!(
+                e,
+                BpmnElement::StartEvent
+                    | BpmnElement::TimerStartEvent(_)
+                    | BpmnElement::MessageStartEvent { .. }
+            ) {
                 Some((id.as_str(), e))
             } else {
                 None
@@ -521,7 +553,12 @@ impl ProcessDefinitionBuilder {
     }
 
     /// Adds an execution listener to a specific node.
-    pub fn listener(mut self, node_id: impl Into<String>, event: ListenerEvent, script: impl Into<String>) -> Self {
+    pub fn listener(
+        mut self,
+        node_id: impl Into<String>,
+        event: ListenerEvent,
+        script: impl Into<String>,
+    ) -> Self {
         self.listeners
             .entry(node_id.into())
             .or_default()
@@ -574,7 +611,12 @@ mod tests {
     fn valid_definition_with_builder() {
         let def = ProcessDefinitionBuilder::new("p1")
             .node("start", BpmnElement::StartEvent)
-            .node("svc", BpmnElement::ServiceTask { topic: "do_it".into() })
+            .node(
+                "svc",
+                BpmnElement::ServiceTask {
+                    topic: "do_it".into(),
+                },
+            )
             .node("end", BpmnElement::EndEvent)
             .flow("start", "svc")
             .flow("svc", "end")
@@ -617,7 +659,12 @@ mod tests {
     fn rejects_node_without_outgoing_flow() {
         let def = ProcessDefinitionBuilder::new("p1")
             .node("start", BpmnElement::StartEvent)
-            .node("orphan", BpmnElement::ServiceTask { topic: "noop".into() })
+            .node(
+                "orphan",
+                BpmnElement::ServiceTask {
+                    topic: "noop".into(),
+                },
+            )
             .node("end", BpmnElement::EndEvent)
             .flow("start", "end")
             .build();
@@ -631,14 +678,24 @@ mod tests {
     fn find_node_and_next_work() {
         let def = ProcessDefinitionBuilder::new("p1")
             .node("start", BpmnElement::StartEvent)
-            .node("svc", BpmnElement::ServiceTask { topic: "action".into() })
+            .node(
+                "svc",
+                BpmnElement::ServiceTask {
+                    topic: "action".into(),
+                },
+            )
             .node("end", BpmnElement::EndEvent)
             .flow("start", "svc")
             .flow("svc", "end")
             .build()
             .unwrap();
 
-        assert_eq!(def.get_node("svc"), Some(&BpmnElement::ServiceTask { topic: "action".into() }));
+        assert_eq!(
+            def.get_node("svc"),
+            Some(&BpmnElement::ServiceTask {
+                topic: "action".into()
+            })
+        );
         assert_eq!(def.next_node("start"), Some("svc"));
         assert_eq!(def.next_node("end"), None);
     }
@@ -675,7 +732,12 @@ mod tests {
     fn exclusive_gateway_definition() {
         let def = ProcessDefinitionBuilder::new("xor")
             .node("start", BpmnElement::StartEvent)
-            .node("gw", BpmnElement::ExclusiveGateway { default: Some("end2".into()) })
+            .node(
+                "gw",
+                BpmnElement::ExclusiveGateway {
+                    default: Some("end2".into()),
+                },
+            )
             .node("end1", BpmnElement::EndEvent)
             .node("end2", BpmnElement::EndEvent)
             .flow("start", "gw")
@@ -713,14 +775,22 @@ mod tests {
             Err(EngineError::InvalidDefinition(msg)) if msg.contains("at least 2")
         ));
     }
-    
+
     #[test]
     fn event_based_gateway_rejects_non_catch_targets() {
         let def = ProcessDefinitionBuilder::new("bad_gw")
             .node("start", BpmnElement::StartEvent)
             .node("gw", BpmnElement::EventBasedGateway)
-            .node("task", BpmnElement::ServiceTask { topic: "noop".into() })
-            .node("catch", BpmnElement::TimerCatchEvent(Duration::from_secs(5)))
+            .node(
+                "task",
+                BpmnElement::ServiceTask {
+                    topic: "noop".into(),
+                },
+            )
+            .node(
+                "catch",
+                BpmnElement::TimerCatchEvent(Duration::from_secs(5)),
+            )
             .node("end", BpmnElement::EndEvent)
             .flow("start", "gw")
             .flow("gw", "task")
@@ -728,7 +798,7 @@ mod tests {
             .flow("task", "end")
             .flow("catch", "end")
             .build();
-            
+
         assert!(matches!(
             def,
             Err(EngineError::InvalidDefinition(msg)) if msg.contains("EventBasedGateway") && msg.contains("can only connect to MessageCatchEvent or TimerCatchEvent")
@@ -777,13 +847,22 @@ mod tests {
     #[test]
     fn test_file_reference_roundtrip() {
         let instance_id = Uuid::new_v4();
-        let file_ref = FileReference::new(instance_id, "contract", "contract.pdf", "application/pdf", 1024 * 500);
-        
+        let file_ref = FileReference::new(
+            instance_id,
+            "contract",
+            "contract.pdf",
+            "application/pdf",
+            1024 * 500,
+        );
+
         let value = file_ref.to_variable_value();
-        
+
         assert_eq!(value.get("type").unwrap().as_str().unwrap(), "file");
-        assert_eq!(value.get("filename").unwrap().as_str().unwrap(), "contract.pdf");
-        
+        assert_eq!(
+            value.get("filename").unwrap().as_str().unwrap(),
+            "contract.pdf"
+        );
+
         let restored = FileReference::from_variable_value(&value).unwrap();
         assert_eq!(file_ref, restored);
     }
@@ -794,10 +873,10 @@ mod tests {
             "type": "string",
             "value": "hello"
         });
-        
+
         let result = FileReference::from_variable_value(&not_a_file);
         assert!(result.is_none());
-        
+
         // Also just a string
         let just_a_str = serde_json::json!("file");
         assert!(FileReference::from_variable_value(&just_a_str).is_none());

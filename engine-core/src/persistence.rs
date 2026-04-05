@@ -3,9 +3,9 @@ use serde::{Deserialize, Serialize};
 
 use chrono::{DateTime, Utc};
 
-use crate::engine::{ProcessInstance, PendingUserTask, PendingServiceTask};
+use crate::engine::{PendingServiceTask, PendingUserTask, ProcessInstance};
 use crate::error::EngineResult;
-use crate::model::{Token, ProcessDefinition};
+use crate::model::{ProcessDefinition, Token};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct HistoryQuery {
@@ -109,7 +109,10 @@ pub trait WorkflowPersistence: Send + Sync {
     async fn list_timers(&self) -> EngineResult<Vec<crate::engine::PendingTimer>>;
 
     /// Persist a pending message catch.
-    async fn save_message_catch(&self, catch: &crate::engine::PendingMessageCatch) -> EngineResult<()>;
+    async fn save_message_catch(
+        &self,
+        catch: &crate::engine::PendingMessageCatch,
+    ) -> EngineResult<()>;
     /// Delete a pending message catch.
     async fn delete_message_catch(&self, catch_id: uuid::Uuid) -> EngineResult<()>;
     /// Load all persisted pending message catches.
@@ -136,11 +139,23 @@ pub trait WorkflowPersistence: Send + Sync {
     /// Append a new history entry to the instance history log.
     async fn append_history_entry(&self, entry: &crate::history::HistoryEntry) -> EngineResult<()>;
     /// Retrieve all history entries for a specific instance, ordered by time.
-    async fn query_history(&self, query: HistoryQuery) -> EngineResult<Vec<crate::history::HistoryEntry>>;
+    async fn query_history(
+        &self,
+        query: HistoryQuery,
+    ) -> EngineResult<Vec<crate::history::HistoryEntry>>;
 
     /// Retrieve list of entries inside a specific bucket for monitoring details.
-    async fn get_bucket_entries(&self, bucket_name: &str, offset: usize, limit: usize) -> EngineResult<Vec<BucketEntry>>;
-    
+    async fn get_bucket_entries(
+        &self,
+        bucket_name: &str,
+        offset: usize,
+        limit: usize,
+    ) -> EngineResult<Vec<BucketEntry>>;
+
     /// Retrieve raw detail string (JSON or base64) of a specific entry in a bucket.
-    async fn get_bucket_entry_detail(&self, bucket_name: &str, key: &str) -> EngineResult<BucketEntryDetail>;
+    async fn get_bucket_entry_detail(
+        &self,
+        bucket_name: &str,
+        key: &str,
+    ) -> EngineResult<BucketEntryDetail>;
 }

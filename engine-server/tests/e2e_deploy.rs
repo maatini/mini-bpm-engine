@@ -56,7 +56,10 @@ async fn deploy_minimal_workflow_returns_definition_id() {
         .expect("response should contain definition_key");
 
     // The returned key should be a valid UUID
-    assert!(uuid::Uuid::parse_str(def_key).is_ok(), "definition_key should be a valid UUID");
+    assert!(
+        uuid::Uuid::parse_str(def_key).is_ok(),
+        "definition_key should be a valid UUID"
+    );
 }
 
 #[tokio::test]

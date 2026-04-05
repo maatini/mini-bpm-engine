@@ -4,7 +4,6 @@
 use serde_json::Value;
 use std::sync::Arc;
 
-
 /// Minimal BPMN 2.0 XML with only a StartEvent, EndEvent, and one SequenceFlow.
 const MINIMAL_BPMN_XML: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 <definitions id="Definitions_1" xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL">
@@ -15,7 +14,7 @@ const MINIMAL_BPMN_XML: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
   </process>
 </definitions>"#;
 
-/// Helper: starts the engine-server on a random port with NATS persistence 
+/// Helper: starts the engine-server on a random port with NATS persistence
 /// enabled, returning the auto-assigned base URL.
 async fn start_server_with_nats() -> Option<String> {
     let url = "nats://localhost:4222";
@@ -56,7 +55,7 @@ async fn verify_instance_history_is_generated_and_retrieved() {
         Some(b) => b,
         None => return, // Ignore if NATS container is not running
     };
-    
+
     let client = reqwest::Client::new();
 
     // Step 1: Deploy
@@ -106,28 +105,53 @@ async fn verify_instance_history_is_generated_and_retrieved() {
     assert_eq!(history_res.status(), 200, "get history should return 200");
 
     let history: Vec<Value> = history_res.json().await.expect("parse history response");
-    
+
     // We expect at least the StartEvent, Token movement, and Process Completed events.
     assert!(!history.is_empty(), "history should not be empty");
-    
-    let event_types: Vec<&str> = history.iter().filter_map(|e| e["event_type"].as_str()).collect();
-    
-    assert!(event_types.contains(&"InstanceStarted"), "should contain InstanceStarted");
-    assert!(event_types.contains(&"TokenAdvanced"), "should contain TokenAdvanced");
-    assert!(event_types.contains(&"InstanceCompleted"), "should contain InstanceCompleted");
+
+    let event_types: Vec<&str> = history
+        .iter()
+        .filter_map(|e| e["event_type"].as_str())
+        .collect();
+
+    assert!(
+        event_types.contains(&"InstanceStarted"),
+        "should contain InstanceStarted"
+    );
+    assert!(
+        event_types.contains(&"TokenAdvanced"),
+        "should contain TokenAdvanced"
+    );
+    assert!(
+        event_types.contains(&"InstanceCompleted"),
+        "should contain InstanceCompleted"
+    );
 
     // Fetch a single specific event payload as well
     let first_event_id = history[0]["id"].as_str().expect("first event ID");
 
     let specific_event_res = client
-        .get(format!("{}/api/instances/{}/history/{}", base, instance_id, first_event_id))
+        .get(format!(
+            "{}/api/instances/{}/history/{}",
+            base, instance_id, first_event_id
+        ))
         .send()
         .await
         .expect("get specific event request failed");
 
-    assert_eq!(specific_event_res.status(), 200, "get specific event should return 200");
-    let specific_event: Value = specific_event_res.json().await.expect("parse specific event");
+    assert_eq!(
+        specific_event_res.status(),
+        200,
+        "get specific event should return 200"
+    );
+    let specific_event: Value = specific_event_res
+        .json()
+        .await
+        .expect("parse specific event");
 
     assert_eq!(specific_event["id"].as_str(), Some(first_event_id));
-    assert_eq!(specific_event["instance_id"].as_str(), Some(instance_id.as_str()));
+    assert_eq!(
+        specific_event["instance_id"].as_str(),
+        Some(instance_id.as_str())
+    );
 }

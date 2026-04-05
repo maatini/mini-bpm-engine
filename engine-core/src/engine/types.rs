@@ -5,10 +5,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 
-use crate::model::{Token, FileReference};
+use crate::model::{FileReference, Token};
 
 // ---------------------------------------------------------------------------
-// Constants 
+// Constants
 // ---------------------------------------------------------------------------
 
 /// Maximum number of audit log entries retained in-memory per instance.
@@ -113,7 +113,10 @@ pub enum NextAction {
     /// Ends the current process instance with an error code (for error propagation).
     ErrorEnd { error_code: String },
     /// The engine must pause — a call activity (sub-process) is pending.
-    WaitForCallActivity { called_element: String, token: Token },
+    WaitForCallActivity {
+        called_element: String,
+        token: Token,
+    },
 }
 
 // ---------------------------------------------------------------------------
@@ -124,17 +127,32 @@ pub enum NextAction {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum InstanceState {
     Running,
-    WaitingOnUserTask { task_id: Uuid },
-    WaitingOnServiceTask { task_id: Uuid },
-    WaitingOnTimer { timer_id: Uuid },
-    WaitingOnMessage { message_id: Uuid },
+    WaitingOnUserTask {
+        task_id: Uuid,
+    },
+    WaitingOnServiceTask {
+        task_id: Uuid,
+    },
+    WaitingOnTimer {
+        timer_id: Uuid,
+    },
+    WaitingOnMessage {
+        message_id: Uuid,
+    },
     WaitingOnEventBasedGateway,
     /// Multiple tokens are active; some may be waiting, some running.
-    ParallelExecution { active_token_count: usize },
-    WaitingOnCallActivity { sub_instance_id: Uuid, token: Token },
+    ParallelExecution {
+        active_token_count: usize,
+    },
+    WaitingOnCallActivity {
+        sub_instance_id: Uuid,
+        token: Token,
+    },
     Completed,
     /// Process ended in an ErrorEndEvent.
-    CompletedWithError { error_code: String },
+    CompletedWithError {
+        error_code: String,
+    },
 }
 
 // ---------------------------------------------------------------------------
@@ -192,13 +210,15 @@ pub struct ProcessInstance {
 impl ProcessInstance {
     /// Returns a typed FileReference if the variable exists and has type "file".
     pub fn get_file_reference(&self, var_name: &str) -> Option<FileReference> {
-        self.variables.get(var_name)
+        self.variables
+            .get(var_name)
             .and_then(FileReference::from_variable_value)
     }
 
     /// Returns all variable names that contain file references.
     pub fn file_variable_names(&self) -> Vec<String> {
-        self.variables.iter()
+        self.variables
+            .iter()
             .filter(|(_, v)| FileReference::from_variable_value(v).is_some())
             .map(|(k, _)| k.clone())
             .collect()

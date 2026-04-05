@@ -1,7 +1,12 @@
-use axum::{extract::{Path, State}, Json, http::StatusCode, response::IntoResponse};
+use crate::server::state::{AppError, AppState, parse_uuid};
+use axum::{
+    Json,
+    extract::{Path, State},
+    http::StatusCode,
+    response::IntoResponse,
+};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use crate::server::state::{AppError, AppState, parse_uuid};
 
 #[derive(Serialize, Deserialize)]
 pub(crate) struct DeployRequest {
@@ -22,7 +27,9 @@ pub(crate) async fn deploy_definition(
     const MAX_XML_BYTES: usize = 10 * 1024 * 1024; // 10MB
     if payload.xml.len() > MAX_XML_BYTES {
         return Err(AppError::BadRequest(format!(
-            "XML too large: {} bytes (max {})", payload.xml.len(), MAX_XML_BYTES
+            "XML too large: {} bytes (max {})",
+            payload.xml.len(),
+            MAX_XML_BYTES
         )));
     }
     let engine = &state.engine;
@@ -36,9 +43,16 @@ pub(crate) async fn deploy_definition(
             tracing::error!("Failed to save BPMN XML to persistence layer: {:?}", e);
         }
     }
-    state.deployed_xml.write().await.insert(key_str.clone(), payload.xml.clone());
+    state
+        .deployed_xml
+        .write()
+        .await
+        .insert(key_str.clone(), payload.xml.clone());
 
-    Ok(Json(DeployResponse { definition_key: key_str, version }))
+    Ok(Json(DeployResponse {
+        definition_key: key_str,
+        version,
+    }))
 }
 
 #[derive(Serialize)]
@@ -57,7 +71,8 @@ pub(crate) async fn list_definitions(
     let raw = engine.list_definitions().await;
 
     // Determine the latest version per bpmn_id
-    let mut latest_versions: std::collections::HashMap<String, i32> = std::collections::HashMap::new();
+    let mut latest_versions: std::collections::HashMap<String, i32> =
+        std::collections::HashMap::new();
     for (_, bpmn_id, version, _) in &raw {
         let entry = latest_versions.entry(bpmn_id.clone()).or_insert(0);
         if *version > *entry {
@@ -98,7 +113,9 @@ pub(crate) async fn get_definition_xml(
         }
     }
 
-    Err(AppError::BadRequest(format!("No XML found for definition '{id}'")))
+    Err(AppError::BadRequest(format!(
+        "No XML found for definition '{id}'"
+    )))
 }
 
 #[derive(Deserialize)]
@@ -114,7 +131,9 @@ pub(crate) async fn delete_definition(
     let engine = &state.engine;
     let def_key = parse_uuid(&id)?;
 
-    engine.delete_definition(def_key, query.cascade.unwrap_or(false)).await?;
+    engine
+        .delete_definition(def_key, query.cascade.unwrap_or(false))
+        .await?;
 
     state.deployed_xml.write().await.remove(&id);
 
@@ -131,7 +150,9 @@ pub(crate) async fn delete_all_definitions(
     // Get all versions before deleting so we can clean up the XML cache
     let versions = engine.list_definition_versions(&bpmn_id).await;
 
-    engine.delete_all_definitions(&bpmn_id, query.cascade.unwrap_or(false)).await?;
+    engine
+        .delete_all_definitions(&bpmn_id, query.cascade.unwrap_or(false))
+        .await?;
 
     let mut xml_cache = state.deployed_xml.write().await;
     for (key, _, _) in versions {

@@ -92,9 +92,10 @@ fn parse_rhs(s: &str) -> Value {
 /// Equality comparison for JSON values.
 fn values_eq(a: &Value, b: &Value) -> bool {
     match (a, b) {
-        (Value::Number(a), Value::Number(b)) => {
-            a.as_f64().zip(b.as_f64()).is_some_and(|(x, y)| (x - y).abs() < f64::EPSILON)
-        }
+        (Value::Number(a), Value::Number(b)) => a
+            .as_f64()
+            .zip(b.as_f64())
+            .is_some_and(|(x, y)| (x - y).abs() < f64::EPSILON),
         _ => a == b,
     }
 }

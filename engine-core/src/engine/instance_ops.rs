@@ -1,24 +1,30 @@
-use std::collections::HashMap;
 use serde_json::Value;
+use std::collections::HashMap;
 use uuid::Uuid;
 
 use crate::error::{EngineError, EngineResult};
 use crate::model::FileReference;
 
-use super::{InstanceState, ProcessInstance, WorkflowEngine, PendingUserTask, PendingServiceTask, EngineStats};
+use super::{
+    EngineStats, InstanceState, PendingServiceTask, PendingUserTask, ProcessInstance,
+    WorkflowEngine,
+};
 
 impl WorkflowEngine {
     /// Returns summary statistics for monitoring dashboards.
     pub async fn get_stats(&self) -> EngineStats {
         let all_insts = self.instances.all().await;
-        let mut running = 0; let mut comp = 0; let mut w_user = 0; let mut w_serv = 0;
+        let mut running = 0;
+        let mut comp = 0;
+        let mut w_user = 0;
+        let mut w_serv = 0;
         for lk in all_insts.values() {
             let st = &lk.read().await.state;
             match st {
                 InstanceState::Running => running += 1,
                 InstanceState::Completed | InstanceState::CompletedWithError { .. } => comp += 1,
-                InstanceState::WaitingOnUserTask{..} => w_user += 1,
-                InstanceState::WaitingOnServiceTask{..} => w_serv += 1,
+                InstanceState::WaitingOnUserTask { .. } => w_user += 1,
+                InstanceState::WaitingOnServiceTask { .. } => w_serv += 1,
                 _ => {}
             }
         }
@@ -33,7 +39,9 @@ impl WorkflowEngine {
             pending_service_tasks: self.pending_service_tasks.len(),
             pending_timers: self.pending_timers.len(),
             pending_message_catches: self.pending_message_catches.len(),
-            persistence_errors: self.persistence_error_count.load(std::sync::atomic::Ordering::Relaxed),
+            persistence_errors: self
+                .persistence_error_count
+                .load(std::sync::atomic::Ordering::Relaxed),
             pending_retry_jobs: 0, // mpsc unbounded channel has no len(); always 0 in stats for now
         }
     }
@@ -58,12 +66,18 @@ impl WorkflowEngine {
 
     /// Returns all currently pending user tasks.
     pub fn get_pending_user_tasks(&self) -> Vec<PendingUserTask> {
-        self.pending_user_tasks.iter().map(|it| it.value().clone()).collect()
+        self.pending_user_tasks
+            .iter()
+            .map(|it| it.value().clone())
+            .collect()
     }
 
     /// Returns all pending service tasks (for debugging / admin).
     pub fn get_pending_service_tasks(&self) -> Vec<PendingServiceTask> {
-        self.pending_service_tasks.iter().map(|it| it.value().clone()).collect()
+        self.pending_service_tasks
+            .iter()
+            .map(|it| it.value().clone())
+            .collect()
     }
 
     /// Returns a list of all process instances (cloned).
@@ -94,11 +108,19 @@ impl WorkflowEngine {
         instance_id: Uuid,
         variables: HashMap<String, Value>,
     ) -> EngineResult<()> {
-        let old_state = if let Some(lk) = self.instances.get(&instance_id).await { Some(lk.read().await.clone()) } else { None };
+        let old_state = if let Some(lk) = self.instances.get(&instance_id).await {
+            Some(lk.read().await.clone())
+        } else {
+            None
+        };
 
         let updated_vars = {
-            let instance_arc = self.instances.get(&instance_id).await.ok_or(EngineError::NoSuchInstance(instance_id))?;
-        let mut instance = instance_arc.write().await;
+            let instance_arc = self
+                .instances
+                .get(&instance_id)
+                .await
+                .ok_or(EngineError::NoSuchInstance(instance_id))?;
+            let mut instance = instance_arc.write().await;
 
             let mut added: usize = 0;
             let mut modified: usize = 0;
@@ -134,14 +156,18 @@ impl WorkflowEngine {
                 "Instance {}: variables updated (+{added} ~{modified} -{deleted})",
                 instance_id
             );
-            
+
             instance.variables.clone()
         };
 
         // With centralized tokens, we also update instance.tokens so that
         // when a pending task is completed, it picks up the latest variables.
         {
-            let instance_arc = self.instances.get(&instance_id).await.ok_or(EngineError::NoSuchInstance(instance_id))?;
+            let instance_arc = self
+                .instances
+                .get(&instance_id)
+                .await
+                .ok_or(EngineError::NoSuchInstance(instance_id))?;
             let mut instance = instance_arc.write().await;
             for token in instance.tokens.values_mut() {
                 for (key, value) in &updated_vars {
@@ -160,8 +186,9 @@ impl WorkflowEngine {
             "Variables updated directly",
             crate::history::ActorType::User, // API call
             None,
-            old_state.as_ref()
-        ).await;
+            old_state.as_ref(),
+        )
+        .await;
 
         self.persist_instance(instance_id).await;
 
@@ -170,7 +197,11 @@ impl WorkflowEngine {
 
     /// Deletes a process instance and cleans up associated pending tasks.
     pub async fn delete_instance(&self, instance_id: Uuid) -> EngineResult<()> {
-        let removed_inst_arc = self.instances.remove(&instance_id).await.ok_or(EngineError::NoSuchInstance(instance_id))?;
+        let removed_inst_arc = self
+            .instances
+            .remove(&instance_id)
+            .await
+            .ok_or(EngineError::NoSuchInstance(instance_id))?;
         let removed_inst = removed_inst_arc.read().await.clone();
 
         if let Some(ref persistence) = self.persistence {
@@ -182,36 +213,58 @@ impl WorkflowEngine {
             }
 
             // Delete associated user tasks from persistence
-            for task in self.pending_user_tasks.iter().filter(|t| t.instance_id == instance_id) {
+            for task in self
+                .pending_user_tasks
+                .iter()
+                .filter(|t| t.instance_id == instance_id)
+            {
                 let _ = persistence.delete_user_task(task.task_id).await;
             }
             // Delete associated service tasks from persistence
-            for task in self.pending_service_tasks.iter().filter(|t| t.instance_id == instance_id) {
+            for task in self
+                .pending_service_tasks
+                .iter()
+                .filter(|t| t.instance_id == instance_id)
+            {
                 let _ = persistence.delete_service_task(task.id).await;
             }
             // Delete associated timers from persistence
-            for timer in self.pending_timers.iter().filter(|t| t.instance_id == instance_id) {
+            for timer in self
+                .pending_timers
+                .iter()
+                .filter(|t| t.instance_id == instance_id)
+            {
                 let _ = persistence.delete_timer(timer.id).await;
             }
             // Delete associated message catches from persistence
-            for catch in self.pending_message_catches.iter().filter(|t| t.instance_id == instance_id) {
+            for catch in self
+                .pending_message_catches
+                .iter()
+                .filter(|t| t.instance_id == instance_id)
+            {
                 let _ = persistence.delete_message_catch(catch.id).await;
             }
             // Delete instance from persistence
-            persistence.delete_instance(&instance_id.to_string()).await?;
+            persistence
+                .delete_instance(&instance_id.to_string())
+                .await?;
         }
 
         // Clean up pending user tasks in memory
-        self.pending_user_tasks.retain(|_, t| t.instance_id != instance_id);
-        
+        self.pending_user_tasks
+            .retain(|_, t| t.instance_id != instance_id);
+
         // Clean up pending service tasks in memory
-        self.pending_service_tasks.retain(|_, t| t.instance_id != instance_id);
+        self.pending_service_tasks
+            .retain(|_, t| t.instance_id != instance_id);
 
         // Clean up pending timers in memory
-        self.pending_timers.retain(|_, t| t.instance_id != instance_id);
+        self.pending_timers
+            .retain(|_, t| t.instance_id != instance_id);
 
         // Clean up pending message catches in memory
-        self.pending_message_catches.retain(|_, t| t.instance_id != instance_id);
+        self.pending_message_catches
+            .retain(|_, t| t.instance_id != instance_id);
 
         Ok(())
     }

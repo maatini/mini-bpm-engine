@@ -4,19 +4,31 @@
 //! logic.
 
 use super::*;
-use crate::model::ProcessDefinitionBuilder;
 use crate::condition::evaluate_condition;
 use crate::model::ListenerEvent;
+use crate::model::ProcessDefinitionBuilder;
 
-
-async fn complete_all_service_tasks(engine: &WorkflowEngine, worker: &str, vars: HashMap<String, Value>) {
+async fn complete_all_service_tasks(
+    engine: &WorkflowEngine,
+    worker: &str,
+    vars: HashMap<String, Value>,
+) {
     let mut to_complete = Vec::new();
-    for task in engine.pending_service_tasks.iter().map(|r| r.value().clone()) {
+    for task in engine
+        .pending_service_tasks
+        .iter()
+        .map(|r| r.value().clone())
+    {
         to_complete.push((task.id, task.topic.clone()));
     }
     for (id, topic) in to_complete {
-        let _ = engine.fetch_and_lock_service_tasks(worker, 10, &[topic.clone()], 60000).await;
-        engine.complete_service_task(id, worker, vars.clone()).await.unwrap();
+        let _ = engine
+            .fetch_and_lock_service_tasks(worker, 10, &[topic.clone()], 60000)
+            .await;
+        engine
+            .complete_service_task(id, worker, vars.clone())
+            .await
+            .unwrap();
     }
 }
 
@@ -27,7 +39,12 @@ async fn setup_linear_engine() -> (WorkflowEngine, Uuid) {
 
     let def = ProcessDefinitionBuilder::new("linear")
         .node("start", BpmnElement::StartEvent)
-        .node("svc", BpmnElement::ServiceTask { topic: "validate".into() })
+        .node(
+            "svc",
+            BpmnElement::ServiceTask {
+                topic: "validate".into(),
+            },
+        )
         .node("ut", BpmnElement::UserTask("alice".into()))
         .node("end", BpmnElement::EndEvent)
         .flow("start", "svc")
@@ -46,7 +63,12 @@ async fn conditional_routing_on_service_task() {
 
     let def = ProcessDefinitionBuilder::new("cond_svc")
         .node("start", BpmnElement::StartEvent)
-        .node("svc", BpmnElement::ServiceTask { topic: "noop".into() })
+        .node(
+            "svc",
+            BpmnElement::ServiceTask {
+                topic: "noop".into(),
+            },
+        )
         .node("end_a", BpmnElement::EndEvent)
         .node("end_b", BpmnElement::EndEvent)
         .flow("start", "svc")
@@ -71,8 +93,14 @@ async fn conditional_routing_on_service_task() {
         InstanceState::Completed
     );
     let log = engine.get_audit_log(inst_id).await.unwrap();
-    let end_entry = log.iter().find(|l| l.contains("Process completed")).unwrap();
-    assert!(end_entry.contains("end_b"), "Expected end_b path: {end_entry}");
+    let end_entry = log
+        .iter()
+        .find(|l| l.contains("Process completed"))
+        .unwrap();
+    assert!(
+        end_entry.contains("end_b"),
+        "Expected end_b path: {end_entry}"
+    );
 }
 
 #[tokio::test]
@@ -85,7 +113,13 @@ async fn start_instance_pauses_at_user_task() {
     assert_eq!(
         engine.get_instance_state(inst_id).await.unwrap(),
         InstanceState::WaitingOnUserTask {
-            task_id: engine.pending_user_tasks.iter().map(|r| r.value().clone()).next().unwrap().task_id
+            task_id: engine
+                .pending_user_tasks
+                .iter()
+                .map(|r| r.value().clone())
+                .next()
+                .unwrap()
+                .task_id
         }
     );
     assert_eq!(engine.pending_user_tasks.len(), 1);
@@ -97,7 +131,13 @@ async fn complete_user_task_reaches_end() {
     let inst_id = engine.start_instance(def_key).await.unwrap();
     complete_all_service_tasks(&engine, "worker", HashMap::new()).await;
 
-    let task_id = engine.pending_user_tasks.iter().map(|r| r.value().clone()).next().unwrap().task_id;
+    let task_id = engine
+        .pending_user_tasks
+        .iter()
+        .map(|r| r.value().clone())
+        .next()
+        .unwrap()
+        .task_id;
     engine
         .complete_user_task(task_id, HashMap::new())
         .await
@@ -119,9 +159,7 @@ async fn completing_wrong_task_gives_error() {
     complete_all_service_tasks(&engine, "worker", HashMap::new()).await;
 
     let wrong_id = Uuid::new_v4();
-    let result = engine
-        .complete_user_task(wrong_id, HashMap::new())
-        .await;
+    let result = engine.complete_user_task(wrong_id, HashMap::new()).await;
     assert!(matches!(result, Err(EngineError::TaskNotPending { .. })));
 }
 
@@ -135,14 +173,16 @@ async fn service_handler_modifies_variables() {
     complete_all_service_tasks(&engine, "worker_1", vars).await;
 
     // The token stored centrally should have 'validated: true' from the service handler
-    let pending = engine.pending_user_tasks.iter().map(|r| r.value().clone()).next().unwrap();
+    let pending = engine
+        .pending_user_tasks
+        .iter()
+        .map(|r| r.value().clone())
+        .next()
+        .unwrap();
     let inst_arc = engine.instances.get(&inst_id).await.unwrap();
     let inst = inst_arc.read().await;
     let token = inst.tokens.get(&pending.token_id).unwrap();
-    assert_eq!(
-        token.variables.get("validated"),
-        Some(&Value::Bool(true))
-    );
+    assert_eq!(token.variables.get("validated"), Some(&Value::Bool(true)));
 }
 
 #[tokio::test]
@@ -209,13 +249,8 @@ async fn plain_start_rejects_timer_def() {
 async fn unknown_definition_gives_error() {
     let engine = WorkflowEngine::new();
     let result = engine.start_instance(Uuid::new_v4()).await;
-    assert!(matches!(
-        result,
-        Err(EngineError::NoSuchDefinition(_))
-    ));
+    assert!(matches!(result, Err(EngineError::NoSuchDefinition(_))));
 }
-
-
 
 #[tokio::test]
 async fn audit_log_captures_all_steps() {
@@ -223,7 +258,13 @@ async fn audit_log_captures_all_steps() {
     let inst_id = engine.start_instance(def_key).await.unwrap();
     complete_all_service_tasks(&engine, "worker", HashMap::new()).await;
 
-    let task_id = engine.pending_user_tasks.iter().map(|r| r.value().clone()).next().unwrap().task_id;
+    let task_id = engine
+        .pending_user_tasks
+        .iter()
+        .map(|r| r.value().clone())
+        .next()
+        .unwrap()
+        .task_id;
     engine
         .complete_user_task(task_id, HashMap::new())
         .await
@@ -303,8 +344,18 @@ async fn exclusive_gateway_takes_matching_path() {
                 default: Some("low".into()),
             },
         )
-        .node("high", BpmnElement::ServiceTask { topic: "noop".into() })
-        .node("low", BpmnElement::ServiceTask { topic: "noop".into() })
+        .node(
+            "high",
+            BpmnElement::ServiceTask {
+                topic: "noop".into(),
+            },
+        )
+        .node(
+            "low",
+            BpmnElement::ServiceTask {
+                topic: "noop".into(),
+            },
+        )
         .node("end", BpmnElement::EndEvent)
         .flow("start", "gw")
         .conditional_flow("gw", "high", "amount > 100")
@@ -331,7 +382,10 @@ async fn exclusive_gateway_takes_matching_path() {
         InstanceState::Completed
     );
     let log = engine.get_audit_log(inst_id).await.unwrap();
-    let gw_entry = log.iter().find(|l| l.contains("Exclusive gateway")).unwrap();
+    let gw_entry = log
+        .iter()
+        .find(|l| l.contains("Exclusive gateway"))
+        .unwrap();
     assert!(gw_entry.contains("high"), "Expected high path: {gw_entry}");
 }
 
@@ -347,8 +401,18 @@ async fn exclusive_gateway_uses_default_when_no_match() {
                 default: Some("low".into()),
             },
         )
-        .node("high", BpmnElement::ServiceTask { topic: "noop".into() })
-        .node("low", BpmnElement::ServiceTask { topic: "noop".into() })
+        .node(
+            "high",
+            BpmnElement::ServiceTask {
+                topic: "noop".into(),
+            },
+        )
+        .node(
+            "low",
+            BpmnElement::ServiceTask {
+                topic: "noop".into(),
+            },
+        )
         .node("end", BpmnElement::EndEvent)
         .flow("start", "gw")
         .conditional_flow("gw", "high", "amount > 100")
@@ -375,8 +439,14 @@ async fn exclusive_gateway_uses_default_when_no_match() {
         InstanceState::Completed
     );
     let log = engine.get_audit_log(inst_id).await.unwrap();
-    let gw_entry = log.iter().find(|l| l.contains("Exclusive gateway")).unwrap();
-    assert!(gw_entry.contains("low"), "Expected low (default) path: {gw_entry}");
+    let gw_entry = log
+        .iter()
+        .find(|l| l.contains("Exclusive gateway"))
+        .unwrap();
+    assert!(
+        gw_entry.contains("low"),
+        "Expected low (default) path: {gw_entry}"
+    );
 }
 
 #[tokio::test]
@@ -385,10 +455,7 @@ async fn exclusive_gateway_error_when_no_match_no_default() {
 
     let def = ProcessDefinitionBuilder::new("xor_fail")
         .node("start", BpmnElement::StartEvent)
-        .node(
-            "gw",
-            BpmnElement::ExclusiveGateway { default: None },
-        )
+        .node("gw", BpmnElement::ExclusiveGateway { default: None })
         .node("a", BpmnElement::EndEvent)
         .node("b", BpmnElement::EndEvent)
         .flow("start", "gw")
@@ -419,8 +486,18 @@ async fn inclusive_gateway_forks_multiple_paths() {
     let def = ProcessDefinitionBuilder::new("or_test")
         .node("start", BpmnElement::StartEvent)
         .node("gw", BpmnElement::InclusiveGateway)
-        .node("svc_a", BpmnElement::ServiceTask { topic: "track_a".into() })
-        .node("svc_b", BpmnElement::ServiceTask { topic: "track_b".into() })
+        .node(
+            "svc_a",
+            BpmnElement::ServiceTask {
+                topic: "track_a".into(),
+            },
+        )
+        .node(
+            "svc_b",
+            BpmnElement::ServiceTask {
+                topic: "track_b".into(),
+            },
+        )
         .node("end", BpmnElement::EndEvent)
         .flow("start", "gw")
         .conditional_flow("gw", "svc_a", "a > 0")
@@ -448,7 +525,10 @@ async fn inclusive_gateway_forks_multiple_paths() {
         InstanceState::Completed
     );
     let log = engine.get_audit_log(inst_id).await.unwrap();
-    let gw_entry = log.iter().find(|l| l.contains("Inclusive gateway")).unwrap();
+    let gw_entry = log
+        .iter()
+        .find(|l| l.contains("Inclusive gateway"))
+        .unwrap();
     assert!(
         gw_entry.contains("2 path(s)"),
         "Expected 2 forked paths: {gw_entry}"
@@ -462,8 +542,18 @@ async fn inclusive_gateway_single_match_no_fork() {
     let def = ProcessDefinitionBuilder::new("or_single")
         .node("start", BpmnElement::StartEvent)
         .node("gw", BpmnElement::InclusiveGateway)
-        .node("a", BpmnElement::ServiceTask { topic: "noop".into() })
-        .node("b", BpmnElement::ServiceTask { topic: "noop".into() })
+        .node(
+            "a",
+            BpmnElement::ServiceTask {
+                topic: "noop".into(),
+            },
+        )
+        .node(
+            "b",
+            BpmnElement::ServiceTask {
+                topic: "noop".into(),
+            },
+        )
         .node("end", BpmnElement::EndEvent)
         .flow("start", "gw")
         .conditional_flow("gw", "a", "x == 1")
@@ -525,7 +615,9 @@ fn build_xor_user_task_definition() -> ProcessDefinition {
 #[tokio::test]
 async fn xor_gateway_positive_x_routes_to_user_task_1() {
     let engine = WorkflowEngine::new();
-    let (def_key, _) = engine.deploy_definition(build_xor_user_task_definition()).await;
+    let (def_key, _) = engine
+        .deploy_definition(build_xor_user_task_definition())
+        .await;
 
     // x = 5 → condition "x > 0" matches → user-task-1
     let mut vars = HashMap::new();
@@ -548,7 +640,10 @@ async fn xor_gateway_positive_x_routes_to_user_task_1() {
 
     // Audit log should show gateway took path to user-task-1
     let log = engine.get_audit_log(inst_id).await.unwrap();
-    let gw_entry = log.iter().find(|l| l.contains("Exclusive gateway")).unwrap();
+    let gw_entry = log
+        .iter()
+        .find(|l| l.contains("Exclusive gateway"))
+        .unwrap();
     assert!(
         gw_entry.contains("user-task-1"),
         "Expected user-task-1 path: {gw_entry}"
@@ -573,7 +668,9 @@ async fn xor_gateway_positive_x_routes_to_user_task_1() {
 #[tokio::test]
 async fn xor_gateway_negative_x_routes_to_user_task_2() {
     let engine = WorkflowEngine::new();
-    let (def_key, _) = engine.deploy_definition(build_xor_user_task_definition()).await;
+    let (def_key, _) = engine
+        .deploy_definition(build_xor_user_task_definition())
+        .await;
 
     // x = -3 → condition "x > 0" does NOT match → default → user-task-2
     let mut vars = HashMap::new();
@@ -591,7 +688,10 @@ async fn xor_gateway_negative_x_routes_to_user_task_2() {
 
     // Audit log should show gateway took default path to user-task-2
     let log = engine.get_audit_log(inst_id).await.unwrap();
-    let gw_entry = log.iter().find(|l| l.contains("Exclusive gateway")).unwrap();
+    let gw_entry = log
+        .iter()
+        .find(|l| l.contains("Exclusive gateway"))
+        .unwrap();
     assert!(
         gw_entry.contains("user-task-2"),
         "Expected user-task-2 (default) path: {gw_entry}"
@@ -615,7 +715,9 @@ async fn xor_gateway_negative_x_routes_to_user_task_2() {
 #[tokio::test]
 async fn xor_gateway_zero_x_routes_to_user_task_2() {
     let engine = WorkflowEngine::new();
-    let (def_key, _) = engine.deploy_definition(build_xor_user_task_definition()).await;
+    let (def_key, _) = engine
+        .deploy_definition(build_xor_user_task_definition())
+        .await;
 
     // x = 0 → boundary: "x > 0" is false → default → user-task-2
     let mut vars = HashMap::new();
@@ -648,7 +750,9 @@ async fn xor_gateway_zero_x_routes_to_user_task_2() {
 #[tokio::test]
 async fn xor_gateway_user_task_merges_variables() {
     let engine = WorkflowEngine::new();
-    let (def_key, _) = engine.deploy_definition(build_xor_user_task_definition()).await;
+    let (def_key, _) = engine
+        .deploy_definition(build_xor_user_task_definition())
+        .await;
 
     // x = 10 → user-task-1
     let mut vars = HashMap::new();
@@ -692,11 +796,20 @@ async fn xor_gateway_user_task_merges_variables() {
 fn build_script_test_definition() -> ProcessDefinition {
     ProcessDefinitionBuilder::new("script_test")
         .node("start", BpmnElement::StartEvent)
-        .node("svc", BpmnElement::ServiceTask { topic: "calculate".into() })
+        .node(
+            "svc",
+            BpmnElement::ServiceTask {
+                topic: "calculate".into(),
+            },
+        )
         .node("end", BpmnElement::EndEvent)
         .flow("start", "svc")
         .flow("svc", "end")
-        .listener("svc", ListenerEvent::Start, "x = x * 2; let result = \"small\"; if x > 10 { result = \"big\" }")
+        .listener(
+            "svc",
+            ListenerEvent::Start,
+            "x = x * 2; let result = \"small\"; if x > 10 { result = \"big\" }",
+        )
         .build()
         .unwrap()
 }
@@ -704,7 +817,9 @@ fn build_script_test_definition() -> ProcessDefinition {
 #[tokio::test]
 async fn script_mutates_state_and_executes_logic() {
     let engine = WorkflowEngine::new();
-    let (def_key, _) = engine.deploy_definition(build_script_test_definition()).await;
+    let (def_key, _) = engine
+        .deploy_definition(build_script_test_definition())
+        .await;
 
     let mut vars = HashMap::new();
     vars.insert("x".into(), serde_json::json!(6));
@@ -753,7 +868,7 @@ async fn test_delete_instance() {
     assert_eq!(engine.instances.len().await, 1);
 
     engine.delete_instance(instance_id).await.unwrap();
-    
+
     assert_eq!(engine.instances.len().await, 0);
     assert!(engine.get_instance_details(instance_id).await.is_err());
 }
@@ -771,12 +886,15 @@ async fn test_delete_definition_cascade() {
     let (key, _) = engine.deploy_definition(def).await;
     let _id1 = engine.start_instance(key).await.unwrap();
     let _id2 = engine.start_instance(key).await.unwrap();
-    
+
     let err = engine.delete_definition(key, false).await.unwrap_err();
-    assert!(matches!(err, crate::error::EngineError::DefinitionHasInstances(2)));
+    assert!(matches!(
+        err,
+        crate::error::EngineError::DefinitionHasInstances(2)
+    ));
 
     engine.delete_definition(key, true).await.unwrap();
-    
+
     let stats = engine.get_stats().await;
     assert_eq!(stats.definitions_count, 0);
     assert_eq!(engine.instances.len().await, 0);
@@ -794,8 +912,18 @@ async fn parallel_gateway_forks_and_joins() {
     let def = ProcessDefinitionBuilder::new("and_test")
         .node("start", BpmnElement::StartEvent)
         .node("split", BpmnElement::ParallelGateway)
-        .node("task_a", BpmnElement::ServiceTask { topic: "task_a".into() })
-        .node("task_b", BpmnElement::ServiceTask { topic: "task_b".into() })
+        .node(
+            "task_a",
+            BpmnElement::ServiceTask {
+                topic: "task_a".into(),
+            },
+        )
+        .node(
+            "task_b",
+            BpmnElement::ServiceTask {
+                topic: "task_b".into(),
+            },
+        )
         .node("join", BpmnElement::ParallelGateway)
         .node("end", BpmnElement::EndEvent)
         .flow("start", "split")
@@ -809,10 +937,7 @@ async fn parallel_gateway_forks_and_joins() {
 
     let (def_key, _) = engine.deploy_definition(def).await;
 
-    let inst_id = engine
-        .start_instance(def_key)
-        .await
-        .unwrap();
+    let inst_id = engine.start_instance(def_key).await.unwrap();
 
     // Should be paused in parallel execution waiting for both service tasks
     let state = engine.get_instance_state(inst_id).await.unwrap().clone();
@@ -820,18 +945,38 @@ async fn parallel_gateway_forks_and_joins() {
     for entry in engine.get_audit_log(inst_id).await.unwrap() {
         println!("Log: {}", entry);
     }
-    assert!(matches!(state, InstanceState::ParallelExecution { active_token_count: 2 }), "State should be parallel execution: {:?}", state);
+    assert!(
+        matches!(
+            state,
+            InstanceState::ParallelExecution {
+                active_token_count: 2
+            }
+        ),
+        "State should be parallel execution: {:?}",
+        state
+    );
 
     assert_eq!(engine.pending_service_tasks.len(), 2);
 
     // Complete task A
-    let task_a = engine.pending_service_tasks.iter().map(|r| r.value().clone()).find(|t| t.topic == "task_a").unwrap().id;
+    let task_a = engine
+        .pending_service_tasks
+        .iter()
+        .map(|r| r.value().clone())
+        .find(|t| t.topic == "task_a")
+        .unwrap()
+        .id;
     // Need to fetch and lock it first
-    let _ = engine.fetch_and_lock_service_tasks("worker", 10, &["task_a".into()], 1000).await;
-    
+    let _ = engine
+        .fetch_and_lock_service_tasks("worker", 10, &["task_a".into()], 1000)
+        .await;
+
     let mut vars_a = std::collections::HashMap::new();
     vars_a.insert("var_a".into(), serde_json::Value::Bool(true));
-    engine.complete_service_task(task_a, "worker", vars_a).await.unwrap();
+    engine
+        .complete_service_task(task_a, "worker", vars_a)
+        .await
+        .unwrap();
 
     // After A completes, it should be waiting at the join. Still in parallel state.
     let state = engine.get_instance_state(inst_id).await.unwrap().clone();
@@ -839,8 +984,13 @@ async fn parallel_gateway_forks_and_joins() {
     for entry in engine.get_audit_log(inst_id).await.unwrap() {
         println!("Log: {}", entry);
     }
-    assert!(matches!(state, InstanceState::ParallelExecution { active_token_count: 2 }));
-    
+    assert!(matches!(
+        state,
+        InstanceState::ParallelExecution {
+            active_token_count: 2
+        }
+    ));
+
     // Check join barrier
     let inst = engine.instances.get(&inst_id).await.unwrap();
     let inst_lock = inst.read().await;
@@ -850,11 +1000,22 @@ async fn parallel_gateway_forks_and_joins() {
     drop(inst_lock);
 
     // Complete task B
-    let task_b = engine.pending_service_tasks.iter().map(|r| r.value().clone()).find(|t| t.topic == "task_b").unwrap().id;
-    let _ = engine.fetch_and_lock_service_tasks("worker", 10, &["task_b".into()], 1000).await;
+    let task_b = engine
+        .pending_service_tasks
+        .iter()
+        .map(|r| r.value().clone())
+        .find(|t| t.topic == "task_b")
+        .unwrap()
+        .id;
+    let _ = engine
+        .fetch_and_lock_service_tasks("worker", 10, &["task_b".into()], 1000)
+        .await;
     let mut vars_b = std::collections::HashMap::new();
     vars_b.insert("var_b".into(), serde_json::Value::Bool(true));
-    engine.complete_service_task(task_b, "worker", vars_b).await.unwrap();
+    engine
+        .complete_service_task(task_b, "worker", vars_b)
+        .await
+        .unwrap();
 
     // Now it should be complete!
     assert_eq!(
@@ -874,7 +1035,12 @@ async fn service_task_fail_and_retries() {
     let engine = WorkflowEngine::new();
     let def = ProcessDefinitionBuilder::new("retries")
         .node("start", BpmnElement::StartEvent)
-        .node("svc", BpmnElement::ServiceTask { topic: "fail_test".into() })
+        .node(
+            "svc",
+            BpmnElement::ServiceTask {
+                topic: "fail_test".into(),
+            },
+        )
         .node("end", BpmnElement::EndEvent)
         .flow("start", "svc")
         .flow("svc", "end")
@@ -885,12 +1051,17 @@ async fn service_task_fail_and_retries() {
     engine.start_instance(def_key).await.unwrap();
 
     // 1. Fetch task
-    let tasks = engine.fetch_and_lock_service_tasks("worker", 1, &["fail_test".into()], 60).await;
+    let tasks = engine
+        .fetch_and_lock_service_tasks("worker", 1, &["fail_test".into()], 60)
+        .await;
     assert_eq!(tasks.len(), 1);
     let task_id = tasks[0].id;
 
     // 2. Fail task (default 3 retries, decrementing to 2)
-    engine.fail_service_task(task_id, "worker", None, Some("Failed".into()), None).await.unwrap();
+    engine
+        .fail_service_task(task_id, "worker", None, Some("Failed".into()), None)
+        .await
+        .unwrap();
 
     // 3. Task should be unlocked and retries should be 2
     let pending = engine.get_pending_service_tasks();
@@ -899,8 +1070,13 @@ async fn service_task_fail_and_retries() {
     assert!(t.worker_id.is_none());
 
     // 4. Fail directly to 0
-    let _ = engine.fetch_and_lock_service_tasks("worker2", 1, &["fail_test".into()], 60).await;
-    engine.fail_service_task(task_id, "worker2", Some(0), Some("Fatal".into()), None).await.unwrap();
+    let _ = engine
+        .fetch_and_lock_service_tasks("worker2", 1, &["fail_test".into()], 60)
+        .await;
+    engine
+        .fail_service_task(task_id, "worker2", Some(0), Some("Fatal".into()), None)
+        .await
+        .unwrap();
 
     // Incident should be logged
     let inst_id = tasks[0].instance_id;
@@ -914,7 +1090,12 @@ async fn service_task_extend_lock() {
     let engine = WorkflowEngine::new();
     let def = ProcessDefinitionBuilder::new("extend")
         .node("start", BpmnElement::StartEvent)
-        .node("svc", BpmnElement::ServiceTask { topic: "ext".into() })
+        .node(
+            "svc",
+            BpmnElement::ServiceTask {
+                topic: "ext".into(),
+            },
+        )
         .node("end", BpmnElement::EndEvent)
         .flow("start", "svc")
         .flow("svc", "end")
@@ -924,13 +1105,27 @@ async fn service_task_extend_lock() {
     let (def_key, _) = engine.deploy_definition(def).await;
     engine.start_instance(def_key).await.unwrap();
 
-    let tasks = engine.fetch_and_lock_service_tasks("worker", 1, &["ext".into()], 60).await;
+    let tasks = engine
+        .fetch_and_lock_service_tasks("worker", 1, &["ext".into()], 60)
+        .await;
     let task_id = tasks[0].id;
-    let exp_before = engine.get_pending_service_tasks().iter().find(|t| t.id == task_id).unwrap().lock_expiration.unwrap();
-    
+    let exp_before = engine
+        .get_pending_service_tasks()
+        .iter()
+        .find(|t| t.id == task_id)
+        .unwrap()
+        .lock_expiration
+        .unwrap();
+
     engine.extend_lock(task_id, "worker", 120).await.unwrap();
-    
-    let exp_after = engine.get_pending_service_tasks().iter().find(|t| t.id == task_id).unwrap().lock_expiration.unwrap();
+
+    let exp_after = engine
+        .get_pending_service_tasks()
+        .iter()
+        .find(|t| t.id == task_id)
+        .unwrap()
+        .lock_expiration
+        .unwrap();
     assert!(exp_after > exp_before);
 }
 
@@ -939,7 +1134,12 @@ async fn service_task_handle_bpmn_error() {
     let engine = WorkflowEngine::new();
     let def = ProcessDefinitionBuilder::new("err")
         .node("start", BpmnElement::StartEvent)
-        .node("svc", BpmnElement::ServiceTask { topic: "err".into() })
+        .node(
+            "svc",
+            BpmnElement::ServiceTask {
+                topic: "err".into(),
+            },
+        )
         .node("end", BpmnElement::EndEvent)
         .flow("start", "svc")
         .flow("svc", "end")
@@ -949,15 +1149,20 @@ async fn service_task_handle_bpmn_error() {
     let (def_key, _) = engine.deploy_definition(def).await;
     engine.start_instance(def_key).await.unwrap();
 
-    let tasks = engine.fetch_and_lock_service_tasks("worker", 1, &["err".into()], 60).await;
-    
+    let tasks = engine
+        .fetch_and_lock_service_tasks("worker", 1, &["err".into()], 60)
+        .await;
+
     assert_eq!(engine.get_pending_service_tasks().len(), 1);
-    
-    engine.handle_bpmn_error(tasks[0].id, "worker", "ERR_CODE").await.unwrap();
-    
+
+    engine
+        .handle_bpmn_error(tasks[0].id, "worker", "ERR_CODE")
+        .await
+        .unwrap();
+
     // Task should be removed and error logged.
     assert_eq!(engine.get_pending_service_tasks().len(), 0);
-    
+
     let log = engine.get_audit_log(tasks[0].instance_id).await.unwrap();
     assert!(log.iter().any(|l| l.contains("ERR_CODE")));
 }
@@ -965,7 +1170,7 @@ async fn service_task_handle_bpmn_error() {
 #[tokio::test]
 async fn restore_instance_loads_from_persistence() {
     let engine = WorkflowEngine::new();
-    
+
     // Deploy a definition so it exists
     let def = ProcessDefinitionBuilder::new("restore")
         .node("start", BpmnElement::StartEvent)
@@ -989,9 +1194,9 @@ async fn restore_instance_loads_from_persistence() {
         active_tokens: vec![],
         join_barriers: std::collections::HashMap::new(),
     };
-    
+
     engine.restore_instance(inst.clone()).await;
-    
+
     let loaded = engine.get_instance_details(inst.id).await.unwrap();
     assert_eq!(loaded.id, inst.id);
     assert_eq!(loaded.business_key, "BK1");
@@ -1012,34 +1217,43 @@ async fn mutation_delete_instance_and_variables() {
         .unwrap();
 
     let (def_key, _) = engine.deploy_definition(def).await;
-    
+
     // Check list definitions formatting
     let defs = engine.list_definitions().await;
     assert_eq!(defs.len(), 1);
     assert_eq!(defs[0].1, "del");
-    
+
     let inst_id = engine.start_instance(def_key).await.unwrap();
 
     // Variable Math check (verify += vs -= mutant in update_instance_variables)
     let mut vars = HashMap::new();
     vars.insert("val".into(), serde_json::Value::Number(10.into()));
-    engine.update_instance_variables(inst_id, vars).await.unwrap();
+    engine
+        .update_instance_variables(inst_id, vars)
+        .await
+        .unwrap();
 
     let details = engine.get_instance_details(inst_id).await.unwrap();
-    assert_eq!(details.variables.get("val").unwrap(), &serde_json::Value::Number(10.into()));
+    assert_eq!(
+        details.variables.get("val").unwrap(),
+        &serde_json::Value::Number(10.into())
+    );
     assert_eq!(details.variables.len(), 1); // Test mutant missing logic
-    
+
     // Test delete instance == vs != loop
     let mut vars2 = HashMap::new();
     vars2.insert("other".into(), serde_json::Value::Bool(true));
-    engine.update_instance_variables(inst_id, vars2).await.unwrap();
+    engine
+        .update_instance_variables(inst_id, vars2)
+        .await
+        .unwrap();
     let details2 = engine.get_instance_details(inst_id).await.unwrap();
     assert_eq!(details2.variables.len(), 2);
-    
+
     // Create side tasks
     let pending = engine.get_pending_user_tasks();
     assert_eq!(pending.len(), 1);
-    
+
     engine.delete_instance(inst_id).await.unwrap();
     // After delete, list should be 0.
     assert!(engine.get_instance_state(inst_id).await.is_err());
@@ -1050,7 +1264,12 @@ async fn mutation_fetch_service_task_boundary() {
     let engine = WorkflowEngine::new();
     let def = ProcessDefinitionBuilder::new("lock")
         .node("start", BpmnElement::StartEvent)
-        .node("t1", BpmnElement::ServiceTask { topic: "bound".into() })
+        .node(
+            "t1",
+            BpmnElement::ServiceTask {
+                topic: "bound".into(),
+            },
+        )
         .node("end", BpmnElement::EndEvent)
         .flow("start", "t1")
         .flow("t1", "end")
@@ -1061,18 +1280,24 @@ async fn mutation_fetch_service_task_boundary() {
     engine.start_instance(def_key).await.unwrap();
 
     // Fetch once
-    let tasks1 = engine.fetch_and_lock_service_tasks("worker1", 1, &["bound".into()], 1).await;
+    let tasks1 = engine
+        .fetch_and_lock_service_tasks("worker1", 1, &["bound".into()], 1)
+        .await;
     assert_eq!(tasks1.len(), 1);
 
     // Fetch immediately again, should return 0 since locked and not expired
-    let tasks2 = engine.fetch_and_lock_service_tasks("worker2", 1, &["bound".into()], 1).await;
+    let tasks2 = engine
+        .fetch_and_lock_service_tasks("worker2", 1, &["bound".into()], 1)
+        .await;
     assert_eq!(tasks2.len(), 0);
 
     // Sleep 1.1 second so it exceeds. `cargo mutants` tests > vs == on the `expiration > now`.
     tokio::time::sleep(tokio::time::Duration::from_millis(1100)).await;
 
     // Fetch again, should return 1 since lock expired
-    let tasks3 = engine.fetch_and_lock_service_tasks("worker3", 1, &["bound".into()], 1).await;
+    let tasks3 = engine
+        .fetch_and_lock_service_tasks("worker3", 1, &["bound".into()], 1)
+        .await;
     assert_eq!(tasks3.len(), 1);
 }
 
@@ -1083,7 +1308,12 @@ async fn mutation_find_downstream_join() {
         .node("start", BpmnElement::StartEvent)
         .node("gw_split", BpmnElement::ParallelGateway)
         .node("gw_join", BpmnElement::ParallelGateway)
-        .node("dummy", BpmnElement::ServiceTask { topic: "dummy".to_string() })
+        .node(
+            "dummy",
+            BpmnElement::ServiceTask {
+                topic: "dummy".to_string(),
+            },
+        )
         .node("end", BpmnElement::EndEvent)
         .flow("start", "gw_split")
         .flow("gw_split", "gw_join")
@@ -1094,14 +1324,14 @@ async fn mutation_find_downstream_join() {
         .unwrap();
 
     let _ = engine.deploy_definition(def.clone()).await;
-    
+
     // Testing the logic explicitly via direct call (internal visibility allows this within engine module)
     let engine_local = WorkflowEngine::new();
     let found = engine_local.find_downstream_join(&def, "gw_split");
     assert_eq!(found, Some("gw_join".to_string()));
 
     // Find with depth limit (though internal recursion only decreases by 1, testing the > 100 limit protection is hard, but we can just test if the logic iterates correctly).
-    let found_from_start = engine_local.find_downstream_join(&def, "start"); 
+    let found_from_start = engine_local.find_downstream_join(&def, "start");
     assert_eq!(found_from_start, None);
     // It actually returns None because it exceeds max recursion or doesn't find gateway.
 }
@@ -1110,7 +1340,12 @@ async fn mutation_find_downstream_join() {
 async fn message_start_event_succeeds() {
     let engine = WorkflowEngine::new();
     let def = ProcessDefinitionBuilder::new("msg_start")
-        .node("start", BpmnElement::MessageStartEvent { message_name: "start_msg".to_string() })
+        .node(
+            "start",
+            BpmnElement::MessageStartEvent {
+                message_name: "start_msg".to_string(),
+            },
+        )
         .node("end", BpmnElement::EndEvent)
         .flow("start", "end")
         .build()
@@ -1121,10 +1356,13 @@ async fn message_start_event_succeeds() {
     // Normal start should fail or wait if not message? Actually, correlate_message starts it
     let mut vars = HashMap::new();
     vars.insert("k".into(), serde_json::Value::String("v".into()));
-    
-    let affected = engine.correlate_message("start_msg".into(), Some("bk1".into()), vars).await.unwrap();
+
+    let affected = engine
+        .correlate_message("start_msg".into(), Some("bk1".into()), vars)
+        .await
+        .unwrap();
     assert_eq!(affected.len(), 1);
-    
+
     let inst_id = affected[0];
     let inst = engine.get_instance_details(inst_id).await.unwrap();
     assert_eq!(inst.state, InstanceState::Completed);
@@ -1136,7 +1374,10 @@ async fn timer_catch_event_succeeds() {
     let engine = WorkflowEngine::new();
     let def = ProcessDefinitionBuilder::new("timer_catch")
         .node("start", BpmnElement::StartEvent)
-        .node("timer", BpmnElement::TimerCatchEvent(std::time::Duration::from_millis(50)))
+        .node(
+            "timer",
+            BpmnElement::TimerCatchEvent(std::time::Duration::from_millis(50)),
+        )
         .node("end", BpmnElement::EndEvent)
         .flow("start", "timer")
         .flow("timer", "end")
@@ -1145,19 +1386,33 @@ async fn timer_catch_event_succeeds() {
 
     let (def_key, _) = engine.deploy_definition(def).await;
     let inst_id = engine.start_instance(def_key).await.unwrap();
-    
-    assert_eq!(engine.get_instance_state(inst_id).await.unwrap(), InstanceState::WaitingOnTimer { timer_id: engine.pending_timers.iter().map(|r| r.value().clone()).next().unwrap().id });
-    
+
+    assert_eq!(
+        engine.get_instance_state(inst_id).await.unwrap(),
+        InstanceState::WaitingOnTimer {
+            timer_id: engine
+                .pending_timers
+                .iter()
+                .map(|r| r.value().clone())
+                .next()
+                .unwrap()
+                .id
+        }
+    );
+
     // Won't trigger immediately
     let triggered = engine.process_timers().await.unwrap();
     assert_eq!(triggered, 0);
 
     tokio::time::sleep(tokio::time::Duration::from_millis(60)).await;
-    
+
     let triggered = engine.process_timers().await.unwrap();
     assert_eq!(triggered, 1);
-    
-    assert_eq!(engine.get_instance_state(inst_id).await.unwrap(), InstanceState::Completed);
+
+    assert_eq!(
+        engine.get_instance_state(inst_id).await.unwrap(),
+        InstanceState::Completed
+    );
 }
 
 #[tokio::test]
@@ -1166,7 +1421,14 @@ async fn boundary_timer_event_cancels_task() {
     let def = ProcessDefinitionBuilder::new("bound_timer")
         .node("start", BpmnElement::StartEvent)
         .node("task", BpmnElement::UserTask("assignee".into()))
-        .node("bound_timer", BpmnElement::BoundaryTimerEvent { attached_to: "task".into(), duration: std::time::Duration::from_millis(50), cancel_activity: true })
+        .node(
+            "bound_timer",
+            BpmnElement::BoundaryTimerEvent {
+                attached_to: "task".into(),
+                duration: std::time::Duration::from_millis(50),
+                cancel_activity: true,
+            },
+        )
         .node("end1", BpmnElement::EndEvent)
         .node("end2", BpmnElement::EndEvent)
         .flow("start", "task")
@@ -1177,14 +1439,14 @@ async fn boundary_timer_event_cancels_task() {
 
     let (def_key, _) = engine.deploy_definition(def).await;
     let inst_id = engine.start_instance(def_key).await.unwrap();
-    
+
     assert_eq!(engine.pending_user_tasks.len(), 1);
     assert_eq!(engine.pending_timers.len(), 1);
-    
+
     tokio::time::sleep(tokio::time::Duration::from_millis(60)).await;
     let triggered = engine.process_timers().await.unwrap();
     assert_eq!(triggered, 1);
-    
+
     let inst = engine.get_instance_details(inst_id).await.unwrap();
     assert_eq!(inst.state, InstanceState::Completed);
     assert_eq!(inst.current_node, "end2");
@@ -1195,8 +1457,19 @@ async fn boundary_error_event_catches_error() {
     let engine = WorkflowEngine::new();
     let def = ProcessDefinitionBuilder::new("bound_err")
         .node("start", BpmnElement::StartEvent)
-        .node("task", BpmnElement::ServiceTask { topic: "err_topic".into() })
-        .node("bound_err", BpmnElement::BoundaryErrorEvent { attached_to: "task".into(), error_code: Some("ERR_CODE_500".into()) })
+        .node(
+            "task",
+            BpmnElement::ServiceTask {
+                topic: "err_topic".into(),
+            },
+        )
+        .node(
+            "bound_err",
+            BpmnElement::BoundaryErrorEvent {
+                attached_to: "task".into(),
+                error_code: Some("ERR_CODE_500".into()),
+            },
+        )
         .node("end1", BpmnElement::EndEvent)
         .node("end2", BpmnElement::EndEvent)
         .flow("start", "task")
@@ -1207,12 +1480,17 @@ async fn boundary_error_event_catches_error() {
 
     let (def_key, _) = engine.deploy_definition(def).await;
     let inst_id = engine.start_instance(def_key).await.unwrap();
-    
-    let tasks = engine.fetch_and_lock_service_tasks("worker", 1, &["err_topic".into()], 10).await;
+
+    let tasks = engine
+        .fetch_and_lock_service_tasks("worker", 1, &["err_topic".into()], 10)
+        .await;
     assert_eq!(tasks.len(), 1);
-    
-    engine.handle_bpmn_error(tasks[0].id, "worker", "ERR_CODE_500").await.unwrap();
-    
+
+    engine
+        .handle_bpmn_error(tasks[0].id, "worker", "ERR_CODE_500")
+        .await
+        .unwrap();
+
     let inst = engine.get_instance_details(inst_id).await.unwrap();
     assert_eq!(inst.state, InstanceState::Completed);
     assert_eq!(inst.current_node, "end2");
@@ -1221,7 +1499,7 @@ async fn boundary_error_event_catches_error() {
 #[tokio::test]
 async fn call_activity_lifecycle() {
     let engine = WorkflowEngine::new();
-    
+
     // Deploy Child
     let child_def = ProcessDefinitionBuilder::new("child_proc")
         .node("start", BpmnElement::StartEvent)
@@ -1232,52 +1510,80 @@ async fn call_activity_lifecycle() {
         .build()
         .unwrap();
     let (_child_key, _) = engine.deploy_definition(child_def).await;
-    
+
     // Deploy Parent
     let parent_def = ProcessDefinitionBuilder::new("parent_proc")
         .node("start", BpmnElement::StartEvent)
-        .node("call", BpmnElement::CallActivity { called_element: "child_proc".into() })
+        .node(
+            "call",
+            BpmnElement::CallActivity {
+                called_element: "child_proc".into(),
+            },
+        )
         .node("end", BpmnElement::EndEvent)
         .flow("start", "call")
         .flow("call", "end")
         .build()
         .unwrap();
     let (parent_key, _) = engine.deploy_definition(parent_def).await;
-    
+
     // Start Parent
     let parent_id = engine.start_instance(parent_key).await.unwrap();
-    
+
     // Parent should be blocked on Call Activity
     let parent_inst = engine.get_instance_details(parent_id).await.unwrap();
-    if let InstanceState::WaitingOnCallActivity { sub_instance_id, .. } = parent_inst.state {
+    if let InstanceState::WaitingOnCallActivity {
+        sub_instance_id, ..
+    } = parent_inst.state
+    {
         // Child instance should exist
         let child_inst = engine.get_instance_details(sub_instance_id).await.unwrap();
         assert_eq!(child_inst.parent_instance_id, Some(parent_id));
-        assert!(matches!(child_inst.state, InstanceState::WaitingOnUserTask { .. }));
-        assert!(matches!(child_inst.state, InstanceState::WaitingOnUserTask { .. }));
-        
+        assert!(matches!(
+            child_inst.state,
+            InstanceState::WaitingOnUserTask { .. }
+        ));
+        assert!(matches!(
+            child_inst.state,
+            InstanceState::WaitingOnUserTask { .. }
+        ));
+
         // Complete the child's user task
         let tasks = engine.get_pending_user_tasks();
         assert_eq!(tasks.len(), 1);
         assert_eq!(tasks[0].instance_id, sub_instance_id);
-        
+
         let child_task_id = tasks[0].task_id;
-        
+
         // Add a variable to child to ensure parent gets it
         let mut vars = std::collections::HashMap::new();
         vars.insert("from_child".into(), serde_json::json!("hello parent"));
-        engine.complete_user_task(child_task_id, vars).await.unwrap();
-        
+        engine
+            .complete_user_task(child_task_id, vars)
+            .await
+            .unwrap();
+
         // Child should be completed
         let child_inst = engine.get_instance_details(sub_instance_id).await.unwrap();
         assert_eq!(child_inst.state, InstanceState::Completed);
-        
+
         // Parent should now be automatically resumed and completed
         let parent_inst = engine.get_instance_details(parent_id).await.unwrap();
         assert_eq!(parent_inst.state, InstanceState::Completed);
-        assert_eq!(parent_inst.variables.get("from_child").unwrap().as_str().unwrap(), "hello parent");
+        assert_eq!(
+            parent_inst
+                .variables
+                .get("from_child")
+                .unwrap()
+                .as_str()
+                .unwrap(),
+            "hello parent"
+        );
     } else {
-        panic!("Parent not waiting on call activity: {:?}", parent_inst.state);
+        panic!(
+            "Parent not waiting on call activity: {:?}",
+            parent_inst.state
+        );
     }
 }
 
@@ -1288,12 +1594,20 @@ async fn call_activity_lifecycle() {
 #[tokio::test]
 async fn in_memory_simultaneous_timer_and_message_race() {
     let engine = WorkflowEngine::with_in_memory_persistence();
-    
+
     let def = ProcessDefinitionBuilder::new("race")
         .node("start", BpmnElement::StartEvent)
         .node("fork", BpmnElement::ParallelGateway)
-        .node("timer", BpmnElement::TimerCatchEvent(std::time::Duration::from_millis(50)))
-        .node("msg", BpmnElement::MessageCatchEvent { message_name: "MSG_CANCEL".into() })
+        .node(
+            "timer",
+            BpmnElement::TimerCatchEvent(std::time::Duration::from_millis(50)),
+        )
+        .node(
+            "msg",
+            BpmnElement::MessageCatchEvent {
+                message_name: "MSG_CANCEL".into(),
+            },
+        )
         .node("join", BpmnElement::ParallelGateway)
         .node("end", BpmnElement::EndEvent)
         .flow("start", "fork")
@@ -1304,28 +1618,38 @@ async fn in_memory_simultaneous_timer_and_message_race() {
         .flow("join", "end")
         .build()
         .unwrap();
-        
+
     let (def_key, _) = engine.deploy_definition(def).await;
     let inst_id = engine.start_instance(def_key).await.unwrap();
-    
+
     assert_eq!(engine.pending_timers.len(), 1);
     assert_eq!(engine.pending_message_catches.len(), 1);
-    
+
     // Simulate time passing (50ms) BUT before processing timers, we send the message!
     tokio::time::sleep(tokio::time::Duration::from_millis(60)).await;
-    
+
     // Race: The message arrives precisely when the timer is due.
-    let msg_name = engine.pending_message_catches.iter().map(|r| r.value().clone()).next().unwrap().message_name.clone();
-    engine.correlate_message(msg_name, None, std::collections::HashMap::new()).await.unwrap();
-    
+    let msg_name = engine
+        .pending_message_catches
+        .iter()
+        .map(|r| r.value().clone())
+        .next()
+        .unwrap()
+        .message_name
+        .clone();
+    engine
+        .correlate_message(msg_name, None, std::collections::HashMap::new())
+        .await
+        .unwrap();
+
     // Since message was processed first, the instance was routed to join, and blocked on parallel gate
     let _inst = engine.get_instance_details(inst_id).await.unwrap();
     // (Note: correlate_message blindly resets state to Running visually, but it's still waiting on the other parallel branch inside active_tokens)
-    
+
     // Now if we process timers, it should trigger the timer and join to finish
     let triggered = engine.process_timers().await.unwrap();
     assert_eq!(triggered, 1);
-    
+
     let inst2 = engine.get_instance_details(inst_id).await.unwrap();
     assert_eq!(inst2.state, InstanceState::Completed);
 }
@@ -1334,7 +1658,7 @@ async fn in_memory_simultaneous_timer_and_message_race() {
 async fn in_memory_script_robust_failure_handling() {
     let engine = WorkflowEngine::with_in_memory_persistence();
     let script = "let a = 1; throw \"Intentional crash!\";";
-    
+
     let def = ProcessDefinitionBuilder::new("script_crash")
         .node("start", BpmnElement::StartEvent)
         .node("task", BpmnElement::UserTask("worker".into()))
@@ -1344,19 +1668,24 @@ async fn in_memory_script_robust_failure_handling() {
         .listener("start", crate::model::ListenerEvent::Start, script)
         .build()
         .unwrap();
-        
+
     let (def_key, _) = engine.deploy_definition(def).await;
-    
+
     // Engine should panic or return error because script is broken
     let result = engine.start_instance(def_key).await;
     assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("Intentional crash!"));
+    assert!(
+        result
+            .unwrap_err()
+            .to_string()
+            .contains("Intentional crash!")
+    );
 }
 
 #[tokio::test]
 async fn in_memory_large_file_variables() {
     let engine = WorkflowEngine::with_in_memory_persistence();
-    
+
     let def = ProcessDefinitionBuilder::new("large_file")
         .node("start", BpmnElement::StartEvent)
         .node("task", BpmnElement::UserTask("worker".into()))
@@ -1365,20 +1694,20 @@ async fn in_memory_large_file_variables() {
         .flow("task", "end")
         .build()
         .unwrap();
-        
+
     let (def_key, _) = engine.deploy_definition(def).await;
     let inst_id = engine.start_instance(def_key).await.unwrap();
-    
+
     // Create a very large dummy payload (10 MB of zeros to simulate memory stress)
     // NOTE: In the real engine-server, the file goes to the persistence layer.
-    // In engine-core tests, we can just insert the reference into variables and 
+    // In engine-core tests, we can just insert the reference into variables and
     // also persist it explicitly to in-memory persistence.
-    let large_payload = vec![0u8; 10 * 1024 * 1024]; 
-    
+    let large_payload = vec![0u8; 10 * 1024 * 1024];
+
     if let Some(p) = &engine.persistence {
         p.save_file("file:big_data", &large_payload).await.unwrap();
     }
-    
+
     let file_ref = crate::model::FileReference {
         object_key: "file:big_data".into(),
         filename: "big_data.bin".into(),
@@ -1386,17 +1715,20 @@ async fn in_memory_large_file_variables() {
         size_bytes: large_payload.len() as u64,
         uploaded_at: chrono::Utc::now().to_rfc3339(),
     };
-    
+
     // Inject it into task
     let tasks = engine.get_pending_user_tasks();
     let mut vars = std::collections::HashMap::new();
     vars.insert("my_file".into(), serde_json::to_value(&file_ref).unwrap());
-    
-    engine.complete_user_task(tasks[0].task_id, vars).await.unwrap();
-    
+
+    engine
+        .complete_user_task(tasks[0].task_id, vars)
+        .await
+        .unwrap();
+
     let inst = engine.get_instance_details(inst_id).await.unwrap();
     assert_eq!(inst.state, InstanceState::Completed);
-    
+
     // Validate we can download it back
     let v = inst.variables.get("my_file").unwrap();
     let f_ref: crate::model::FileReference = serde_json::from_value(v.clone()).unwrap();
@@ -1439,7 +1771,7 @@ async fn test_definition_versioning_and_migration() {
 
     let (key_v2, _) = engine.deploy_definition(def_v2).await;
     let def_v2_deployed = engine.definitions.get(&key_v2).await.unwrap();
-    
+
     // Key should be different, version should be bumped
     assert_ne!(key_v1, key_v2);
     assert_eq!(def_v2_deployed.version, 2);
@@ -1459,7 +1791,7 @@ async fn test_definition_versioning_and_migration() {
 #[tokio::test]
 async fn restore_timer_and_message_catch() {
     let engine = WorkflowEngine::new();
-    
+
     let timer = PendingTimer {
         id: Uuid::new_v4(),
         instance_id: Uuid::new_v4(),
@@ -1469,8 +1801,17 @@ async fn restore_timer_and_message_catch() {
     };
     engine.restore_timer(timer.clone());
     assert_eq!(engine.pending_timers.len(), 1);
-    assert_eq!(engine.pending_timers.iter().map(|r| r.value().clone()).next().unwrap().id, timer.id);
-    
+    assert_eq!(
+        engine
+            .pending_timers
+            .iter()
+            .map(|r| r.value().clone())
+            .next()
+            .unwrap()
+            .id,
+        timer.id
+    );
+
     let catch = PendingMessageCatch {
         id: Uuid::new_v4(),
         instance_id: Uuid::new_v4(),
@@ -1480,7 +1821,16 @@ async fn restore_timer_and_message_catch() {
     };
     engine.restore_message_catch(catch.clone());
     assert_eq!(engine.pending_message_catches.len(), 1);
-    assert_eq!(engine.pending_message_catches.iter().map(|r| r.value().clone()).next().unwrap().id, catch.id);
+    assert_eq!(
+        engine
+            .pending_message_catches
+            .iter()
+            .map(|r| r.value().clone())
+            .next()
+            .unwrap()
+            .id,
+        catch.id
+    );
 }
 
 #[tokio::test]
@@ -1512,17 +1862,24 @@ async fn test_nested_parallel_gateways() {
     let (def_key, _) = engine.deploy_definition(def).await;
     let inst_id = engine.start_instance(def_key).await.unwrap();
 
-    let _ = engine.fetch_and_lock_service_tasks("worker", 10, &["t".into()], 10).await;
-    
+    let _ = engine
+        .fetch_and_lock_service_tasks("worker", 10, &["t".into()], 10)
+        .await;
+
     // Complete all 3 tasks
     let mut i = 0;
     while let Some(task) = engine.get_pending_service_tasks().first() {
         let task_id = task.id;
-        engine.complete_service_task(task_id, "worker", std::collections::HashMap::new()).await.unwrap();
+        engine
+            .complete_service_task(task_id, "worker", std::collections::HashMap::new())
+            .await
+            .unwrap();
         i += 1;
-        if i > 5 { break; } // safety loop limit
+        if i > 5 {
+            break;
+        } // safety loop limit
     }
-    
+
     let state = engine.get_instance_state(inst_id).await.unwrap();
     assert_eq!(state, InstanceState::Completed);
 }
@@ -1536,7 +1893,12 @@ async fn top_level_error_end_event_results_in_completed_with_error() {
     let engine = WorkflowEngine::new();
     let def = ProcessDefinitionBuilder::new("top_err")
         .node("start", BpmnElement::StartEvent)
-        .node("err_end", BpmnElement::ErrorEndEvent { error_code: String::from("CRITICAL_FAIL") })
+        .node(
+            "err_end",
+            BpmnElement::ErrorEndEvent {
+                error_code: String::from("CRITICAL_FAIL"),
+            },
+        )
         .flow("start", "err_end")
         .build()
         .unwrap();
@@ -1545,16 +1907,29 @@ async fn top_level_error_end_event_results_in_completed_with_error() {
     let instance_id = engine.start_instance(key).await.unwrap();
 
     let state = engine.get_instance_state(instance_id).await.unwrap();
-    assert_eq!(state, InstanceState::CompletedWithError { error_code: "CRITICAL_FAIL".into() });
+    assert_eq!(
+        state,
+        InstanceState::CompletedWithError {
+            error_code: "CRITICAL_FAIL".into()
+        }
+    );
 
     let log = engine.get_audit_log(instance_id).await.unwrap();
-    assert!(log.iter().any(|l| l.contains("CRITICAL_FAIL") && l.contains("Error End")));
+    assert!(
+        log.iter()
+            .any(|l| l.contains("CRITICAL_FAIL") && l.contains("Error End"))
+    );
 }
 
 fn build_child_error_process(code: &str) -> ProcessDefinition {
     ProcessDefinitionBuilder::new("child_proc")
         .node("start", BpmnElement::StartEvent)
-        .node("err_end", BpmnElement::ErrorEndEvent { error_code: String::from(code) })
+        .node(
+            "err_end",
+            BpmnElement::ErrorEndEvent {
+                error_code: String::from(code),
+            },
+        )
         .flow("start", "err_end")
         .build()
         .unwrap()
@@ -1563,12 +1938,25 @@ fn build_child_error_process(code: &str) -> ProcessDefinition {
 #[tokio::test]
 async fn call_activity_propagates_error_to_matching_boundary_event() {
     let engine = WorkflowEngine::new();
-    let (_, _) = engine.deploy_definition(build_child_error_process("ERR_CHILD")).await;
+    let (_, _) = engine
+        .deploy_definition(build_child_error_process("ERR_CHILD"))
+        .await;
 
     let parent_def = ProcessDefinitionBuilder::new("parent_proc")
         .node("start", BpmnElement::StartEvent)
-        .node("call", BpmnElement::CallActivity { called_element: "child_proc".into() })
-        .node("bound_err", BpmnElement::BoundaryErrorEvent { attached_to: "call".into(), error_code: Some("ERR_CHILD".into()) })
+        .node(
+            "call",
+            BpmnElement::CallActivity {
+                called_element: "child_proc".into(),
+            },
+        )
+        .node(
+            "bound_err",
+            BpmnElement::BoundaryErrorEvent {
+                attached_to: "call".into(),
+                error_code: Some("ERR_CHILD".into()),
+            },
+        )
         .node("end_normal", BpmnElement::EndEvent)
         .node("end_error", BpmnElement::EndEvent)
         .flow("start", "call")
@@ -1591,12 +1979,25 @@ async fn call_activity_propagates_error_to_matching_boundary_event() {
 #[tokio::test]
 async fn call_activity_propagates_error_to_wildcard_boundary_event() {
     let engine = WorkflowEngine::new();
-    let (_, _) = engine.deploy_definition(build_child_error_process("ANY_ERR_CODE")).await;
+    let (_, _) = engine
+        .deploy_definition(build_child_error_process("ANY_ERR_CODE"))
+        .await;
 
     let parent_def = ProcessDefinitionBuilder::new("parent_wildcard")
         .node("start", BpmnElement::StartEvent)
-        .node("call", BpmnElement::CallActivity { called_element: "child_proc".into() })
-        .node("bound_err", BpmnElement::BoundaryErrorEvent { attached_to: "call".into(), error_code: None }) // Wildcard
+        .node(
+            "call",
+            BpmnElement::CallActivity {
+                called_element: "child_proc".into(),
+            },
+        )
+        .node(
+            "bound_err",
+            BpmnElement::BoundaryErrorEvent {
+                attached_to: "call".into(),
+                error_code: None,
+            },
+        ) // Wildcard
         .node("end_normal", BpmnElement::EndEvent)
         .node("end_error", BpmnElement::EndEvent)
         .flow("start", "call")
@@ -1618,11 +2019,18 @@ async fn call_activity_propagates_error_to_wildcard_boundary_event() {
 #[tokio::test]
 async fn call_activity_unhandled_error_becomes_incident() {
     let engine = WorkflowEngine::new();
-    let (_, _) = engine.deploy_definition(build_child_error_process("UNHANDLED_CODE")).await;
+    let (_, _) = engine
+        .deploy_definition(build_child_error_process("UNHANDLED_CODE"))
+        .await;
 
     let parent_def = ProcessDefinitionBuilder::new("parent_unhandled")
         .node("start", BpmnElement::StartEvent)
-        .node("call", BpmnElement::CallActivity { called_element: "child_proc".into() })
+        .node(
+            "call",
+            BpmnElement::CallActivity {
+                called_element: "child_proc".into(),
+            },
+        )
         .node("end_normal", BpmnElement::EndEvent)
         .flow("start", "call")
         .flow("call", "end_normal")
@@ -1637,7 +2045,10 @@ async fn call_activity_unhandled_error_becomes_incident() {
     assert!(matches!(state, InstanceState::WaitingOnCallActivity { .. }));
 
     let log = engine.get_audit_log(instance_id).await.unwrap();
-    assert!(log.iter().any(|l| l.contains("INCIDENT") && l.contains("UNHANDLED_CODE")));
+    assert!(
+        log.iter()
+            .any(|l| l.contains("INCIDENT") && l.contains("UNHANDLED_CODE"))
+    );
 }
 
 #[test]
@@ -1654,8 +2065,16 @@ async fn event_based_gateway_timer_wins() {
     let def = ProcessDefinitionBuilder::new("ebg_timer")
         .node("start", BpmnElement::StartEvent)
         .node("gw", BpmnElement::EventBasedGateway)
-        .node("catch_timer", BpmnElement::TimerCatchEvent(Duration::from_millis(50)))
-        .node("catch_msg", BpmnElement::MessageCatchEvent { message_name: "win_msg".into() })
+        .node(
+            "catch_timer",
+            BpmnElement::TimerCatchEvent(Duration::from_millis(50)),
+        )
+        .node(
+            "catch_msg",
+            BpmnElement::MessageCatchEvent {
+                message_name: "win_msg".into(),
+            },
+        )
         .node("end_timer", BpmnElement::EndEvent)
         .node("end_msg", BpmnElement::EndEvent)
         .flow("start", "gw")
@@ -1678,7 +2097,7 @@ async fn event_based_gateway_timer_wins() {
 
     // Wait for timer to expire
     tokio::time::sleep(Duration::from_millis(60)).await;
-    
+
     let processed = engine.process_timers().await.unwrap();
     assert_eq!(processed, 1);
 
@@ -1688,7 +2107,7 @@ async fn event_based_gateway_timer_wins() {
 
     let state = engine.get_instance_state(instance_id).await.unwrap();
     assert_eq!(state, InstanceState::Completed);
-    
+
     let log = engine.get_audit_log(instance_id).await.unwrap();
     assert!(log.iter().any(|l| l.contains("cancelled")));
     assert!(log.iter().any(|l| l.contains("'end_timer'")));
@@ -1700,8 +2119,16 @@ async fn event_based_gateway_message_wins() {
     let def = ProcessDefinitionBuilder::new("ebg_msg")
         .node("start", BpmnElement::StartEvent)
         .node("gw", BpmnElement::EventBasedGateway)
-        .node("catch_timer", BpmnElement::TimerCatchEvent(Duration::from_millis(5000))) // Long timer
-        .node("catch_msg", BpmnElement::MessageCatchEvent { message_name: "win_msg".into() })
+        .node(
+            "catch_timer",
+            BpmnElement::TimerCatchEvent(Duration::from_millis(5000)),
+        ) // Long timer
+        .node(
+            "catch_msg",
+            BpmnElement::MessageCatchEvent {
+                message_name: "win_msg".into(),
+            },
+        )
         .node("end_timer", BpmnElement::EndEvent)
         .node("end_msg", BpmnElement::EndEvent)
         .flow("start", "gw")
@@ -1716,7 +2143,10 @@ async fn event_based_gateway_message_wins() {
     let instance_id = engine.start_instance(key).await.unwrap();
 
     // Correlate message
-    let affected = engine.correlate_message("win_msg".into(), None, Default::default()).await.unwrap();
+    let affected = engine
+        .correlate_message("win_msg".into(), None, Default::default())
+        .await
+        .unwrap();
     assert_eq!(affected.len(), 1);
 
     // The timer should have been CANCELLED and removed!

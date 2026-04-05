@@ -5,8 +5,8 @@ use uuid::Uuid;
 
 use engine_core::engine::WorkflowEngine;
 use engine_core::persistence::WorkflowPersistence;
-use persistence_nats::NatsPersistence;
 use engine_server::build_app_with_engine;
+use persistence_nats::NatsPersistence;
 
 async fn restore_from_nats(
     nats: &NatsPersistence,
@@ -108,18 +108,16 @@ async fn main() -> anyhow::Result<()> {
             .with_env_filter(filter)
             .init();
     } else {
-        tracing_subscriber::fmt()
-            .with_env_filter(filter)
-            .init();
+        tracing_subscriber::fmt().with_env_filter(filter).init();
     }
 
     tracing::info!("Starting bpmninja engine-server...");
 
     let nats_url = env::var("NATS_URL").unwrap_or_else(|_| "nats://localhost:4222".to_string());
-    
+
     let mut engine = WorkflowEngine::new();
     let mut xml_cache = HashMap::new();
-    
+
     let nats_persistence = match NatsPersistence::connect(&nats_url, "WORKFLOW_EVENTS").await {
         Ok(p) => {
             tracing::info!("Connected to NATS at {}", nats_url);
@@ -129,7 +127,11 @@ async fn main() -> anyhow::Result<()> {
             Some(p_arc as Arc<dyn WorkflowPersistence>)
         }
         Err(e) => {
-            tracing::error!("NATS not available at {} - running IN-MEMORY only! Error: {}", nats_url, e);
+            tracing::error!(
+                "NATS not available at {} - running IN-MEMORY only! Error: {}",
+                nats_url,
+                e
+            );
             None
         }
     };
@@ -145,7 +147,10 @@ async fn main() -> anyhow::Result<()> {
     let timer_engine = engine_arc.clone();
     tokio::spawn(async move {
         let interval = tokio::time::Duration::from_millis(timer_interval_ms);
-        tracing::info!("Timer scheduler started (interval: {}ms)", timer_interval_ms);
+        tracing::info!(
+            "Timer scheduler started (interval: {}ms)",
+            timer_interval_ms
+        );
         loop {
             tokio::time::sleep(interval).await;
             let engine = &timer_engine;

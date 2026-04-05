@@ -5,11 +5,11 @@
 //! re-reads the current in-memory state, and retries the persistence call
 //! with exponential backoff.
 
-use dashmap::DashMap;
 use super::types::*;
+use dashmap::DashMap;
 use std::sync::Arc;
-use uuid::Uuid;
 use tokio::sync::mpsc;
+use uuid::Uuid;
 
 use crate::history::HistoryEntry;
 use crate::persistence::WorkflowPersistence;
@@ -124,32 +124,34 @@ pub(crate) fn spawn_retry_worker(
                     &pending_service_tasks,
                     &pending_timers,
                     &pending_message_catches,
-                ).await;
+                )
+                .await;
 
                 match result {
                     Ok(()) => {
-                        tracing::info!(
-                            "Retry succeeded for {} (attempt {})",
-                            job, attempt
-                        );
+                        tracing::info!("Retry succeeded for {} (attempt {})", job, attempt);
                         break;
                     }
                     Err(e) if attempt >= MAX_RETRIES => {
                         error_counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                         tracing::error!(
                             "PERMANENT PERSISTENCE FAILURE after {} retries for {}: {}",
-                            MAX_RETRIES, job, e
+                            MAX_RETRIES,
+                            job,
+                            e
                         );
                         break;
                     }
                     Err(e) => {
                         tracing::warn!(
                             "Retry {}/{} for {} failed: {} — backing off {}ms",
-                            attempt, MAX_RETRIES, job, e, backoff_ms
+                            attempt,
+                            MAX_RETRIES,
+                            job,
+                            e,
+                            backoff_ms
                         );
-                        tokio::time::sleep(
-                            tokio::time::Duration::from_millis(backoff_ms)
-                        ).await;
+                        tokio::time::sleep(tokio::time::Duration::from_millis(backoff_ms)).await;
                         backoff_ms = (backoff_ms * 2).min(MAX_BACKOFF_MS);
                     }
                 }
@@ -180,7 +182,9 @@ async fn execute_job(
         PersistJob::SaveInstance(id) => {
             if let Some(inst_arc) = instances.get(id).await {
                 let inst = inst_arc.read().await;
-                persistence.save_instance(&inst).await
+                persistence
+                    .save_instance(&inst)
+                    .await
                     .map_err(|e| e.to_string())
             } else {
                 // Instance was deleted since the job was queued — skip.
@@ -189,7 +193,9 @@ async fn execute_job(
         }
         PersistJob::SaveDefinition(id) => {
             if let Some(def) = definitions.get(id).await {
-                persistence.save_definition(&def).await
+                persistence
+                    .save_definition(&def)
+                    .await
                     .map_err(|e| e.to_string())
             } else {
                 Ok(())
@@ -197,55 +203,63 @@ async fn execute_job(
         }
         PersistJob::SaveUserTask(id) => {
             if let Some(task_ref) = pending_user_tasks.get(id) {
-                persistence.save_user_task(&task_ref).await
+                persistence
+                    .save_user_task(&task_ref)
+                    .await
                     .map_err(|e| e.to_string())
             } else {
                 Ok(())
             }
         }
-        PersistJob::DeleteUserTask(id) => {
-            persistence.delete_user_task(*id).await
-                .map_err(|e| e.to_string())
-        }
+        PersistJob::DeleteUserTask(id) => persistence
+            .delete_user_task(*id)
+            .await
+            .map_err(|e| e.to_string()),
         PersistJob::SaveServiceTask(id) => {
             if let Some(task_ref) = pending_service_tasks.get(id) {
-                persistence.save_service_task(&task_ref).await
+                persistence
+                    .save_service_task(&task_ref)
+                    .await
                     .map_err(|e| e.to_string())
             } else {
                 Ok(())
             }
         }
-        PersistJob::DeleteServiceTask(id) => {
-            persistence.delete_service_task(*id).await
-                .map_err(|e| e.to_string())
-        }
+        PersistJob::DeleteServiceTask(id) => persistence
+            .delete_service_task(*id)
+            .await
+            .map_err(|e| e.to_string()),
         PersistJob::SaveTimer(id) => {
             if let Some(timer_ref) = pending_timers.get(id) {
-                persistence.save_timer(&timer_ref).await
+                persistence
+                    .save_timer(&timer_ref)
+                    .await
                     .map_err(|e| e.to_string())
             } else {
                 Ok(())
             }
         }
-        PersistJob::DeleteTimer(id) => {
-            persistence.delete_timer(*id).await
-                .map_err(|e| e.to_string())
-        }
+        PersistJob::DeleteTimer(id) => persistence
+            .delete_timer(*id)
+            .await
+            .map_err(|e| e.to_string()),
         PersistJob::SaveMessageCatch(id) => {
             if let Some(catch_ref) = pending_message_catches.get(id) {
-                persistence.save_message_catch(&catch_ref).await
+                persistence
+                    .save_message_catch(&catch_ref)
+                    .await
                     .map_err(|e| e.to_string())
             } else {
                 Ok(())
             }
         }
-        PersistJob::DeleteMessageCatch(id) => {
-            persistence.delete_message_catch(*id).await
-                .map_err(|e| e.to_string())
-        }
-        PersistJob::AppendHistoryEntry(entry) => {
-            persistence.append_history_entry(entry).await
-                .map_err(|e| e.to_string())
-        }
+        PersistJob::DeleteMessageCatch(id) => persistence
+            .delete_message_catch(*id)
+            .await
+            .map_err(|e| e.to_string()),
+        PersistJob::AppendHistoryEntry(entry) => persistence
+            .append_history_entry(entry)
+            .await
+            .map_err(|e| e.to_string()),
     }
 }

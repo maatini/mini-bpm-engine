@@ -1,12 +1,13 @@
-use uuid::Uuid;
-use crate::ProcessInstance;
 use super::WorkflowEngine;
-use super::retry_queue::{PersistJob, INLINE_RETRIES, INLINE_BACKOFF_MS};
+use super::retry_queue::{INLINE_BACKOFF_MS, INLINE_RETRIES, PersistJob};
+use crate::ProcessInstance;
+use uuid::Uuid;
 
 impl WorkflowEngine {
     /// Logs and counts a persistence error.
     pub(crate) fn log_persistence_error(&self, context: &str, err: impl std::fmt::Display) {
-        self.persistence_error_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        self.persistence_error_count
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         tracing::error!("PERSISTENCE FAILURE [{}]: {}", context, err);
     }
 
@@ -38,7 +39,10 @@ impl WorkflowEngine {
             let diff = match (old_state, new_state.as_ref()) {
                 (Some(o), Some(n)) => crate::history::calculate_diff(o, n),
                 _ => crate::history::HistoryDiff {
-                    variables: None, status: None, current_node: None, human_readable: None,
+                    variables: None,
+                    status: None,
+                    current_node: None,
+                    human_readable: None,
                 },
             };
 
@@ -50,7 +54,11 @@ impl WorkflowEngine {
             }
 
             let mut entry = crate::history::HistoryEntry::new(
-                instance_id, event_type, description, actor_type, actor_id,
+                instance_id,
+                event_type,
+                description,
+                actor_type,
+                actor_id,
             );
             if !diff.is_empty() {
                 entry = entry.with_diff(diff);
@@ -76,21 +84,29 @@ impl WorkflowEngine {
             let mut last_err = None;
             for attempt in 0..=INLINE_RETRIES {
                 match p.append_history_entry(&entry).await {
-                    Ok(()) => { last_err = None; break; }
+                    Ok(()) => {
+                        last_err = None;
+                        break;
+                    }
                     Err(e) if attempt < INLINE_RETRIES => {
                         let delay = INLINE_BACKOFF_MS * 2u64.pow(attempt);
-                        tracing::warn!("History append retry {}/{}: {} — backoff {}ms",
-                            attempt + 1, INLINE_RETRIES, e, delay);
+                        tracing::warn!(
+                            "History append retry {}/{}: {} — backoff {}ms",
+                            attempt + 1,
+                            INLINE_RETRIES,
+                            e,
+                            delay
+                        );
                         tokio::time::sleep(tokio::time::Duration::from_millis(delay)).await;
                         last_err = Some(e);
                     }
-                    Err(e) => { last_err = Some(e); }
+                    Err(e) => {
+                        last_err = Some(e);
+                    }
                 }
             }
             if let Some(e) = last_err {
-                self.log_persistence_error(
-                    &format!("record_history_event({})", instance_id), &e,
-                );
+                self.log_persistence_error(&format!("record_history_event({})", instance_id), &e);
                 self.enqueue_retry(PersistJob::AppendHistoryEntry(Box::new(entry)));
             }
         }
@@ -99,7 +115,9 @@ impl WorkflowEngine {
     /// Persists the current state of a process instance.
     /// Uses inline retry + background queue on failure.
     pub(crate) async fn persist_instance(&self, instance_id: Uuid) {
-        if let (Some(p), Some(inst_arc)) = (&self.persistence, self.instances.get(&instance_id).await) {
+        if let (Some(p), Some(inst_arc)) =
+            (&self.persistence, self.instances.get(&instance_id).await)
+        {
             let mut inst = inst_arc.write().await;
             // Trim audit log to prevent NATS KV 1MB value overflow
             if inst.audit_log.len() > crate::engine::types::MAX_AUDIT_LOG_ENTRIES {
@@ -115,15 +133,26 @@ impl WorkflowEngine {
             let mut last_err = None;
             for attempt in 0..=INLINE_RETRIES {
                 match p.save_instance(&inst).await {
-                    Ok(()) => { last_err = None; break; }
+                    Ok(()) => {
+                        last_err = None;
+                        break;
+                    }
                     Err(e) if attempt < INLINE_RETRIES => {
                         let delay = INLINE_BACKOFF_MS * 2u64.pow(attempt);
-                        tracing::warn!("save_instance({}) retry {}/{}: {} — backoff {}ms",
-                            instance_id, attempt + 1, INLINE_RETRIES, e, delay);
+                        tracing::warn!(
+                            "save_instance({}) retry {}/{}: {} — backoff {}ms",
+                            instance_id,
+                            attempt + 1,
+                            INLINE_RETRIES,
+                            e,
+                            delay
+                        );
                         tokio::time::sleep(tokio::time::Duration::from_millis(delay)).await;
                         last_err = Some(e);
                     }
-                    Err(e) => { last_err = Some(e); }
+                    Err(e) => {
+                        last_err = Some(e);
+                    }
                 }
             }
             if let Some(e) = last_err {
@@ -140,15 +169,26 @@ impl WorkflowEngine {
             let mut last_err = None;
             for attempt in 0..=INLINE_RETRIES {
                 match p.save_definition(&def).await {
-                    Ok(()) => { last_err = None; break; }
+                    Ok(()) => {
+                        last_err = None;
+                        break;
+                    }
                     Err(e) if attempt < INLINE_RETRIES => {
                         let delay = INLINE_BACKOFF_MS * 2u64.pow(attempt);
-                        tracing::warn!("save_definition({}) retry {}/{}: {} — backoff {}ms",
-                            key, attempt + 1, INLINE_RETRIES, e, delay);
+                        tracing::warn!(
+                            "save_definition({}) retry {}/{}: {} — backoff {}ms",
+                            key,
+                            attempt + 1,
+                            INLINE_RETRIES,
+                            e,
+                            delay
+                        );
                         tokio::time::sleep(tokio::time::Duration::from_millis(delay)).await;
                         last_err = Some(e);
                     }
-                    Err(e) => { last_err = Some(e); }
+                    Err(e) => {
+                        last_err = Some(e);
+                    }
                 }
             }
             if let Some(e) = last_err {
@@ -165,15 +205,26 @@ impl WorkflowEngine {
                 let mut last_err = None;
                 for attempt in 0..=INLINE_RETRIES {
                     match p.save_user_task(&task_ref).await {
-                        Ok(()) => { last_err = None; break; }
+                        Ok(()) => {
+                            last_err = None;
+                            break;
+                        }
                         Err(e) if attempt < INLINE_RETRIES => {
                             let delay = INLINE_BACKOFF_MS * 2u64.pow(attempt);
-                            tracing::warn!("save_user_task({}) retry {}/{}: {} — backoff {}ms",
-                                task_id, attempt + 1, INLINE_RETRIES, e, delay);
+                            tracing::warn!(
+                                "save_user_task({}) retry {}/{}: {} — backoff {}ms",
+                                task_id,
+                                attempt + 1,
+                                INLINE_RETRIES,
+                                e,
+                                delay
+                            );
                             tokio::time::sleep(tokio::time::Duration::from_millis(delay)).await;
                             last_err = Some(e);
                         }
-                        Err(e) => { last_err = Some(e); }
+                        Err(e) => {
+                            last_err = Some(e);
+                        }
                     }
                 }
                 if let Some(e) = last_err {
@@ -190,13 +241,18 @@ impl WorkflowEngine {
             let mut last_err = None;
             for attempt in 0..=INLINE_RETRIES {
                 match p.delete_user_task(task_id).await {
-                    Ok(()) => { last_err = None; break; }
+                    Ok(()) => {
+                        last_err = None;
+                        break;
+                    }
                     Err(e) if attempt < INLINE_RETRIES => {
                         let delay = INLINE_BACKOFF_MS * 2u64.pow(attempt);
                         tokio::time::sleep(tokio::time::Duration::from_millis(delay)).await;
                         last_err = Some(e);
                     }
-                    Err(e) => { last_err = Some(e); }
+                    Err(e) => {
+                        last_err = Some(e);
+                    }
                 }
             }
             if let Some(e) = last_err {
@@ -213,13 +269,18 @@ impl WorkflowEngine {
                 let mut last_err = None;
                 for attempt in 0..=INLINE_RETRIES {
                     match p.save_service_task(&task_ref).await {
-                        Ok(()) => { last_err = None; break; }
+                        Ok(()) => {
+                            last_err = None;
+                            break;
+                        }
                         Err(e) if attempt < INLINE_RETRIES => {
                             let delay = INLINE_BACKOFF_MS * 2u64.pow(attempt);
                             tokio::time::sleep(tokio::time::Duration::from_millis(delay)).await;
                             last_err = Some(e);
                         }
-                        Err(e) => { last_err = Some(e); }
+                        Err(e) => {
+                            last_err = Some(e);
+                        }
                     }
                 }
                 if let Some(e) = last_err {
@@ -236,13 +297,18 @@ impl WorkflowEngine {
             let mut last_err = None;
             for attempt in 0..=INLINE_RETRIES {
                 match p.delete_service_task(task_id).await {
-                    Ok(()) => { last_err = None; break; }
+                    Ok(()) => {
+                        last_err = None;
+                        break;
+                    }
                     Err(e) if attempt < INLINE_RETRIES => {
                         let delay = INLINE_BACKOFF_MS * 2u64.pow(attempt);
                         tokio::time::sleep(tokio::time::Duration::from_millis(delay)).await;
                         last_err = Some(e);
                     }
-                    Err(e) => { last_err = Some(e); }
+                    Err(e) => {
+                        last_err = Some(e);
+                    }
                 }
             }
             if let Some(e) = last_err {
@@ -259,13 +325,18 @@ impl WorkflowEngine {
                 let mut last_err = None;
                 for attempt in 0..=INLINE_RETRIES {
                     match p.save_timer(&timer_ref).await {
-                        Ok(()) => { last_err = None; break; }
+                        Ok(()) => {
+                            last_err = None;
+                            break;
+                        }
                         Err(e) if attempt < INLINE_RETRIES => {
                             let delay = INLINE_BACKOFF_MS * 2u64.pow(attempt);
                             tokio::time::sleep(tokio::time::Duration::from_millis(delay)).await;
                             last_err = Some(e);
                         }
-                        Err(e) => { last_err = Some(e); }
+                        Err(e) => {
+                            last_err = Some(e);
+                        }
                     }
                 }
                 if let Some(e) = last_err {
@@ -282,13 +353,18 @@ impl WorkflowEngine {
             let mut last_err = None;
             for attempt in 0..=INLINE_RETRIES {
                 match p.delete_timer(timer_id).await {
-                    Ok(()) => { last_err = None; break; }
+                    Ok(()) => {
+                        last_err = None;
+                        break;
+                    }
                     Err(e) if attempt < INLINE_RETRIES => {
                         let delay = INLINE_BACKOFF_MS * 2u64.pow(attempt);
                         tokio::time::sleep(tokio::time::Duration::from_millis(delay)).await;
                         last_err = Some(e);
                     }
-                    Err(e) => { last_err = Some(e); }
+                    Err(e) => {
+                        last_err = Some(e);
+                    }
                 }
             }
             if let Some(e) = last_err {
@@ -305,13 +381,18 @@ impl WorkflowEngine {
                 let mut last_err = None;
                 for attempt in 0..=INLINE_RETRIES {
                     match p.save_message_catch(&catch_ref).await {
-                        Ok(()) => { last_err = None; break; }
+                        Ok(()) => {
+                            last_err = None;
+                            break;
+                        }
                         Err(e) if attempt < INLINE_RETRIES => {
                             let delay = INLINE_BACKOFF_MS * 2u64.pow(attempt);
                             tokio::time::sleep(tokio::time::Duration::from_millis(delay)).await;
                             last_err = Some(e);
                         }
-                        Err(e) => { last_err = Some(e); }
+                        Err(e) => {
+                            last_err = Some(e);
+                        }
                     }
                 }
                 if let Some(e) = last_err {
@@ -328,13 +409,18 @@ impl WorkflowEngine {
             let mut last_err = None;
             for attempt in 0..=INLINE_RETRIES {
                 match p.delete_message_catch(catch_id).await {
-                    Ok(()) => { last_err = None; break; }
+                    Ok(()) => {
+                        last_err = None;
+                        break;
+                    }
                     Err(e) if attempt < INLINE_RETRIES => {
                         let delay = INLINE_BACKOFF_MS * 2u64.pow(attempt);
                         tokio::time::sleep(tokio::time::Duration::from_millis(delay)).await;
                         last_err = Some(e);
                     }
-                    Err(e) => { last_err = Some(e); }
+                    Err(e) => {
+                        last_err = Some(e);
+                    }
                 }
             }
             if let Some(e) = last_err {

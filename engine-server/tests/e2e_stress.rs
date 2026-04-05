@@ -18,10 +18,13 @@ async fn start_server() -> String {
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn stress_http_concurrent_deployments() {
     let base = start_server().await;
-    let client = reqwest::Client::builder().pool_max_idle_per_host(50).build().unwrap();
-    
+    let client = reqwest::Client::builder()
+        .pool_max_idle_per_host(50)
+        .build()
+        .unwrap();
+
     let mut handles = Vec::new();
-    
+
     for i in 0..20 {
         let cli = client.clone();
         let b = base.clone();
@@ -39,13 +42,13 @@ async fn stress_http_concurrent_deployments() {
               </bpmn:process>
                 </bpmn:definitions>
             "#);
-            
+
             let res = cli.post(format!("{}/api/deploy", b))
                 .json(&serde_json::json!({ "xml": xml, "name": format!("p_{}", i) }))
                 .send()
                 .await
                 .expect("request failed");
-            
+
             let status = res.status();
             if !status.is_success() {
                 let text = res.text().await.unwrap_or_default();
@@ -54,7 +57,7 @@ async fn stress_http_concurrent_deployments() {
             status
         }));
     }
-    
+
     let mut successes = 0;
     for h in handles {
         if h.await.unwrap() == 200 {
@@ -67,8 +70,11 @@ async fn stress_http_concurrent_deployments() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn stress_http_concurrent_starts() {
     let base = start_server().await;
-    let client = reqwest::Client::builder().pool_max_idle_per_host(100).build().unwrap();
-    
+    let client = reqwest::Client::builder()
+        .pool_max_idle_per_host(100)
+        .build()
+        .unwrap();
+
     let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
         <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
           <bpmn:process id="Process_stress_start" isExecutable="true">
@@ -82,24 +88,26 @@ async fn stress_http_concurrent_starts() {
           </bpmn:process>
         </bpmn:definitions>
     "#;
-    
-    let deploy_res = client.post(format!("{}/api/deploy", base))
+
+    let deploy_res = client
+        .post(format!("{}/api/deploy", base))
         .json(&serde_json::json!({ "xml": xml, "name": "stress_start" }))
         .send()
         .await
         .expect("deploy failed");
-    
+
     let body: Value = deploy_res.json().await.unwrap();
     let def_key = body["definition_key"].as_str().unwrap().to_string();
-    
+
     let mut handles = Vec::new();
-    
+
     for _ in 0..100 {
         let cli = client.clone();
         let b = base.clone();
         let key = def_key.clone();
         handles.push(tokio::spawn(async move {
-            let res = cli.post(format!("{}/api/start", b))
+            let res = cli
+                .post(format!("{}/api/start", b))
                 .json(&serde_json::json!({ "definition_key": key, "variables": {} }))
                 .send()
                 .await
@@ -107,7 +115,7 @@ async fn stress_http_concurrent_starts() {
             res.status()
         }));
     }
-    
+
     let mut successes = 0;
     for h in handles {
         if h.await.unwrap() == 200 {
@@ -115,10 +123,13 @@ async fn stress_http_concurrent_starts() {
         }
     }
     assert_eq!(successes, 100);
-    
+
     // Validate stats
-    let stats_res = client.get(format!("{}/api/monitoring", base))
-        .send().await.unwrap();
+    let stats_res = client
+        .get(format!("{}/api/monitoring", base))
+        .send()
+        .await
+        .unwrap();
     let stats: Value = stats_res.json().await.unwrap();
     let completed = stats["instances_completed"].as_u64().unwrap();
     assert!(completed >= 100);

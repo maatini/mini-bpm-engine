@@ -1,10 +1,10 @@
-use tokio::sync::RwLock;
-use axum::{http::StatusCode, response::IntoResponse, Json};
+use axum::{Json, http::StatusCode, response::IntoResponse};
 use engine_core::engine::WorkflowEngine;
 use engine_core::error::EngineError;
 use engine_core::persistence::WorkflowPersistence;
 use std::collections::HashMap;
 use std::sync::Arc;
+use tokio::sync::RwLock;
 use uuid::Uuid;
 
 /// Unified error type for all REST handlers.
@@ -25,12 +25,11 @@ impl IntoResponse for AppError {
     fn into_response(self) -> axum::response::Response {
         let (status, message) = match self {
             Self::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg),
-            Self::Engine(EngineError::InvalidDefinition(msg)) => {
-                (StatusCode::BAD_REQUEST, msg)
-            }
-            Self::Engine(EngineError::NoMatchingCondition(msg)) => {
-                (StatusCode::BAD_REQUEST, format!("No matching condition at gateway '{msg}'"))
-            }
+            Self::Engine(EngineError::InvalidDefinition(msg)) => (StatusCode::BAD_REQUEST, msg),
+            Self::Engine(EngineError::NoMatchingCondition(msg)) => (
+                StatusCode::BAD_REQUEST,
+                format!("No matching condition at gateway '{msg}'"),
+            ),
             Self::Engine(EngineError::NoSuchDefinition(id)) => {
                 (StatusCode::NOT_FOUND, format!("Definition not found: {id}"))
             }
@@ -40,24 +39,30 @@ impl IntoResponse for AppError {
             Self::Engine(EngineError::NoSuchNode(id)) => {
                 (StatusCode::NOT_FOUND, format!("Node not found: {id}"))
             }
-            Self::Engine(EngineError::ServiceTaskNotFound(id)) => {
-                (StatusCode::NOT_FOUND, format!("Service task not found: {id}"))
-            }
-            Self::Engine(EngineError::TaskNotPending { task_id, actual_state }) => {
-                (StatusCode::CONFLICT, format!("Task '{task_id}' is not pending (state: {actual_state})"))
-            }
-            Self::Engine(EngineError::ServiceTaskLocked { task_id, worker_id }) => {
-                (StatusCode::CONFLICT, format!("Task '{task_id}' locked by worker '{worker_id}'"))
-            }
-            Self::Engine(EngineError::ServiceTaskNotLocked(id)) => {
-                (StatusCode::CONFLICT, format!("Service task '{id}' is not locked"))
-            }
-            Self::Engine(EngineError::AlreadyCompleted) => {
-                (StatusCode::CONFLICT, "Process instance already completed".to_string())
-            }
-            Self::Engine(e) => {
-                (StatusCode::INTERNAL_SERVER_ERROR, format!("{e}"))
-            }
+            Self::Engine(EngineError::ServiceTaskNotFound(id)) => (
+                StatusCode::NOT_FOUND,
+                format!("Service task not found: {id}"),
+            ),
+            Self::Engine(EngineError::TaskNotPending {
+                task_id,
+                actual_state,
+            }) => (
+                StatusCode::CONFLICT,
+                format!("Task '{task_id}' is not pending (state: {actual_state})"),
+            ),
+            Self::Engine(EngineError::ServiceTaskLocked { task_id, worker_id }) => (
+                StatusCode::CONFLICT,
+                format!("Task '{task_id}' locked by worker '{worker_id}'"),
+            ),
+            Self::Engine(EngineError::ServiceTaskNotLocked(id)) => (
+                StatusCode::CONFLICT,
+                format!("Service task '{id}' is not locked"),
+            ),
+            Self::Engine(EngineError::AlreadyCompleted) => (
+                StatusCode::CONFLICT,
+                "Process instance already completed".to_string(),
+            ),
+            Self::Engine(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("{e}")),
         };
 
         let body = serde_json::json!({ "error": message });

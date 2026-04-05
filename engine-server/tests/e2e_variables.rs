@@ -52,7 +52,7 @@ async fn test_update_variables_mid_execution_persists() {
     // 2. Start
     let start_res = client
         .post(format!("{}/api/start", base))
-        .json(&serde_json::json!({ 
+        .json(&serde_json::json!({
             "definition_key": def_key,
             "variables": { "initial_var": "A" }
         }))
@@ -73,7 +73,11 @@ async fn test_update_variables_mid_execution_persists() {
         .await
         .expect("update variables failed");
 
-    assert_eq!(update_res.status(), 204, "Variable update should return 204 No Content");
+    assert_eq!(
+        update_res.status(),
+        204,
+        "Variable update should return 204 No Content"
+    );
 
     // 4. Fetch pending tasks to get the Task ID
     let tasks_res = client
@@ -84,7 +88,11 @@ async fn test_update_variables_mid_execution_persists() {
 
     let tasks_body: Value = tasks_res.json().await.unwrap();
     let tasks_arr = tasks_body.as_array().unwrap();
-    assert_eq!(tasks_arr.len(), 1, "There should be exactly one pending user task");
+    assert_eq!(
+        tasks_arr.len(),
+        1,
+        "There should be exactly one pending user task"
+    );
 
     let task_id = tasks_arr[0]["task_id"].as_str().unwrap().to_string();
 
@@ -98,7 +106,11 @@ async fn test_update_variables_mid_execution_persists() {
         .await
         .expect("complete task failed");
 
-    assert_eq!(complete_res.status(), 204, "Complete should return 204 No Content");
+    assert_eq!(
+        complete_res.status(),
+        204,
+        "Complete should return 204 No Content"
+    );
 
     // 6. Fetch final instance details
     let details_res = client
@@ -109,11 +121,17 @@ async fn test_update_variables_mid_execution_persists() {
 
     let details: Value = details_res.json().await.unwrap();
 
-    assert_eq!(details["state"], "Completed", "Instance should be completed");
+    assert_eq!(
+        details["state"], "Completed",
+        "Instance should be completed"
+    );
 
     // Verify variables contains ALL phases of variables
     let vars = &details["variables"];
     assert_eq!(vars["initial_var"], "A", "Initial var missing");
-    assert_eq!(vars["mid_execution_var"], "B", "Directly updated var was overwritten! (Bug reproduced)");
+    assert_eq!(
+        vars["mid_execution_var"], "B",
+        "Directly updated var was overwritten! (Bug reproduced)"
+    );
     assert_eq!(vars["final_var"], "C", "Completion var missing");
 }

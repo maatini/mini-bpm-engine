@@ -1,7 +1,7 @@
 use crate::condition::evaluate_condition;
+use crate::engine::types::NextAction;
 use crate::error::{EngineError, EngineResult};
 use crate::model::{ProcessDefinition, Token};
-use crate::engine::types::NextAction;
 
 pub(crate) fn execute_parallel_gateway(
     def: &ProcessDefinition,
@@ -60,7 +60,8 @@ pub(crate) fn execute_exclusive_gateway(
         }
     }
 
-    let target = chosen_target.ok_or_else(|| EngineError::NoMatchingCondition(current_id.to_string()))?;
+    let target =
+        chosen_target.ok_or_else(|| EngineError::NoMatchingCondition(current_id.to_string()))?;
 
     token.current_node = target.clone();
     Ok(NextAction::Continue(token.clone()))

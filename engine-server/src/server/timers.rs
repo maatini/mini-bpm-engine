@@ -1,7 +1,7 @@
-use axum::{extract::State, Json};
+use crate::server::state::{AppError, AppState};
+use axum::{Json, extract::State};
 use serde::Serialize;
 use std::sync::Arc;
-use crate::server::state::{AppError, AppState};
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]

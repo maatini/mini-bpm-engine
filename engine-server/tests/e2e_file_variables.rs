@@ -201,10 +201,7 @@ async fn multiple_file_variables_and_delete_one() {
 
     // Delete doc_b
     let res = client
-        .delete(format!(
-            "{}/api/instances/{}/files/doc_b",
-            base, inst_id
-        ))
+        .delete(format!("{}/api/instances/{}/files/doc_b", base, inst_id))
         .send()
         .await
         .unwrap();
@@ -222,8 +219,7 @@ async fn multiple_file_variables_and_delete_one() {
 
     assert_eq!(inst["variables"]["doc_a"]["filename"], "a.txt");
     assert!(
-        inst["variables"].get("doc_b").is_none()
-            || inst["variables"]["doc_b"].is_null(),
+        inst["variables"].get("doc_b").is_none() || inst["variables"]["doc_b"].is_null(),
         "doc_b should be deleted"
     );
     assert_eq!(inst["variables"]["doc_c"]["filename"], "c.txt");

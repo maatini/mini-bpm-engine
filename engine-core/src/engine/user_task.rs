@@ -1,9 +1,9 @@
-use std::collections::HashMap;
-use serde_json::Value;
-use uuid::Uuid;
 use super::WorkflowEngine;
-use crate::error::{EngineError, EngineResult};
 use crate::InstanceState;
+use crate::error::{EngineError, EngineResult};
+use serde_json::Value;
+use std::collections::HashMap;
+use uuid::Uuid;
 
 impl WorkflowEngine {
     /// Completes a pending user task by its task_id, optionally merging variables.
@@ -15,7 +15,10 @@ impl WorkflowEngine {
         additional_vars: HashMap<String, Value>,
     ) -> EngineResult<()> {
         // Find and remove the pending task
-        let pending = self.pending_user_tasks.remove(&task_id).map(|(_, v)| v)
+        let pending = self
+            .pending_user_tasks
+            .remove(&task_id)
+            .map(|(_, v)| v)
             .ok_or_else(|| EngineError::TaskNotPending {
                 task_id,
                 actual_state: "not found in pending tasks".into(),
@@ -25,19 +28,32 @@ impl WorkflowEngine {
 
         // Retrieve token from central store and merge additional variables
         let mut token = {
-            let inst_arc = self.instances.get(&instance_id).await.ok_or(EngineError::NoSuchInstance(instance_id))?;
+            let inst_arc = self
+                .instances
+                .get(&instance_id)
+                .await
+                .ok_or(EngineError::NoSuchInstance(instance_id))?;
             let mut inst = inst_arc.write().await;
-            inst.tokens.remove(&pending.token_id)
-                .ok_or_else(|| EngineError::InvalidDefinition(format!("Token {} not found in instance", pending.token_id)))?
+            inst.tokens.remove(&pending.token_id).ok_or_else(|| {
+                EngineError::InvalidDefinition(format!(
+                    "Token {} not found in instance",
+                    pending.token_id
+                ))
+            })?
         };
         for (k, v) in additional_vars {
             token.variables.insert(k, v);
         }
 
         self.remove_persisted_user_task(task_id).await;
-        self.cancel_boundary_timers(instance_id, &pending.node_id).await;
+        self.cancel_boundary_timers(instance_id, &pending.node_id)
+            .await;
 
-        let old_state = if let Some(lk) = self.instances.get(&instance_id).await { Some(lk.read().await.clone()) } else { None };
+        let old_state = if let Some(lk) = self.instances.get(&instance_id).await {
+            Some(lk.read().await.clone())
+        } else {
+            None
+        };
 
         tracing::info!(
             "Instance {instance_id}: completed user task '{}' (task_id: {task_id})",
@@ -45,11 +61,15 @@ impl WorkflowEngine {
         );
 
         let def_key = {
-            let inst_arc = self.instances.get(&instance_id).await.ok_or(EngineError::NoSuchInstance(instance_id))?;
+            let inst_arc = self
+                .instances
+                .get(&instance_id)
+                .await
+                .ok_or(EngineError::NoSuchInstance(instance_id))?;
             let mut inst = inst_arc.write().await;
             inst.audit_log
                 .push(format!("✅ User task '{}' completed", pending.node_id));
-            
+
             if !matches!(inst.state, InstanceState::ParallelExecution { .. }) {
                 inst.state = InstanceState::Running;
             }
@@ -64,13 +84,19 @@ impl WorkflowEngine {
             .await
             .ok_or(EngineError::NoSuchDefinition(def_key))?;
         // Current node's end scripts
-        self.run_end_scripts(instance_id, &mut token, &def, &pending.node_id).await?;
+        self.run_end_scripts(instance_id, &mut token, &def, &pending.node_id)
+            .await?;
 
-        let next = crate::engine::executor::resolve_next_target(&def, &pending.node_id, &token.variables)?;
+        let next =
+            crate::engine::executor::resolve_next_target(&def, &pending.node_id, &token.variables)?;
 
         token.current_node = next.clone();
         // Update instance current_node so UI highlights correctly
-        let inst_arc = self.instances.get(&instance_id).await.ok_or(EngineError::NoSuchInstance(instance_id))?;
+        let inst_arc = self
+            .instances
+            .get(&instance_id)
+            .await
+            .ok_or(EngineError::NoSuchInstance(instance_id))?;
         {
             let mut inst = inst_arc.write().await;
             inst.current_node = next;
@@ -82,8 +108,9 @@ impl WorkflowEngine {
             &format!("User task '{}' completed", pending.node_id),
             crate::history::ActorType::User,
             Some(pending.assignee.clone()),
-            old_state.as_ref()
-        ).await;
+            old_state.as_ref(),
+        )
+        .await;
 
         // Continue running
         self.run_instance_batch(instance_id, token).await

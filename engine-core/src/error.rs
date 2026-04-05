@@ -26,10 +26,7 @@ pub enum EngineError {
 
     /// Tried to complete a user task that is not currently pending.
     #[error("Task '{task_id}' is not pending (current state: {actual_state})")]
-    TaskNotPending {
-        task_id: Uuid,
-        actual_state: String,
-    },
+    TaskNotPending { task_id: Uuid, actual_state: String },
 
     /// The process instance has already completed.
     #[error("Process instance has already completed")]
@@ -39,8 +36,6 @@ pub enum EngineError {
     /// The timer duration does not match the start event's configuration.
     #[error("Timer mismatch: expected {expected}s, got {provided}s")]
     TimerMismatch { expected: u64, provided: u64 },
-
-
 
     /// No condition matched at a gateway node (and no default flow exists).
     #[error("No matching condition at gateway '{0}'")]

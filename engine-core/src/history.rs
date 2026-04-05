@@ -19,15 +19,15 @@ pub enum HistoryEventType {
     InstanceStarted,
     InstanceCompleted,
     InstanceDeleted,
-    TaskCompleted,     // User Task / Service Task completed
-    VariableUpdated,   // explicit update
-    GatewayTaken,      // XOR / OR fork
-    ListenerExecuted,  // Scripts
-    TokenAdvanced,     // generic token move
-    TokenForked,       // Gateway split created N tokens
-    TokenJoined,       // Gateway join merged N tokens into one
-    BranchCompleted,   // One branch of a parallel execution reached EndEvent
-    Error,             // something failed
+    TaskCompleted,    // User Task / Service Task completed
+    VariableUpdated,  // explicit update
+    GatewayTaken,     // XOR / OR fork
+    ListenerExecuted, // Scripts
+    TokenAdvanced,    // generic token move
+    TokenForked,      // Gateway split created N tokens
+    TokenJoined,      // Gateway join merged N tokens into one
+    BranchCompleted,  // One branch of a parallel execution reached EndEvent
+    Error,            // something failed
     CallActivityStarted,
     CallActivityCompleted,
 }
@@ -64,15 +64,18 @@ pub struct VariableDiff {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HistoryDiff {
     pub variables: Option<VariableDiff>,
-    pub status: Option<(String, String)>,           // "RUNNING" -> "COMPLETED"
-    pub current_node: Option<(String, String)>,     // "start" -> "task1"
-    pub human_readable: Option<String>,             // Auto-generated human-readable text
+    pub status: Option<(String, String)>, // "RUNNING" -> "COMPLETED"
+    pub current_node: Option<(String, String)>, // "start" -> "task1"
+    pub human_readable: Option<String>,   // Auto-generated human-readable text
 }
 
 /// Returns true if the diff has actually recorded any changes.
 impl HistoryDiff {
     pub fn is_empty(&self) -> bool {
-        self.variables.is_none() && self.status.is_none() && self.current_node.is_none() && self.human_readable.is_none()
+        self.variables.is_none()
+            && self.status.is_none()
+            && self.current_node.is_none()
+            && self.human_readable.is_none()
     }
 }
 
@@ -82,7 +85,7 @@ pub struct HistoryEntry {
     pub instance_id: Uuid,
     pub timestamp: DateTime<Utc>,
     pub event_type: HistoryEventType,
-    pub node_id: Option<String>,          // BPMN element ID
+    pub node_id: Option<String>, // BPMN element ID
     pub description: String,
     pub actor_type: ActorType,
     pub actor_id: Option<String>,
@@ -101,11 +104,11 @@ pub struct HistoryEntry {
 
 impl HistoryEntry {
     pub fn new(
-        instance_id: Uuid, 
-        event_type: HistoryEventType, 
-        description: impl Into<String>, 
+        instance_id: Uuid,
+        event_type: HistoryEventType,
+        description: impl Into<String>,
         actor_type: ActorType,
-        actor_id: Option<String>
+        actor_id: Option<String>,
     ) -> Self {
         Self {
             id: Uuid::new_v4(),
@@ -139,7 +142,7 @@ impl HistoryEntry {
         }
         self
     }
-    
+
     pub fn with_metadata(mut self, meta: serde_json::Value) -> Self {
         self.metadata = Some(meta);
         self
@@ -159,8 +162,14 @@ impl HistoryEntry {
 
 fn format_file_human_text(_key: &str, value: &serde_json::Value) -> Option<String> {
     if value.get("type").and_then(|t| t.as_str()) == Some("file") {
-        let filename = value.get("filename").and_then(|f| f.as_str()).unwrap_or("unknown");
-        let size = value.get("size_bytes").and_then(|s| s.as_u64()).unwrap_or(0);
+        let filename = value
+            .get("filename")
+            .and_then(|f| f.as_str())
+            .unwrap_or("unknown");
+        let size = value
+            .get("size_bytes")
+            .and_then(|s| s.as_u64())
+            .unwrap_or(0);
         let size_human = if size > 1_048_576 {
             format!("{:.1} MB", size as f64 / 1_048_576.0)
         } else {
@@ -174,9 +183,11 @@ fn format_file_human_text(_key: &str, value: &serde_json::Value) -> Option<Strin
 
 fn truncate_value_for_diff(v: &serde_json::Value) -> serde_json::Value {
     match v {
-        serde_json::Value::String(s) if s.len() > 1024 => {
-            serde_json::Value::String(format!("{}... <truncated {} chars>", &s[..1024], s.len() - 1024))
-        }
+        serde_json::Value::String(s) if s.len() > 1024 => serde_json::Value::String(format!(
+            "{}... <truncated {} chars>",
+            &s[..1024],
+            s.len() - 1024
+        )),
         serde_json::Value::Array(a) if a.len() > 128 => {
             serde_json::Value::String(format!("<Large Array: {} elements>", a.len()))
         }
@@ -206,7 +217,10 @@ pub fn calculate_diff(old: &ProcessInstance, new: &ProcessInstance) -> HistoryDi
     // Calculate current_node diff
     if old.current_node != new.current_node {
         diff.current_node = Some((old.current_node.clone(), new.current_node.clone()));
-        human_texts.push(format!("Advanced from node '{}' to '{}'.", old.current_node, new.current_node));
+        human_texts.push(format!(
+            "Advanced from node '{}' to '{}'.",
+            old.current_node, new.current_node
+        ));
     }
 
     // Calculate variable diff
@@ -220,11 +234,22 @@ pub fn calculate_diff(old: &ProcessInstance, new: &ProcessInstance) -> HistoryDi
     for (k, v_old) in &old.variables {
         if let Some(v_new) = new.variables.get(k) {
             if v_old != v_new {
-                var_diff.changed.insert(k.clone(), (truncate_value_for_diff(v_old), truncate_value_for_diff(v_new)));
+                var_diff.changed.insert(
+                    k.clone(),
+                    (
+                        truncate_value_for_diff(v_old),
+                        truncate_value_for_diff(v_new),
+                    ),
+                );
                 if let Some(file_text) = format_file_human_text(k, v_new) {
                     human_texts.push(file_text);
                 } else {
-                    let text = format!("Variable '{}' changed from {} to {}.", k, truncate_value_for_diff(v_old), truncate_value_for_diff(v_new));
+                    let text = format!(
+                        "Variable '{}' changed from {} to {}.",
+                        k,
+                        truncate_value_for_diff(v_old),
+                        truncate_value_for_diff(v_new)
+                    );
                     human_texts.push(text.chars().take(500).collect::<String>());
                 }
             }
@@ -237,11 +262,17 @@ pub fn calculate_diff(old: &ProcessInstance, new: &ProcessInstance) -> HistoryDi
     // Check for added
     for (k, v_new) in &new.variables {
         if !old.variables.contains_key(k) {
-            var_diff.added.insert(k.clone(), truncate_value_for_diff(v_new));
+            var_diff
+                .added
+                .insert(k.clone(), truncate_value_for_diff(v_new));
             if let Some(file_text) = format_file_human_text(k, v_new) {
                 human_texts.push(file_text);
             } else {
-                let text = format!("Variable '{}' was added ({}).", k, truncate_value_for_diff(v_new));
+                let text = format!(
+                    "Variable '{}' was added ({}).",
+                    k,
+                    truncate_value_for_diff(v_new)
+                );
                 human_texts.push(text.chars().take(500).collect::<String>());
             }
         }
@@ -281,10 +312,12 @@ mod tests {
         };
         old.variables.insert("a".into(), json!(1));
         old.variables.insert("b".into(), json!(2));
-        
+
         let mut new = old.clone();
         new.current_node = "task1".into();
-        new.state = InstanceState::WaitingOnUserTask { task_id: Uuid::new_v4() };
+        new.state = InstanceState::WaitingOnUserTask {
+            task_id: Uuid::new_v4(),
+        };
         new.variables.insert("a".into(), json!(100)); // changed
         new.variables.remove("b"); // removed
         new.variables.insert("c".into(), json!(3)); // added
@@ -295,8 +328,11 @@ mod tests {
         assert!(diff.status.is_some());
         assert!(diff.status.unwrap().0.contains("Running"));
         assert!(diff.current_node.is_some());
-        assert_eq!(diff.current_node.unwrap(), ("start".to_string(), "task1".to_string()));
-        
+        assert_eq!(
+            diff.current_node.unwrap(),
+            ("start".to_string(), "task1".to_string())
+        );
+
         let var_diff = diff.variables.unwrap();
         assert_eq!(var_diff.changed.get("a").unwrap(), &(json!(1), json!(100)));
         assert_eq!(var_diff.removed[0], "b");
@@ -318,32 +354,38 @@ mod tests {
             active_tokens: vec![],
             join_barriers: HashMap::new(),
         };
-        
+
         let mut new = old.clone();
-        new.variables.insert("report".into(), json!({
-            "type": "file",
-            "object_key": "file:test",
-            "filename": "report.pdf",
-            "mime_type": "application/pdf",
-            "size_bytes": 1258291, // ~1.2 MB
-            "uploaded_at": "2026-04-03T12:00:00Z"
-        }));
+        new.variables.insert(
+            "report".into(),
+            json!({
+                "type": "file",
+                "object_key": "file:test",
+                "filename": "report.pdf",
+                "mime_type": "application/pdf",
+                "size_bytes": 1258291, // ~1.2 MB
+                "uploaded_at": "2026-04-03T12:00:00Z"
+            }),
+        );
 
         let diff = calculate_diff(&old, &new);
         let human = diff.human_readable.unwrap();
         assert_eq!(human, "File 'report.pdf' uploaded (1.2 MB).");
-        
+
         // test KB format
         let mut new2 = old.clone();
-        new2.variables.insert("config".into(), json!({
-            "type": "file",
-            "object_key": "file:test",
-            "filename": "config.json",
-            "mime_type": "application/json",
-            "size_bytes": 1024, // 1.0 KB
-            "uploaded_at": "2026-04-03T12:00:00Z"
-        }));
-        
+        new2.variables.insert(
+            "config".into(),
+            json!({
+                "type": "file",
+                "object_key": "file:test",
+                "filename": "config.json",
+                "mime_type": "application/json",
+                "size_bytes": 1024, // 1.0 KB
+                "uploaded_at": "2026-04-03T12:00:00Z"
+            }),
+        );
+
         let diff2 = calculate_diff(&old, &new2);
         let human2 = diff2.human_readable.unwrap();
         assert_eq!(human2, "File 'config.json' uploaded (1.0 KB).");
@@ -351,18 +393,54 @@ mod tests {
 
     #[test]
     fn test_human_description() {
-        assert_eq!(HistoryEventType::InstanceStarted.human_description(), "Process instance started");
-        assert_eq!(HistoryEventType::InstanceCompleted.human_description(), "Process instance completed");
-        assert_eq!(HistoryEventType::InstanceDeleted.human_description(), "Process instance was deleted");
-        assert_eq!(HistoryEventType::TaskCompleted.human_description(), "Task was completed");
-        assert_eq!(HistoryEventType::VariableUpdated.human_description(), "Variable was updated");
-        assert_eq!(HistoryEventType::GatewayTaken.human_description(), "Gateway path was taken");
-        assert_eq!(HistoryEventType::ListenerExecuted.human_description(), "Execution listener finished");
-        assert_eq!(HistoryEventType::TokenAdvanced.human_description(), "Token advanced to the next node");
-        assert_eq!(HistoryEventType::TokenForked.human_description(), "Token forked into multiple branches");
-        assert_eq!(HistoryEventType::TokenJoined.human_description(), "Multiple tokens joined into one");
-        assert_eq!(HistoryEventType::BranchCompleted.human_description(), "Branch execution completed");
-        assert_eq!(HistoryEventType::Error.human_description(), "An execution error occurred");
+        assert_eq!(
+            HistoryEventType::InstanceStarted.human_description(),
+            "Process instance started"
+        );
+        assert_eq!(
+            HistoryEventType::InstanceCompleted.human_description(),
+            "Process instance completed"
+        );
+        assert_eq!(
+            HistoryEventType::InstanceDeleted.human_description(),
+            "Process instance was deleted"
+        );
+        assert_eq!(
+            HistoryEventType::TaskCompleted.human_description(),
+            "Task was completed"
+        );
+        assert_eq!(
+            HistoryEventType::VariableUpdated.human_description(),
+            "Variable was updated"
+        );
+        assert_eq!(
+            HistoryEventType::GatewayTaken.human_description(),
+            "Gateway path was taken"
+        );
+        assert_eq!(
+            HistoryEventType::ListenerExecuted.human_description(),
+            "Execution listener finished"
+        );
+        assert_eq!(
+            HistoryEventType::TokenAdvanced.human_description(),
+            "Token advanced to the next node"
+        );
+        assert_eq!(
+            HistoryEventType::TokenForked.human_description(),
+            "Token forked into multiple branches"
+        );
+        assert_eq!(
+            HistoryEventType::TokenJoined.human_description(),
+            "Multiple tokens joined into one"
+        );
+        assert_eq!(
+            HistoryEventType::BranchCompleted.human_description(),
+            "Branch execution completed"
+        );
+        assert_eq!(
+            HistoryEventType::Error.human_description(),
+            "An execution error occurred"
+        );
     }
 
     #[test]
@@ -380,7 +458,7 @@ mod tests {
             active_tokens: vec![],
             join_barriers: HashMap::new(),
         };
-        
+
         let new = old.clone();
         let diff = calculate_diff(&old, &new);
 

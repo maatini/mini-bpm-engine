@@ -11,15 +11,17 @@ impl WorkflowEngine {
     pub async fn list_definitions(&self) -> Vec<(Uuid, String, i32, usize)> {
         self.definitions.list().await
     }
-    
+
     /// Returns a given definition by key
     pub async fn get_definition(&self, key: &Uuid) -> Option<Arc<ProcessDefinition>> {
         self.definitions.get(key).await
     }
-    
+
     /// Returns all versions of a specific BPMN process definition, sorted ascending.
     pub async fn list_definition_versions(&self, bpmn_id: &str) -> Vec<(Uuid, i32, usize)> {
-        self.definitions.all_versions_of(bpmn_id).await
+        self.definitions
+            .all_versions_of(bpmn_id)
+            .await
             .into_iter()
             .map(|(key, def)| (key, def.version, def.nodes.len()))
             .collect()
@@ -33,14 +35,14 @@ impl WorkflowEngine {
     pub async fn deploy_definition(&self, definition: ProcessDefinition) -> (Uuid, i32) {
         // Find highest version of existing definitions with matching ID
         let highest_version = self.definitions.highest_version(&definition.id).await;
-            
+
         let key = definition.key; // Always use a unique key
         let version = highest_version.map(|v| v + 1).unwrap_or(definition.version);
 
         let mut def = definition;
         def.key = key;
         def.version = version;
-        
+
         let sub_processes = std::mem::take(&mut def.sub_processes);
         for mut sub in sub_processes {
             // Assign a sub-process ID if needed, although it already has one.
@@ -48,13 +50,18 @@ impl WorkflowEngine {
             Box::pin(self.deploy_definition(sub)).await;
         }
 
-        tracing::info!("Deployed definition '{}' (v{}, key: {})", def.id, def.version, key);
+        tracing::info!(
+            "Deployed definition '{}' (v{}, key: {})",
+            def.id,
+            def.version,
+            key
+        );
         self.definitions.insert(key, Arc::new(def)).await;
         self.persist_definition(key).await;
         (key, version)
     }
 
-    /// Deletes a process definition. 
+    /// Deletes a process definition.
     /// If cascade is true, deletes all associated process instances first.
     pub async fn delete_definition(&self, definition_key: Uuid, cascade: bool) -> EngineResult<()> {
         if !self.definitions.contains_key(&definition_key).await {
@@ -72,7 +79,9 @@ impl WorkflowEngine {
 
         if !associated_instances.is_empty() {
             if !cascade {
-                return Err(EngineError::DefinitionHasInstances(associated_instances.len()));
+                return Err(EngineError::DefinitionHasInstances(
+                    associated_instances.len(),
+                ));
             }
             // Cascade delete instances
             for instance_id in associated_instances {
@@ -83,7 +92,9 @@ impl WorkflowEngine {
         self.definitions.remove(&definition_key).await;
 
         if let Some(ref persistence) = self.persistence {
-            persistence.delete_definition(&definition_key.to_string()).await?;
+            persistence
+                .delete_definition(&definition_key.to_string())
+                .await?;
         }
 
         Ok(())
