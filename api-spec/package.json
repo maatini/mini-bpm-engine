@@ -1,6 +1,6 @@
 {
   "name": "mini-bpm-api-spec",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "TypeSpec API specification for mini-bpm engine-server",
   "private": true,
   "scripts": {
