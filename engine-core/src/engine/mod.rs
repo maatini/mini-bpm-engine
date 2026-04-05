@@ -46,7 +46,7 @@ pub struct WorkflowEngine {
     pub(crate) pending_timers: Arc<DashMap<Uuid, PendingTimer>>,
     pub(crate) pending_message_catches: Arc<DashMap<Uuid, PendingMessageCatch>>,
     pub(crate) persistence: Option<Arc<dyn WorkflowPersistence>>,
-    pub(crate) persistence_error_count: std::sync::atomic::AtomicU64,
+    pub(crate) persistence_error_count: Arc<std::sync::atomic::AtomicU64>,
     pub(crate) retry_tx: Option<retry_queue::RetryQueueTx>,
 }
 
@@ -71,7 +71,7 @@ impl WorkflowEngine {
             pending_timers: Arc::new(DashMap::new()),
             pending_message_catches: Arc::new(DashMap::new()),
             persistence: None,
-            persistence_error_count: std::sync::atomic::AtomicU64::new(0),
+            persistence_error_count: Arc::new(std::sync::atomic::AtomicU64::new(0)),
             retry_tx: None,
         }
     }
@@ -85,7 +85,6 @@ impl WorkflowEngine {
     /// Attaches a persistence layer to the engine.
     pub fn with_persistence(mut self, persistence: Arc<dyn WorkflowPersistence>) -> Self {
         let (tx, rx) = retry_queue::create_retry_queue();
-        let error_counter = Arc::new(std::sync::atomic::AtomicU64::new(0));
 
         retry_queue::spawn_retry_worker(
             rx,
@@ -96,7 +95,7 @@ impl WorkflowEngine {
             Arc::clone(&self.pending_service_tasks),
             Arc::clone(&self.pending_timers),
             Arc::clone(&self.pending_message_catches),
-            error_counter,
+            Arc::clone(&self.persistence_error_count),
         );
 
         self.persistence = Some(persistence);
@@ -107,7 +106,6 @@ impl WorkflowEngine {
     /// Sets the persistence layer (builder-style alternative to `with_persistence`).
     pub fn set_persistence(&mut self, persistence: Arc<dyn WorkflowPersistence>) {
         let (tx, rx) = retry_queue::create_retry_queue();
-        let error_counter = Arc::new(std::sync::atomic::AtomicU64::new(0));
 
         retry_queue::spawn_retry_worker(
             rx,
@@ -118,7 +116,7 @@ impl WorkflowEngine {
             Arc::clone(&self.pending_service_tasks),
             Arc::clone(&self.pending_timers),
             Arc::clone(&self.pending_message_catches),
-            error_counter,
+            Arc::clone(&self.persistence_error_count),
         );
 
         self.persistence = Some(persistence);

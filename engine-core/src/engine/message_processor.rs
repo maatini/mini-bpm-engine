@@ -49,7 +49,8 @@ impl WorkflowEngine {
                 
                 // Get the instance variables to pass down, merged with correlation variables
                 let mut instance_vars = {
-                    let inst_arc = self.instances.get(&catch.instance_id).await.unwrap();
+                    let inst_arc = self.instances.get(&catch.instance_id).await
+                        .ok_or(EngineError::NoSuchInstance(catch.instance_id))?;
                     let inst = inst_arc.read().await;
                     inst.variables.clone()
                 };

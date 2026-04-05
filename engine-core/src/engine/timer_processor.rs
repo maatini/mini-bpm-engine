@@ -50,7 +50,8 @@ impl WorkflowEngine {
                 
                 // Get the instance variables to pass down
                 let instance_vars = {
-                    let inst_arc = self.instances.get(&timer.instance_id).await.unwrap();
+                    let inst_arc = self.instances.get(&timer.instance_id).await
+                        .ok_or(EngineError::NoSuchInstance(timer.instance_id))?;
                     let inst = inst_arc.read().await;
                     inst.variables.clone()
                 };
