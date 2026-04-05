@@ -34,6 +34,9 @@ impl WorkflowEngine {
         for catch_id in to_resume {
             let catch = self.pending_message_catches.remove(&catch_id).map(|(_, v)| v)
                 .ok_or_else(|| EngineError::InvalidDefinition(format!("Message catch {catch_id} disappeared")))?;
+                
+            // Event-Based Gateway support: If this message catch triggered, clear any sibling wait states
+            self.clear_wait_states_for_token(catch.instance_id, &catch.token_id).await;
             
             // Retrieve token from central store
             let mut token = {

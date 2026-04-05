@@ -12,7 +12,7 @@ pub async fn setup_nats_test() -> Option<Arc<NatsPersistence>> {
     match NatsPersistence::connect(url, &stream).await {
         Ok(persistence) => Some(Arc::new(persistence)),
         Err(e) => {
-            log::warn!("Skipping NATS test, could not connect: {}", e);
+            tracing::warn!("Skipping NATS test, could not connect: {}", e);
             None
         }
     }

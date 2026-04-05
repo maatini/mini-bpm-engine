@@ -398,10 +398,10 @@ impl WorkflowPersistence for NatsPersistence {
                                 size_bytes: status.info.state.bytes,
                             });
                         }
-                        Err(e) => log::warn!("Failed to get status for KV bucket '{}': {}", name, e),
+                        Err(e) => tracing::warn!("Failed to get status for KV bucket '{}': {}", name, e),
                     }
                 }
-                Err(e) => log::warn!("Failed to access KV bucket '{}': {}", name, e),
+                Err(e) => tracing::warn!("Failed to access KV bucket '{}': {}", name, e),
             }
         }
 
@@ -420,10 +420,10 @@ impl WorkflowPersistence for NatsPersistence {
                                 size_bytes: info.state.bytes,
                             });
                         }
-                        Err(e) => log::warn!("Failed to get info for underlying ObjectStore stream '{}': {}", name, e),
+                        Err(e) => tracing::warn!("Failed to get info for underlying ObjectStore stream '{}': {}", name, e),
                     }
                 }
-                Err(e) => log::warn!("Failed to access underlying ObjectStore stream '{}': {}", name, e),
+                Err(e) => tracing::warn!("Failed to access underlying ObjectStore stream '{}': {}", name, e),
             }
         }
 
@@ -441,10 +441,10 @@ impl WorkflowPersistence for NatsPersistence {
                                 size_bytes: info.state.bytes,
                             });
                         }
-                        Err(e) => log::warn!("Failed to get info for stream '{}': {}", name, e),
+                        Err(e) => tracing::warn!("Failed to get info for stream '{}': {}", name, e),
                     }
                 }
-                Err(e) => log::warn!("Failed to access stream '{}': {}", name, e),
+                Err(e) => tracing::warn!("Failed to access stream '{}': {}", name, e),
             }
         }
 

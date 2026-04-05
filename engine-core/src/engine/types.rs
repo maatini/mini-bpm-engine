@@ -106,6 +106,8 @@ pub enum NextAction {
     WaitForTimer(PendingTimer),
     /// The engine must pause — a message catch is pending.
     WaitForMessage(PendingMessageCatch),
+    /// The engine must pause at an event-based gateway, registering multiple event listeners.
+    WaitForEventGroup(Vec<NextAction>),
     /// The process reached an end event.
     Complete,
     /// Ends the current process instance with an error code (for error propagation).
@@ -126,6 +128,7 @@ pub enum InstanceState {
     WaitingOnServiceTask { task_id: Uuid },
     WaitingOnTimer { timer_id: Uuid },
     WaitingOnMessage { message_id: Uuid },
+    WaitingOnEventBasedGateway,
     /// Multiple tokens are active; some may be waiting, some running.
     ParallelExecution { active_token_count: usize },
     WaitingOnCallActivity { sub_instance_id: Uuid, token: Token },

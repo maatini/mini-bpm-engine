@@ -39,7 +39,7 @@ impl WorkflowEngine {
 
         let old_state = if let Some(lk) = self.instances.get(&instance_id).await { Some(lk.read().await.clone()) } else { None };
 
-        log::info!(
+        tracing::info!(
             "Instance {instance_id}: completed user task '{}' (task_id: {task_id})",
             pending.node_id
         );

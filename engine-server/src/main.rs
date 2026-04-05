@@ -16,7 +16,7 @@ async fn restore_from_nats(
     let ids = match nats.list_bpmn_xml_ids().await {
         Ok(ids) => ids,
         Err(e) => {
-            log::error!("Failed to list definitions from NATS: {:?}", e);
+            tracing::error!("Failed to list definitions from NATS: {:?}", e);
             return;
         }
     };
@@ -30,14 +30,14 @@ async fn restore_from_nats(
                     }
                     let (key, _) = engine.deploy_definition(def).await;
                     deployed_xml.insert(key.to_string(), xml);
-                    log::info!("Restored definition (key: {})", key);
+                    tracing::info!("Restored definition (key: {})", key);
                 }
-                Err(e) => log::error!("Failed to parse '{}': {:?}", nats_key, e),
+                Err(e) => tracing::error!("Failed to parse '{}': {:?}", nats_key, e),
             },
-            Err(e) => log::error!("Failed to load XML for '{}': {:?}", nats_key, e),
+            Err(e) => tracing::error!("Failed to load XML for '{}': {:?}", nats_key, e),
         }
     }
-    log::info!("Restore complete: {count} definition(s) found.");
+    tracing::info!("Restore complete: {count} definition(s) found.");
 
     match nats.list_instances().await {
         Ok(instances) => {
@@ -45,9 +45,9 @@ async fn restore_from_nats(
             for inst in instances {
                 engine.restore_instance(inst).await;
             }
-            log::info!("Restored {} process instance(s).", num);
+            tracing::info!("Restored {} process instance(s).", num);
         }
-        Err(e) => log::error!("Failed to list instances: {:?}", e),
+        Err(e) => tracing::error!("Failed to list instances: {:?}", e),
     }
 
     match nats.list_user_tasks().await {
@@ -56,9 +56,9 @@ async fn restore_from_nats(
             for task in tasks {
                 engine.restore_user_task(task);
             }
-            log::info!("Restored {} pending user task(s).", num);
+            tracing::info!("Restored {} pending user task(s).", num);
         }
-        Err(e) => log::error!("Failed to list user tasks: {:?}", e),
+        Err(e) => tracing::error!("Failed to list user tasks: {:?}", e),
     }
 
     match nats.list_service_tasks().await {
@@ -67,9 +67,9 @@ async fn restore_from_nats(
             for task in tasks {
                 engine.restore_service_task(task);
             }
-            log::info!("Restored {} pending service task(s).", num);
+            tracing::info!("Restored {} pending service task(s).", num);
         }
-        Err(e) => log::error!("Failed to list service tasks: {:?}", e),
+        Err(e) => tracing::error!("Failed to list service tasks: {:?}", e),
     }
 
     match nats.list_timers().await {
@@ -78,9 +78,9 @@ async fn restore_from_nats(
             for timer in timers {
                 engine.restore_timer(timer);
             }
-            log::info!("Restored {} pending timer(s).", num);
+            tracing::info!("Restored {} pending timer(s).", num);
         }
-        Err(e) => log::error!("Failed to list timers: {:?}", e),
+        Err(e) => tracing::error!("Failed to list timers: {:?}", e),
     }
 
     match nats.list_message_catches().await {
@@ -89,17 +89,31 @@ async fn restore_from_nats(
             for catch in catches {
                 engine.restore_message_catch(catch);
             }
-            log::info!("Restored {} pending message catch(es).", num);
+            tracing::info!("Restored {} pending message catch(es).", num);
         }
-        Err(e) => log::error!("Failed to list message catches: {:?}", e),
+        Err(e) => tracing::error!("Failed to list message catches: {:?}", e),
     }
 }
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+    // Setup tracing
+    let format = env::var("LOG_FORMAT").unwrap_or_else(|_| "text".to_string());
+    let filter = tracing_subscriber::EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));
 
-    log::info!("Starting mini-bpm engine-server...");
+    if format.to_lowercase() == "json" {
+        tracing_subscriber::fmt()
+            .json()
+            .with_env_filter(filter)
+            .init();
+    } else {
+        tracing_subscriber::fmt()
+            .with_env_filter(filter)
+            .init();
+    }
+
+    tracing::info!("Starting mini-bpm engine-server...");
 
     let nats_url = env::var("NATS_URL").unwrap_or_else(|_| "nats://localhost:4222".to_string());
     
@@ -108,14 +122,14 @@ async fn main() -> anyhow::Result<()> {
     
     let nats_persistence = match NatsPersistence::connect(&nats_url, "WORKFLOW_EVENTS").await {
         Ok(p) => {
-            log::info!("Connected to NATS at {}", nats_url);
+            tracing::info!("Connected to NATS at {}", nats_url);
             let p_arc = Arc::new(p);
             engine.set_persistence(p_arc.clone() as Arc<dyn WorkflowPersistence>);
             restore_from_nats(&p_arc, &mut engine, &mut xml_cache).await;
             Some(p_arc as Arc<dyn WorkflowPersistence>)
         }
         Err(e) => {
-            log::error!("NATS not available at {} - running IN-MEMORY only! Error: {}", nats_url, e);
+            tracing::error!("NATS not available at {} - running IN-MEMORY only! Error: {}", nats_url, e);
             None
         }
     };
@@ -131,21 +145,21 @@ async fn main() -> anyhow::Result<()> {
     let timer_engine = engine_arc.clone();
     tokio::spawn(async move {
         let interval = tokio::time::Duration::from_millis(timer_interval_ms);
-        log::info!("Timer scheduler started (interval: {}ms)", timer_interval_ms);
+        tracing::info!("Timer scheduler started (interval: {}ms)", timer_interval_ms);
         loop {
             tokio::time::sleep(interval).await;
             let engine = &timer_engine;
             match engine.process_timers().await {
                 Ok(0) => {} // No expired timers — silent
-                Ok(n) => log::info!("Timer scheduler: processed {} expired timer(s)", n),
-                Err(e) => log::error!("Timer scheduler error: {}", e),
+                Ok(n) => tracing::info!("Timer scheduler: processed {} expired timer(s)", n),
+                Err(e) => tracing::error!("Timer scheduler error: {}", e),
             }
         }
     });
 
     let port = env::var("PORT").unwrap_or_else(|_| "8081".to_string());
     let addr = format!("0.0.0.0:{}", port);
-    log::info!("Server starting on http://{}", addr);
+    tracing::info!("Server starting on http://{}", addr);
 
     let listener = tokio::net::TcpListener::bind(&addr).await?;
     axum::serve(listener, app).await?;

@@ -24,7 +24,7 @@ async fn start_server_with_nats() -> Option<String> {
     let persistence = match persistence_nats::NatsPersistence::connect(url, &stream).await {
         Ok(p) => Arc::new(p),
         Err(e) => {
-            log::warn!("Skipping NATS E2E history test, could not connect: {}", e);
+            tracing::warn!("Skipping NATS E2E history test, could not connect: {}", e);
             return None;
         }
     };

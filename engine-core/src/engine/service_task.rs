@@ -68,7 +68,7 @@ impl WorkflowEngine {
                     continue;
                 }
                 // Lock expired — release it
-                log::info!("Service task {}: lock expired, releasing", task.id);
+                tracing::info!("Service task {}: lock expired, releasing", task.id);
             }
 
             // Lock the task
@@ -76,7 +76,7 @@ impl WorkflowEngine {
             task.lock_expiration =
                 Some(now + TimeDelta::seconds(lock_duration));
 
-            log::info!(
+            tracing::info!(
                 "Service task {} locked by worker '{}' for {}s",
                 task.id, worker_id, lock_duration
             );
@@ -129,7 +129,7 @@ impl WorkflowEngine {
         
         self.cancel_boundary_timers(instance_id, &task.node_id).await;
 
-        log::info!(
+        tracing::info!(
             "Instance {}: completed service task '{}' (task_id: {task_id})",
             instance_id, task.node_id
         );
@@ -241,11 +241,11 @@ impl WorkflowEngine {
                         node_id, msg
                     ));
                 }
-                log::warn!(
+                tracing::warn!(
                     "Service task {task_id}: incident created (retries exhausted)"
                 );
             } else {
-                log::info!(
+                tracing::info!(
                     "Service task {task_id}: failed, {} retries remaining",
                     new_retries
                 );
@@ -286,7 +286,7 @@ impl WorkflowEngine {
             task.lock_expiration =
                 Some(Utc::now() + TimeDelta::seconds(additional_duration));
 
-            log::info!(
+            tracing::info!(
                 "Service task {task_id}: lock extended by {additional_duration}s"
             );
         }
@@ -383,7 +383,7 @@ impl WorkflowEngine {
             ));
         }
 
-        log::warn!(
+        tracing::warn!(
             "Service task {task_id}: unhandled BPMN error '{error_code}' from worker '{worker_id}'"
         );
         

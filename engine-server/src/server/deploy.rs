@@ -33,7 +33,7 @@ pub(crate) async fn deploy_definition(
 
     if let Some(persistence) = &state.persistence {
         if let Err(e) = persistence.save_bpmn_xml(&key_str, &payload.xml).await {
-            log::error!("Failed to save BPMN XML to persistence layer: {:?}", e);
+            tracing::error!("Failed to save BPMN XML to persistence layer: {:?}", e);
         }
     }
     state.deployed_xml.write().await.insert(key_str.clone(), payload.xml.clone());

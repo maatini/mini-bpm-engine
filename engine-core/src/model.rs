@@ -53,6 +53,8 @@ pub enum BpmnElement {
     /// A parallel gateway (AND) — all outgoing paths are taken unconditionally;
     /// as a join, waits for ALL incoming tokens.
     ParallelGateway,
+    /// An event-based gateway — execution pauses until exactly one of the target catch events is triggered.
+    EventBasedGateway,
     /// A timer intermediate catch event that pauses the token until the duration elapses.
     TimerCatchEvent(Duration),
     /// A boundary timer event attached to an activity.
@@ -312,7 +314,7 @@ impl ProcessDefinition {
         for (node_id, element) in &nodes {
             if matches!(
                 element,
-                BpmnElement::ExclusiveGateway { .. } | BpmnElement::InclusiveGateway | BpmnElement::ParallelGateway
+                BpmnElement::ExclusiveGateway { .. } | BpmnElement::InclusiveGateway | BpmnElement::ParallelGateway | BpmnElement::EventBasedGateway
             ) {
                 let outgoing = flows.get(node_id).map_or(0, |v| v.len());
                 let incoming = flows.values().flat_map(|f| f.iter()).filter(|sf| &sf.target == node_id).count();
@@ -320,6 +322,22 @@ impl ProcessDefinition {
                     return Err(EngineError::InvalidDefinition(format!(
                         "Gateway '{node_id}' must have at least 2 incoming or 2 outgoing flows"
                     )));
+                }
+            }
+            
+            // --- EventBasedGateway constraints ---
+            if matches!(element, BpmnElement::EventBasedGateway) {
+                if let Some(outgoing_flows) = flows.get(node_id) {
+                    for sf in outgoing_flows {
+                        if let Some(target_element) = nodes.get(&sf.target) {
+                            if !matches!(target_element, BpmnElement::MessageCatchEvent { .. } | BpmnElement::TimerCatchEvent(_)) {
+                                return Err(EngineError::InvalidDefinition(format!(
+                                    "EventBasedGateway '{node_id}' can only connect to MessageCatchEvent or TimerCatchEvent targets. Node '{}' is invalid.",
+                                    sf.target
+                                )));
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -384,6 +402,7 @@ impl ProcessDefinition {
                 BpmnElement::ExclusiveGateway { .. }
                     | BpmnElement::InclusiveGateway
                     | BpmnElement::ParallelGateway
+                    | BpmnElement::EventBasedGateway
             ) && self.next_nodes(node_id).len() >= 2
         } else {
             false
@@ -629,6 +648,27 @@ mod tests {
         assert!(matches!(
             def,
             Err(EngineError::InvalidDefinition(msg)) if msg.contains("at least 2")
+        ));
+    }
+    
+    #[test]
+    fn event_based_gateway_rejects_non_catch_targets() {
+        let def = ProcessDefinitionBuilder::new("bad_gw")
+            .node("start", BpmnElement::StartEvent)
+            .node("gw", BpmnElement::EventBasedGateway)
+            .node("task", BpmnElement::ServiceTask { topic: "noop".into() })
+            .node("catch", BpmnElement::TimerCatchEvent(Duration::from_secs(5)))
+            .node("end", BpmnElement::EndEvent)
+            .flow("start", "gw")
+            .flow("gw", "task")
+            .flow("gw", "catch")
+            .flow("task", "end")
+            .flow("catch", "end")
+            .build();
+            
+        assert!(matches!(
+            def,
+            Err(EngineError::InvalidDefinition(msg)) if msg.contains("EventBasedGateway") && msg.contains("can only connect to MessageCatchEvent or TimerCatchEvent")
         ));
     }
 

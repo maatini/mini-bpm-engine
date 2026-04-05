@@ -60,7 +60,7 @@ pub(crate) fn create_script_engine() -> rhai::Engine {
 impl WorkflowEngine {
     /// Creates a new, empty engine.
     pub fn new() -> Self {
-        log::info!("WorkflowEngine initialized");
+        tracing::info!("WorkflowEngine initialized");
 
         Self {
             definitions: registry::DefinitionRegistry::new(),
@@ -126,31 +126,31 @@ impl WorkflowEngine {
 
     /// Restores a process instance from persistence (e.g. on server startup).
     pub async fn restore_instance(&self, instance: ProcessInstance) {
-        log::info!("Restored instance {} (def: {})", instance.id, instance.definition_key);
+        tracing::info!("Restored instance {} (def: {})", instance.id, instance.definition_key);
         self.instances.insert(instance.id, instance).await;
     }
 
     /// Restores a pending user task from persistence.
     pub fn restore_user_task(&self, task: PendingUserTask) {
-        log::info!("Restored user task {} (instance: {})", task.task_id, task.instance_id);
+        tracing::info!("Restored user task {} (instance: {})", task.task_id, task.instance_id);
         self.pending_user_tasks.insert(task.task_id, task);
     }
 
     /// Restores a pending service task from persistence.
     pub fn restore_service_task(&self, task: PendingServiceTask) {
-        log::info!("Restored service task {} (instance: {})", task.id, task.instance_id);
+        tracing::info!("Restored service task {} (instance: {})", task.id, task.instance_id);
         self.pending_service_tasks.insert(task.id, task);
     }
 
     /// Restores a pending timer from persistence (e.g. on server startup).
     pub fn restore_timer(&self, timer: PendingTimer) {
-        log::info!("Restored timer {} (instance: {}, node: {})", timer.id, timer.instance_id, timer.node_id);
+        tracing::info!("Restored timer {} (instance: {}, node: {})", timer.id, timer.instance_id, timer.node_id);
         self.pending_timers.insert(timer.id, timer);
     }
 
     /// Restores a pending message catch from persistence (e.g. on server startup).
     pub fn restore_message_catch(&self, catch: PendingMessageCatch) {
-        log::info!("Restored message catch {} (instance: {}, message: {})", catch.id, catch.instance_id, catch.message_name);
+        tracing::info!("Restored message catch {} (instance: {}, message: {})", catch.id, catch.instance_id, catch.message_name);
         self.pending_message_catches.insert(catch.id, catch);
     }
 
@@ -194,6 +194,63 @@ impl WorkflowEngine {
             for timer_id in timer_ids_to_delete {
                 if let Err(e) = persistence.delete_timer(timer_id).await {
                     self.log_persistence_error(&format!("delete_boundary_timer({})", timer_id), e);
+                }
+            }
+        }
+    }
+
+    /// Clears any pending wait states (timers, messages) associated with a specific token.
+    /// Used by Event-Based Gateways to cancel alternative events when one fires.
+    pub async fn clear_wait_states_for_token(&self, instance_id: Uuid, token_id: &Uuid) {
+        // Collect timer IDs to delete
+        let timers_to_delete: Vec<Uuid> = self.pending_timers.iter()
+            .filter(|r| r.instance_id == instance_id && &r.token_id == token_id)
+            .map(|r| r.id)
+            .collect();
+
+        // Collect message catch IDs to delete
+        let messages_to_delete: Vec<Uuid> = self.pending_message_catches.iter()
+            .filter(|r| r.instance_id == instance_id && &r.token_id == token_id)
+            .map(|r| r.id)
+            .collect();
+            
+        // Log to instance audit log
+        if !timers_to_delete.is_empty() || !messages_to_delete.is_empty() {
+            if let Some(inst_arc) = self.instances.get(&instance_id).await {
+                let mut inst = inst_arc.write().await;
+                if !timers_to_delete.is_empty() {
+                    inst.audit_log.push(format!("⭮ Event-based gateway: {} alternative timer(s) cancelled", timers_to_delete.len()));
+                }
+                if !messages_to_delete.is_empty() {
+                    inst.audit_log.push(format!("⭮ Event-based gateway: {} alternative message catch(es) cancelled", messages_to_delete.len()));
+                }
+            }
+            
+            // Add custom history trace
+            self.record_history_event(
+                instance_id,
+                crate::history::HistoryEventType::TokenAdvanced,
+                "Alternative EventBasedGateway paths cancelled",
+                crate::history::ActorType::Engine,
+                None,
+                None
+            ).await;
+        }
+
+        // Remove from DashMap
+        self.pending_timers.retain(|_, t| !(t.instance_id == instance_id && &t.token_id == token_id));
+        self.pending_message_catches.retain(|_, m| !(m.instance_id == instance_id && &m.token_id == token_id));
+
+        // Delete from persistence
+        if let Some(persistence) = &self.persistence {
+            for timer_id in timers_to_delete {
+                if let Err(e) = persistence.delete_timer(timer_id).await {
+                    self.log_persistence_error(&format!("delete_timer({})", timer_id), e);
+                }
+            }
+            for msg_id in messages_to_delete {
+                if let Err(e) = persistence.delete_message_catch(msg_id).await {
+                    self.log_persistence_error(&format!("delete_message_catch({})", msg_id), e);
                 }
             }
         }

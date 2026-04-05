@@ -7,14 +7,14 @@ impl WorkflowEngine {
     /// Logs and counts a persistence error.
     pub(crate) fn log_persistence_error(&self, context: &str, err: impl std::fmt::Display) {
         self.persistence_error_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        log::error!("PERSISTENCE FAILURE [{}]: {}", context, err);
+        tracing::error!("PERSISTENCE FAILURE [{}]: {}", context, err);
     }
 
     /// Enqueues a failed job for background retry (if retry queue is available).
     fn enqueue_retry(&self, job: PersistJob) {
         if let Some(ref tx) = self.retry_tx {
             if let Err(e) = tx.send(job) {
-                log::error!("Failed to enqueue retry job: {} (channel closed)", e);
+                tracing::error!("Failed to enqueue retry job: {} (channel closed)", e);
             }
         }
     }
@@ -79,7 +79,7 @@ impl WorkflowEngine {
                     Ok(()) => { last_err = None; break; }
                     Err(e) if attempt < INLINE_RETRIES => {
                         let delay = INLINE_BACKOFF_MS * 2u64.pow(attempt);
-                        log::warn!("History append retry {}/{}: {} — backoff {}ms",
+                        tracing::warn!("History append retry {}/{}: {} — backoff {}ms",
                             attempt + 1, INLINE_RETRIES, e, delay);
                         tokio::time::sleep(tokio::time::Duration::from_millis(delay)).await;
                         last_err = Some(e);
@@ -118,7 +118,7 @@ impl WorkflowEngine {
                     Ok(()) => { last_err = None; break; }
                     Err(e) if attempt < INLINE_RETRIES => {
                         let delay = INLINE_BACKOFF_MS * 2u64.pow(attempt);
-                        log::warn!("save_instance({}) retry {}/{}: {} — backoff {}ms",
+                        tracing::warn!("save_instance({}) retry {}/{}: {} — backoff {}ms",
                             instance_id, attempt + 1, INLINE_RETRIES, e, delay);
                         tokio::time::sleep(tokio::time::Duration::from_millis(delay)).await;
                         last_err = Some(e);
@@ -143,7 +143,7 @@ impl WorkflowEngine {
                     Ok(()) => { last_err = None; break; }
                     Err(e) if attempt < INLINE_RETRIES => {
                         let delay = INLINE_BACKOFF_MS * 2u64.pow(attempt);
-                        log::warn!("save_definition({}) retry {}/{}: {} — backoff {}ms",
+                        tracing::warn!("save_definition({}) retry {}/{}: {} — backoff {}ms",
                             key, attempt + 1, INLINE_RETRIES, e, delay);
                         tokio::time::sleep(tokio::time::Duration::from_millis(delay)).await;
                         last_err = Some(e);
@@ -168,7 +168,7 @@ impl WorkflowEngine {
                         Ok(()) => { last_err = None; break; }
                         Err(e) if attempt < INLINE_RETRIES => {
                             let delay = INLINE_BACKOFF_MS * 2u64.pow(attempt);
-                            log::warn!("save_user_task({}) retry {}/{}: {} — backoff {}ms",
+                            tracing::warn!("save_user_task({}) retry {}/{}: {} — backoff {}ms",
                                 task_id, attempt + 1, INLINE_RETRIES, e, delay);
                             tokio::time::sleep(tokio::time::Duration::from_millis(delay)).await;
                             last_err = Some(e);

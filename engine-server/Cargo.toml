@@ -15,8 +15,8 @@ persistence-nats = { path = "../persistence-nats" }
 uuid = { version = "1.0", features = ["v4", "serde"] }
 thiserror = { workspace = true }
 anyhow = { workspace = true }
-log = "0.4"
-env_logger = "0.11"
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
 chrono = { version = "0.4.44", features = ["serde"] }
 
 [dev-dependencies]

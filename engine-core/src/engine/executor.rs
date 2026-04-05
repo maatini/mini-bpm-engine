@@ -74,6 +74,7 @@ impl WorkflowEngine {
                 NextAction::WaitForCallActivity { .. } => (crate::history::HistoryEventType::CallActivityStarted, "Spawned call activity".to_string()),
                 NextAction::Complete => (crate::history::HistoryEventType::BranchCompleted, "Execution path completed".to_string()),
                 NextAction::ErrorEnd { error_code } => (crate::history::HistoryEventType::BranchCompleted, format!("Execution path completed with error '{}'", error_code)),
+                NextAction::WaitForEventGroup(_) => (crate::history::HistoryEventType::TokenAdvanced, "Waiting for multiple alternative events".to_string()),
             };
             
             self.record_history_event(
@@ -157,13 +158,36 @@ impl WorkflowEngine {
                 NextAction::WaitForMessage(pending) => {
                     let message_id = pending.id;
                     if let Some(inst_arc) = self.instances.get(&instance_id).await {
-            let mut inst = inst_arc.write().await;
+                        let mut inst = inst_arc.write().await;
                         if !matches!(inst.state, InstanceState::ParallelExecution { .. }) {
                             inst.state = InstanceState::WaitingOnMessage { message_id };
                         }
                     }
                     self.pending_message_catches.insert(message_id, pending);
                     self.persist_message_catch(message_id).await;
+                }
+                NextAction::WaitForEventGroup(actions) => {
+                    if let Some(inst_arc) = self.instances.get(&instance_id).await {
+                        let mut inst = inst_arc.write().await;
+                        if !matches!(inst.state, InstanceState::ParallelExecution { .. }) {
+                            inst.state = InstanceState::WaitingOnEventBasedGateway;
+                        }
+                    }
+                    for action in actions {
+                        match action {
+                            NextAction::WaitForTimer(pending) => {
+                                let timer_id = pending.id;
+                                self.pending_timers.insert(timer_id, pending);
+                                self.persist_timer(timer_id).await;
+                            }
+                            NextAction::WaitForMessage(pending) => {
+                                let message_id = pending.id;
+                                self.pending_message_catches.insert(message_id, pending);
+                                self.persist_message_catch(message_id).await;
+                            }
+                            _ => {} // EventBasedGateway validation ensures this won't happen
+                        }
+                    }
                 }
                 NextAction::WaitForCallActivity { called_element, token: call_token } => {
                     // Start the child subprocess
@@ -189,7 +213,7 @@ impl WorkflowEngine {
                             }
                         }
                         
-                        log::info!("Instance {instance_id}: Triggering Call Activity '{}'", called_element);
+                        tracing::info!("Instance {instance_id}: Triggering Call Activity '{}'", called_element);
                         
                         // Now we need to start the child instance asynchronously or recursively.
                         // Actually, we can just call an internal start mechanism that accepts parent_id.
@@ -205,12 +229,12 @@ impl WorkflowEngine {
                                 }
                             }
                             Err(e) => {
-                                log::error!("Failed to start call activity '{}': {}", called_element, e);
+                                tracing::error!("Failed to start call activity '{}': {}", called_element, e);
                                 // Optional: we could throw a BPMN error or mark as crashed
                             }
                         }
                     } else {
-                        log::error!("Call Activity target '{}' not found deployed.", called_element);
+                        tracing::error!("Call Activity target '{}' not found deployed.", called_element);
                     }
                 }
                 NextAction::Complete => {
@@ -245,6 +269,9 @@ impl WorkflowEngine {
                             inst.audit_log.push(format!("💥 All tokens completed at Error End with code '{error_code}'"));
                         }
                     }
+                }
+                NextAction::WaitForEventGroup(_) => {
+                    // Handled in `execute_step` mapping
                 }
             }
         } // end while
@@ -319,7 +346,7 @@ impl WorkflowEngine {
 
         match &element {
             BpmnElement::StartEvent | BpmnElement::TimerStartEvent(_) | BpmnElement::MessageStartEvent { .. } => {
-                log::debug!("Passing through start event '{current_id}'");
+                tracing::debug!("Passing through start event '{current_id}'");
                 let next = resolve_next_target(&def_clone, &current_id, &token.variables)?;
                 self.run_end_scripts(instance_id, token, &def_clone, &current_id).await?;
                 token.current_node = next.clone();
@@ -335,7 +362,7 @@ impl WorkflowEngine {
         let mut inst = inst_arc.write().await;
                 inst.current_node = current_id.clone();
                 inst.audit_log.push(format!("⏹ Process completed at end event '{current_id}'"));
-                log::info!("Instance {instance_id}: reached end event '{current_id}'");
+                tracing::info!("Instance {instance_id}: reached end event '{current_id}'");
                 Ok(NextAction::Complete)
             }
 
@@ -359,7 +386,7 @@ impl WorkflowEngine {
                 inst.current_node = current_id.clone();
                 inst.tokens.insert(token.id, token.clone());
                 inst.audit_log.push(format!("👤 User task '{current_id}' assigned to '{assignee}' — waiting (task_id: {})", pending.task_id));
-                log::info!("Instance {instance_id}: user task '{current_id}' pending for '{assignee}'");
+                tracing::info!("Instance {instance_id}: user task '{current_id}' pending for '{assignee}'");
 
                 Ok(NextAction::WaitForUser(pending))
             }
@@ -391,7 +418,7 @@ impl WorkflowEngine {
                 inst.current_node = current_id.clone();
                 inst.tokens.insert(token.id, token.clone());
                 inst.audit_log.push(format!("🔗 Service task '{current_id}' created for topic '{topic}' (task_id: {})", svc_task.id));
-                log::info!("Instance {instance_id}: service task '{current_id}' pending for topic '{topic}'");
+                tracing::info!("Instance {instance_id}: service task '{current_id}' pending for topic '{topic}'");
 
                 Ok(NextAction::WaitForServiceTask(svc_task))
             }
@@ -423,11 +450,53 @@ impl WorkflowEngine {
                 let action = execute_inclusive_gateway(&def_clone, &current_id, token)?;
                 if let NextAction::ContinueMultiple(ref f) = action {
                     let inst_arc = self.instances.get(&instance_id).await.ok_or(EngineError::NoSuchInstance(instance_id))?;
-        let mut inst = inst_arc.write().await;
+                    let mut inst = inst_arc.write().await;
                     inst.current_node = current_id.clone();
                     inst.audit_log.push(format!("◇ Inclusive gateway '{current_id}' → forked to {} path(s)", f.len()));
                 }
                 Ok(action)
+            }
+            
+            BpmnElement::EventBasedGateway => {
+                self.run_end_scripts(instance_id, token, &def_clone, &current_id).await?;
+                let mut actions = Vec::new();
+                for sf in def_clone.next_nodes(&current_id) {
+                    let target_node = sf.target.clone();
+                    if let Some(target_element) = def_clone.get_node(&target_node) {
+                        match target_element {
+                            BpmnElement::TimerCatchEvent(dur) => {
+                                let pending = PendingTimer {
+                                    id: Uuid::new_v4(),
+                                    instance_id,
+                                    node_id: target_node.clone(),
+                                    expires_at: Utc::now() + chrono::Duration::from_std(*dur).unwrap_or(chrono::Duration::seconds(0)),
+                                    token_id: token.id,
+                                };
+                                actions.push(NextAction::WaitForTimer(pending));
+                            }
+                            BpmnElement::MessageCatchEvent { message_name } => {
+                                let pending = PendingMessageCatch {
+                                    id: Uuid::new_v4(),
+                                    instance_id,
+                                    node_id: target_node.clone(),
+                                    message_name: message_name.clone(),
+                                    token_id: token.id,
+                                };
+                                actions.push(NextAction::WaitForMessage(pending));
+                            }
+                            _ => {
+                                return Err(EngineError::InvalidDefinition(format!("EventBasedGateway target '{}' is not a catch event", target_node)));
+                            }
+                        }
+                    }
+                }
+                
+                let inst_arc = self.instances.get(&instance_id).await.ok_or(EngineError::NoSuchInstance(instance_id))?;
+                let mut inst = inst_arc.write().await;
+                inst.current_node = current_id.clone();
+                inst.tokens.insert(token.id, token.clone());
+                inst.audit_log.push(format!("⭮ Event-based gateway '{current_id}' waiting for {} alternative events", actions.len()));
+                Ok(NextAction::WaitForEventGroup(actions))
             }
             
             BpmnElement::TimerCatchEvent(dur) => {
@@ -472,7 +541,7 @@ impl WorkflowEngine {
         let mut inst = inst_arc.write().await;
                 inst.current_node = current_id.clone();
                 inst.audit_log.push(format!("🔗 Call Activity '{current_id}' invoking process '{called_element}'"));
-                log::info!("Instance {instance_id}: call activity '{current_id}' invoking '{called_element}'");
+                tracing::info!("Instance {instance_id}: call activity '{current_id}' invoking '{called_element}'");
                 
                 Ok(NextAction::WaitForCallActivity { called_element: called_element.clone(), token: token.clone() })
             }
@@ -519,7 +588,7 @@ impl WorkflowEngine {
                 expected_count: branch_count,
                 arrived_tokens: Vec::new(),
             });
-            log::debug!("Registered JoinBarrier for join '{join_id}' (expected: {branch_count})");
+            tracing::debug!("Registered JoinBarrier for join '{join_id}' (expected: {branch_count})");
         }
         Ok(())
     }

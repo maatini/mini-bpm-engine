@@ -106,7 +106,7 @@ pub(crate) fn spawn_retry_worker(
     error_counter: Arc<std::sync::atomic::AtomicU64>,
 ) {
     tokio::spawn(async move {
-        log::info!("Persistence retry worker started");
+        tracing::info!("Persistence retry worker started");
 
         while let Some(job) = rx.recv().await {
             let mut attempt = 0u32;
@@ -127,7 +127,7 @@ pub(crate) fn spawn_retry_worker(
 
                 match result {
                     Ok(()) => {
-                        log::info!(
+                        tracing::info!(
                             "Retry succeeded for {} (attempt {})",
                             job, attempt
                         );
@@ -135,14 +135,14 @@ pub(crate) fn spawn_retry_worker(
                     }
                     Err(e) if attempt >= MAX_RETRIES => {
                         error_counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                        log::error!(
+                        tracing::error!(
                             "PERMANENT PERSISTENCE FAILURE after {} retries for {}: {}",
                             MAX_RETRIES, job, e
                         );
                         break;
                     }
                     Err(e) => {
-                        log::warn!(
+                        tracing::warn!(
                             "Retry {}/{} for {} failed: {} — backing off {}ms",
                             attempt, MAX_RETRIES, job, e, backoff_ms
                         );
@@ -155,7 +155,7 @@ pub(crate) fn spawn_retry_worker(
             }
         }
 
-        log::warn!("Persistence retry worker stopped (channel closed)");
+        tracing::warn!("Persistence retry worker stopped (channel closed)");
     });
 }
 

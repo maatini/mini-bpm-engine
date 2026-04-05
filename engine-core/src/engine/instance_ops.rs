@@ -130,7 +130,7 @@ impl WorkflowEngine {
                 "Variables updated: +{added} ~{modified} -{deleted}"
             ));
 
-            log::info!(
+            tracing::info!(
                 "Instance {}: variables updated (+{added} ~{modified} -{deleted})",
                 instance_id
             );

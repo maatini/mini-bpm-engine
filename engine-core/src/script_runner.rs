@@ -46,7 +46,7 @@ pub fn run_node_scripts(
                     ListenerEvent::Start => "start",
                     ListenerEvent::End => "end",
                 };
-                log::info!(
+                tracing::info!(
                     "Instance {_instance_id}: executed {event_name} script on node '{node_id}'"
                 );
                 audit_log.push(format!("📜 Executed {event_name} script on '{node_id}'"));

@@ -132,14 +132,14 @@ impl NatsPersistence {
                         Ok(Some(entry)) => {
                             match serde_json::from_slice::<T>(&entry) {
                                 Ok(item) => entries.push(item),
-                                Err(e) => log::warn!("Failed to deserialize {entity_name} '{}': {}", key, e),
+                                Err(e) => tracing::warn!("Failed to deserialize {entity_name} '{}': {}", key, e),
                             }
                         }
                         Ok(None) => {}
-                        Err(e) => log::warn!("Failed to get {entity_name} '{key}': {}", e),
+                        Err(e) => tracing::warn!("Failed to get {entity_name} '{key}': {}", e),
                     }
                 }
-                Some(Err(e)) => log::warn!("Failed to stream {entity_name} key: {}", e),
+                Some(Err(e)) => tracing::warn!("Failed to stream {entity_name} key: {}", e),
                 None => break,
             }
         }

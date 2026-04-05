@@ -93,7 +93,7 @@ impl WorkflowEngine {
             join_barriers: std::collections::HashMap::new(),
         };
 
-        log::info!(
+        tracing::info!(
             "Started instance {instance_id} of def key {definition_key} at node '{start_id}' with {} vars",
             variables.len()
         );
@@ -153,7 +153,7 @@ impl WorkflowEngine {
         let child_vars = inst.variables.clone();
         
         // Find the parent
-        log::info!("Child instance {completed_instance_id} completed, resuming parent {parent_id}");
+        tracing::info!("Child instance {completed_instance_id} completed, resuming parent {parent_id}");
         
         let (called_node_id, token_to_resume, def_key) = {
             let parent_arc = self.instances.get(&parent_id).await.ok_or(EngineError::NoSuchInstance(parent_id))?;
@@ -291,7 +291,7 @@ impl WorkflowEngine {
             join_barriers: std::collections::HashMap::new(),
         };
 
-        log::info!(
+        tracing::info!(
             "Timer-started instance {instance_id} of def key {definition_key} ({}s)",
             provided_duration.as_secs()
         );

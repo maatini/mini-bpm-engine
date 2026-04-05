@@ -40,7 +40,7 @@ impl WorkflowEngine {
         let mut def = definition;
         def.key = key;
         def.version = version;
-        log::info!("Deployed definition '{}' (v{}, key: {})", def.id, def.version, key);
+        tracing::info!("Deployed definition '{}' (v{}, key: {})", def.id, def.version, key);
         self.definitions.insert(key, Arc::new(def)).await;
         self.persist_definition(key).await;
         (key, version)

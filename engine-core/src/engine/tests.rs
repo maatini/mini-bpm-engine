@@ -1647,3 +1647,86 @@ fn engine_is_send_and_sync() {
     assert_send::<super::WorkflowEngine>();
     assert_sync::<super::WorkflowEngine>();
 }
+
+#[tokio::test]
+async fn event_based_gateway_timer_wins() {
+    let engine = WorkflowEngine::new();
+    let def = ProcessDefinitionBuilder::new("ebg_timer")
+        .node("start", BpmnElement::StartEvent)
+        .node("gw", BpmnElement::EventBasedGateway)
+        .node("catch_timer", BpmnElement::TimerCatchEvent(Duration::from_millis(50)))
+        .node("catch_msg", BpmnElement::MessageCatchEvent { message_name: "win_msg".into() })
+        .node("end_timer", BpmnElement::EndEvent)
+        .node("end_msg", BpmnElement::EndEvent)
+        .flow("start", "gw")
+        .flow("gw", "catch_timer")
+        .flow("gw", "catch_msg")
+        .flow("catch_timer", "end_timer")
+        .flow("catch_msg", "end_msg")
+        .build()
+        .unwrap();
+
+    let (key, _) = engine.deploy_definition(def).await;
+    let instance_id = engine.start_instance(key).await.unwrap();
+
+    let state = engine.get_instance_state(instance_id).await.unwrap();
+    assert_eq!(state, InstanceState::WaitingOnEventBasedGateway);
+
+    // ensure pending timers and messages are registered
+    assert_eq!(engine.pending_timers.len(), 1);
+    assert_eq!(engine.pending_message_catches.len(), 1);
+
+    // Wait for timer to expire
+    tokio::time::sleep(Duration::from_millis(60)).await;
+    
+    let processed = engine.process_timers().await.unwrap();
+    assert_eq!(processed, 1);
+
+    // The message catch should have been CANCELLED and removed!
+    assert_eq!(engine.pending_timers.len(), 0);
+    assert_eq!(engine.pending_message_catches.len(), 0);
+
+    let state = engine.get_instance_state(instance_id).await.unwrap();
+    assert_eq!(state, InstanceState::Completed);
+    
+    let log = engine.get_audit_log(instance_id).await.unwrap();
+    assert!(log.iter().any(|l| l.contains("cancelled")));
+    assert!(log.iter().any(|l| l.contains("'end_timer'")));
+}
+
+#[tokio::test]
+async fn event_based_gateway_message_wins() {
+    let engine = WorkflowEngine::new();
+    let def = ProcessDefinitionBuilder::new("ebg_msg")
+        .node("start", BpmnElement::StartEvent)
+        .node("gw", BpmnElement::EventBasedGateway)
+        .node("catch_timer", BpmnElement::TimerCatchEvent(Duration::from_millis(5000))) // Long timer
+        .node("catch_msg", BpmnElement::MessageCatchEvent { message_name: "win_msg".into() })
+        .node("end_timer", BpmnElement::EndEvent)
+        .node("end_msg", BpmnElement::EndEvent)
+        .flow("start", "gw")
+        .flow("gw", "catch_timer")
+        .flow("gw", "catch_msg")
+        .flow("catch_timer", "end_timer")
+        .flow("catch_msg", "end_msg")
+        .build()
+        .unwrap();
+
+    let (key, _) = engine.deploy_definition(def).await;
+    let instance_id = engine.start_instance(key).await.unwrap();
+
+    // Correlate message
+    let affected = engine.correlate_message("win_msg".into(), None, Default::default()).await.unwrap();
+    assert_eq!(affected.len(), 1);
+
+    // The timer should have been CANCELLED and removed!
+    assert_eq!(engine.pending_timers.len(), 0);
+    assert_eq!(engine.pending_message_catches.len(), 0);
+
+    let state = engine.get_instance_state(instance_id).await.unwrap();
+    assert_eq!(state, InstanceState::Completed);
+
+    let log = engine.get_audit_log(instance_id).await.unwrap();
+    assert!(log.iter().any(|l| l.contains("cancelled")));
+    assert!(log.iter().any(|l| l.contains("'end_msg'")));
+}

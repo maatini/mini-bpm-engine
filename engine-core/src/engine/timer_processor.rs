@@ -17,6 +17,9 @@ impl WorkflowEngine {
         for tid in expired {
             let timer = self.pending_timers.remove(&tid).map(|(_, v)| v)
                 .ok_or_else(|| EngineError::InvalidDefinition(format!("Timer {tid} disappeared")))?;
+                
+            // Event-Based Gateway support: If this timer triggered, clear any sibling wait states
+            self.clear_wait_states_for_token(timer.instance_id, &timer.token_id).await;
             
             let old_state = if let Some(lk) = self.instances.get(&timer.instance_id).await { Some(lk.read().await.clone()) } else { None };
             let def_key = {
