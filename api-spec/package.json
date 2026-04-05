@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "description": "TypeSpec API specification for bpmninja engine-server",
   "private": true,
+  "license": "MIT OR Apache-2.0",
   "scripts": {
     "compile": "tsp compile main.tsp"
   },

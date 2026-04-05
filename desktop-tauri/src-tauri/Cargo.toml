@@ -6,6 +6,7 @@ version = "0.2.0"
 description = "A Tauri App"
 authors = ["you"]
 edition = "2021"
+license = "MIT OR Apache-2.0"
 
 [build-dependencies]
 tauri-build = { version = "2.5.6", features = [] }

@@ -3,6 +3,7 @@
 [![Rust](https://img.shields.io/badge/Rust-stable-brightgreen.svg?style=flat-square)](https://www.rust-lang.org/)
 [![Tests](https://img.shields.io/badge/Tests-140_passing-success?style=flat-square)]()
 [![Mutation Score](https://img.shields.io/badge/Mutation_Score-93%25-blue?style=flat-square)]()
+[![License](https://img.shields.io/badge/License-MIT%20OR%20Apache--2.0-blue.svg?style=flat-square)](#lizenz)
 
 <div align="center">
   <img src="desktop-tauri/public/logo.png" alt="BPMNinja Logo" width="300" />
@@ -24,6 +25,7 @@
 - [Docker Compose](#docker-compose)
 - [Test-Metriken](#test-metriken)
 - [Roadmap](#roadmap)
+- [Lizenz](#lizenz)
 
 ---
 
@@ -400,3 +402,13 @@ Services erreichbar unter `localhost:8081` (API) und `localhost:4222` (NATS).
 | Complex Gateway | 🔲 Geplant |
 | OIDC/OAuth2 Middleware | 🔲 Geplant |
 | Prometheus Metrics Endpoint | 🔲 Geplant |
+
+---
+
+## Lizenz
+
+Dieses Projekt ist unter einer der folgenden Lizenzen lizenziert, nach deiner Wahl:
+
+- [MIT License](LICENSE-MIT)
+- [Apache License, Version 2.0](LICENSE-APACHE)
+
