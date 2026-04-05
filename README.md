@@ -1,7 +1,7 @@
 # mini-bpm
 
 [![Rust](https://img.shields.io/badge/Rust-stable-brightgreen.svg?style=flat-square)](https://www.rust-lang.org/)
-[![Tests](https://img.shields.io/badge/Tests-115_passing-success?style=flat-square)]()
+[![Tests](https://img.shields.io/badge/Tests-136_passing-success?style=flat-square)]()
 [![Mutation Score](https://img.shields.io/badge/Mutation_Score-93%25-blue?style=flat-square)]()
 
 ![mini-bpm-engine](readme-assets/mini-bpm-engine.jpeg)
@@ -308,28 +308,28 @@ Services erreichbar unter `localhost:8081` (API) und `localhost:4222` (NATS).
 
 ## Test-Metriken
 
-> Ermittelt via `cargo test --workspace` am 04.04.2026 — **115 Tests, 0 Fehler**
+> Ermittelt via `cargo test --workspace` am 05.04.2026 — **136 Tests, 0 Fehler**
 
 ### Workspace-Übersicht
 
 | Crate | Unit | E2E | Gesamt |
 |-------|------|-----|--------|
-| **engine-core** | 88 | — | 88 |
+| **engine-core** | 92 | — | 92 |
 | **bpmn-parser** | 6 | — | 6 |
 | **persistence-nats** | 2 | — | 2 |
-| **engine-server** | — | 19 | 19 |
-| **Gesamt** | **96** | **19** | **115** ✅ |
+| **engine-server** | — | 36 | 36 |
+| **Gesamt** | **100** | **36** | **136** ✅ |
 
-### engine-core Breakdown (88 Tests)
+### engine-core Breakdown (92 Tests)
 
 | Modul | Tests | Abdeckung |
 |-------|-------|-----------|
-| `engine::tests` | 46 | State Machine, Gateways, User/Service Tasks, Boundary Events, Call Activities, Timers, Messages, Mutation-Checks |
+| `engine::tests` | 50 | State Machine, Gateways, User/Service Tasks, Boundary Events, Call Activities, Timers, Messages, Mutation-Checks |
 | `engine::stress_tests` | 22 | Throughput (1000 Instanzen), Gateway-Korrektheit, Crash Recovery, Concurrency, Race Conditions, Memory (10k Instanzen) |
 | `model::tests` | 16 | ProcessDefinition Builder, Token-Serialisierung, SequenceFlow, Validation, FileReference, Gateway-Constraints |
 | `history::tests` | 4 | Diff-Berechnung, File-Upload-Erkennung, Human-Readable Text, Empty Diffs |
 
-### engine-server E2E Tests (19 Tests, 9 Dateien)
+### engine-server E2E Tests (36 Tests, 12 Dateien)
 
 | Testdatei | Tests | Abdeckung |
 |-----------|-------|-----------|
@@ -338,6 +338,9 @@ Services erreichbar unter `localhost:8081` (API) und `localhost:4222` (NATS).
 | `e2e_files.rs` | 1 | Upload/Download/Delete Lifecycle |
 | `e2e_gateways.rs` | 1 | Parallel Gateway über HTTP |
 | `e2e_history.rs` | 1 | History-Generierung und -Abfrage |
+| `e2e_lifecycle.rs` | 6 | Instanz löschen, Definition löschen, Unbekannte Instanzen, Timer verarbeiten, Message korrelieren |
+| `e2e_monitoring.rs` | 4 | Health, Ready (verbunden/unverbunden), Info, Monitoring Stats |
+| `e2e_service_tasks.rs` | 7 | List Service Tasks, FetchAndLock, ExtendLock, Complete, Complete with Failure, BPMN-Error, Lock Conflict |
 | `e2e_start_errors.rs` | 4 | Invalid UUID, Unknown Definition, Unknown BPMN-ID, Timer-Start Rejection |
 | `e2e_stress.rs` | 2 | Concurrent Deployments, Concurrent Starts (multi-thread) |
 | `e2e_variables.rs` | 1 | Variable-Updates mid-execution |
@@ -356,16 +359,16 @@ Services erreichbar unter `localhost:8081` (API) und `localhost:4222` (NATS).
 
 | Bereich | Dateien | LoC |
 |---------|---------|-----|
-| engine-core (Lib) | 16 | 4.546 |
-| engine-core (Tests) | 2 | 2.276 |
+| engine-core (Lib) | 17 | 4.750 |
+| engine-core (Tests) | 2 | 2.400 |
 | bpmn-parser | 4 | 803 |
 | persistence-nats | 5 | 794 |
 | engine-server (Lib) | 3 | 1.051 |
-| engine-server (E2E Tests) | 9 | 1.232 |
+| engine-server (E2E Tests) | 12 | 1.800 |
 | desktop-tauri (TypeScript + CSS) | 22 | 4.036 |
 | desktop-tauri (Rust Backend) | 8 | 478 |
-| **Rust Workspace** | **39** | **~10.702** |
-| **Projekt Gesamt** | **~69** | **~15.216** |
+| **Rust Workspace** | **43** | **~11.600** |
+| **Projekt Gesamt** | **~73** | **~16.100** |
 
 ---
 
