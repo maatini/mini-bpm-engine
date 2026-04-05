@@ -442,7 +442,7 @@ test.describe('bpmninja Desktop App – E2E', () => {
     await page.locator('.nav-item', { hasText: 'Pending Tasks' }).click();
 
     // Verify empty-state message
-    await expect(page.getByText('No pending user tasks.')).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByText('No Pending User Tasks')).toBeVisible({ timeout: 5_000 });
 
     // Verify Refresh button exists
     await expect(page.locator('button', { hasText: 'Refresh' })).toBeVisible();
@@ -546,7 +546,7 @@ test.describe('bpmninja Desktop App – E2E', () => {
     expect(alerts[0]).toContain('Task completed');
 
     // After completion, the task list should refresh and show empty state
-    await expect(page.getByText('No pending user tasks.')).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByText('No Pending User Tasks')).toBeVisible({ timeout: 5_000 });
   });
 
   // ---- 7. Refresh Tasks -------------------------------------------------
@@ -600,7 +600,7 @@ test.describe('bpmninja Desktop App – E2E', () => {
     await page.locator('.nav-item', { hasText: 'Pending Tasks' }).click();
     // The default BPMN XML from the modeler only has a StartEvent (no userTask),
     // so no tasks seeded — verify empty state
-    await expect(page.getByText('No pending user tasks.')).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByText('No Pending User Tasks')).toBeVisible({ timeout: 5_000 });
 
     // Step 4: Navigate back to modeler
     await page.locator('.nav-item', { hasText: 'BPMN Modeler' }).click();
@@ -614,7 +614,7 @@ test.describe('bpmninja Desktop App – E2E', () => {
     await page.goto('/');
 
     await page.locator('.nav-item', { hasText: 'Instances' }).click();
-    await expect(page.getByText('No instances found.')).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByText('No Instances Yet')).toBeVisible({ timeout: 5_000 });
     await expect(page.locator('button', { hasText: 'Refresh' })).toBeVisible();
   });
 
@@ -719,7 +719,7 @@ test.describe('bpmninja Desktop App – E2E', () => {
     await page.goto('/');
 
     await page.locator('.nav-item', { hasText: 'Deployed Processes' }).click();
-    await expect(page.getByText('No deployed processes.')).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByText('No Deployed Processes')).toBeVisible({ timeout: 5_000 });
     await expect(page.locator('button', { hasText: 'Refresh' })).toBeVisible();
   });
 
@@ -950,7 +950,7 @@ test.describe('bpmninja Desktop App – E2E', () => {
     
     // Instance should disappear
     await expect(detailPanel).not.toBeVisible();
-    await expect(page.getByText('No instances found.')).toBeVisible();
+    await expect(page.getByText('No Instances Yet')).toBeVisible();
   });
 
   // ---- 19. Delete Definition ---------------------------------------------
@@ -986,7 +986,7 @@ test.describe('bpmninja Desktop App – E2E', () => {
     
     // Definition should disappear
     await expect(card).not.toBeVisible();
-    await expect(page.getByText('No deployed processes.')).toBeVisible();
+    await expect(page.getByText('No Deployed Processes')).toBeVisible();
   });
 
   // ---- 20. Start Instance with custom variables --------------------------

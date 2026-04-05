@@ -61,3 +61,13 @@ pub async fn delete_definition(
     let path = format!("/api/definitions/{}?cascade={}", definition_id, cascade);
     crate::api_helpers::api_delete(&state, &path).await
 }
+
+#[tauri::command]
+pub async fn delete_all_definitions(
+    state: tauri::State<'_, AppState>,
+    bpmn_id: String,
+    cascade: bool,
+) -> Result<(), String> {
+    let path = format!("/api/definitions/bpmn/{}?cascade={}", bpmn_id, cascade);
+    crate::api_helpers::api_delete(&state, &path).await
+}

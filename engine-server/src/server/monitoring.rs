@@ -79,3 +79,41 @@ pub(crate) async fn get_monitoring_data(
         storage_info,
     })
 }
+
+#[derive(serde::Deserialize)]
+pub(crate) struct BucketEntriesQuery {
+    pub offset: Option<usize>,
+    pub limit: Option<usize>,
+}
+
+pub(crate) async fn get_bucket_entries(
+    State(state): State<Arc<AppState>>,
+    axum::extract::Path(bucket_name): axum::extract::Path<String>,
+    axum::extract::Query(query): axum::extract::Query<BucketEntriesQuery>,
+) -> axum::response::Response {
+    let offset = query.offset.unwrap_or(0);
+    let limit = query.limit.unwrap_or(50).clamp(1, 1000);
+
+    if let Some(ref persistence) = state.persistence {
+        match persistence.get_bucket_entries(&bucket_name, offset, limit).await {
+            Ok(entries) => Json(entries).into_response(),
+            Err(e) => (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+        }
+    } else {
+        (axum::http::StatusCode::SERVICE_UNAVAILABLE, "No persistence layer configured").into_response()
+    }
+}
+
+pub(crate) async fn get_bucket_entry_detail(
+    State(state): State<Arc<AppState>>,
+    axum::extract::Path((bucket_name, key)): axum::extract::Path<(String, String)>,
+) -> axum::response::Response {
+    if let Some(ref persistence) = state.persistence {
+        match persistence.get_bucket_entry_detail(&bucket_name, &key).await {
+            Ok(detail) => Json(detail).into_response(),
+            Err(e) => (axum::http::StatusCode::NOT_FOUND, e.to_string()).into_response(),
+        }
+    } else {
+        (axum::http::StatusCode::SERVICE_UNAVAILABLE, "No persistence layer configured").into_response()
+    }
+}

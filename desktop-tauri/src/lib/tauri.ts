@@ -137,6 +137,10 @@ export async function deleteDefinition(definitionId: string, cascade: boolean = 
   return invoke('delete_definition', { definitionId, cascade });
 }
 
+export async function deleteAllDefinitions(bpmnId: string, cascade: boolean = false): Promise<void> {
+  return invoke('delete_all_definitions', { bpmnId, cascade });
+}
+
 // ---------------------------------------------------------------------------
 // Backend info & switching
 // ---------------------------------------------------------------------------
@@ -198,6 +202,25 @@ export interface MonitoringData {
 
 export async function getMonitoringData(): Promise<MonitoringData> {
   return invoke('get_monitoring_data');
+}
+
+export interface BucketEntry {
+  key: string;
+  size_bytes: number | null;
+  created_at: string | null;
+}
+
+export interface BucketEntryDetail {
+  key: string;
+  data: string;
+}
+
+export async function getBucketEntries(bucket: string, offset: number = 0, limit: number = 50): Promise<BucketEntry[]> {
+  return invoke('get_bucket_entries', { bucket, offset, limit });
+}
+
+export async function getBucketEntryDetail(bucket: string, key: string): Promise<BucketEntryDetail> {
+  return invoke('get_bucket_entry_detail', { bucket, key });
 }
 
 // ---------------------------------------------------------------------------

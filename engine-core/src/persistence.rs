@@ -19,6 +19,21 @@ pub struct HistoryQuery {
     pub offset: Option<usize>,
 }
 
+/// Represents a single entry inside a bucket
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BucketEntry {
+    pub key: String,
+    pub size_bytes: Option<u64>,
+    pub created_at: Option<DateTime<Utc>>,
+}
+
+/// Represents the raw detail of a bucket entry
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BucketEntryDetail {
+    pub key: String,
+    pub data: String, // String representation (JSON or text) or Base64 if binary
+}
+
 /// Per-bucket storage details for monitoring dashboards.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BucketInfo {
@@ -122,4 +137,10 @@ pub trait WorkflowPersistence: Send + Sync {
     async fn append_history_entry(&self, entry: &crate::history::HistoryEntry) -> EngineResult<()>;
     /// Retrieve all history entries for a specific instance, ordered by time.
     async fn query_history(&self, query: HistoryQuery) -> EngineResult<Vec<crate::history::HistoryEntry>>;
+
+    /// Retrieve list of entries inside a specific bucket for monitoring details.
+    async fn get_bucket_entries(&self, bucket_name: &str, offset: usize, limit: usize) -> EngineResult<Vec<BucketEntry>>;
+    
+    /// Retrieve raw detail string (JSON or base64) of a specific entry in a bucket.
+    async fn get_bucket_entry_detail(&self, bucket_name: &str, key: &str) -> EngineResult<BucketEntryDetail>;
 }

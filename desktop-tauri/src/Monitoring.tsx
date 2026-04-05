@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
-import { getMonitoringData, type MonitoringData } from './lib/tauri'
+import { getMonitoringData, getBucketEntries, getBucketEntryDetail, type MonitoringData, type BucketEntry, type BucketEntryDetail } from './lib/tauri'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Server, Settings2, Database } from 'lucide-react'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Server, Settings2, Database, List, ExternalLink } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 
 /**
@@ -30,6 +31,43 @@ export function Monitoring() {
   const [data, setData] = useState<MonitoringData | null>(null)
   const [error, setError] = useState<string | null>(null)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  const [selectedBucket, setSelectedBucket] = useState<string | null>(null)
+  const [bucketEntries, setBucketEntries] = useState<BucketEntry[]>([])
+  const [loadingEntries, setLoadingEntries] = useState(false)
+
+  const [selectedEntryKey, setSelectedEntryKey] = useState<string | null>(null)
+  const [entryDetail, setEntryDetail] = useState<BucketEntryDetail | null>(null)
+  const [loadingDetail, setLoadingDetail] = useState(false)
+
+  const handleBucketClick = async (bucket: string) => {
+    setSelectedBucket(bucket)
+    setBucketEntries([])
+    setLoadingEntries(true)
+    try {
+      const entries = await getBucketEntries(bucket, 0, 200) // load up to 200 for now
+      setBucketEntries(entries)
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setLoadingEntries(false)
+    }
+  }
+
+  const handleEntryClick = async (key: string) => {
+    if (!selectedBucket) return
+    setSelectedEntryKey(key)
+    setEntryDetail(null)
+    setLoadingDetail(true)
+    try {
+      const detail = await getBucketEntryDetail(selectedBucket, key)
+      setEntryDetail(detail)
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setLoadingDetail(false)
+    }
+  }
 
   const refresh = async () => {
     try {
@@ -208,7 +246,7 @@ export function Monitoring() {
                   </TableHeader>
                   <TableBody>
                     {data.storage_info.buckets.map((b) => (
-                      <TableRow key={b.name} className="hover:bg-muted/50">
+                      <TableRow key={b.name} className="hover:bg-muted/50 cursor-pointer" onClick={() => handleBucketClick(b.name)}>
                         <TableCell className="font-medium text-foreground">{b.name}</TableCell>
                         <TableCell>
                           <Badge 
@@ -234,6 +272,91 @@ export function Monitoring() {
 
         </div>
       </ScrollArea>
+
+      {/* Bucket Entries Dialog */}
+      <Dialog open={!!selectedBucket && !selectedEntryKey} onOpenChange={(open) => !open && setSelectedBucket(null)}>
+        <DialogContent className="max-w-4xl max-h-[80vh] flex flex-col p-0">
+          <DialogHeader className="p-6 pb-2 border-b">
+            <DialogTitle className="flex items-center gap-2">
+              <List className="h-5 w-5" /> Bucket Entries: {selectedBucket}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-auto p-0">
+            {loadingEntries ? (
+              <div className="p-6 space-y-4">
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+            ) : bucketEntries.length === 0 ? (
+              <div className="p-10 text-center text-muted-foreground">No entries found.</div>
+            ) : (
+              <Table>
+                <TableHeader className="bg-muted/30 sticky top-0 backdrop-blur-sm z-10">
+                  <TableRow>
+                    <TableHead>Key</TableHead>
+                    <TableHead>Created At</TableHead>
+                    <TableHead className="text-right">Size (Bytes)</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {bucketEntries.map((entry) => (
+                    <TableRow key={entry.key} className="cursor-pointer hover:bg-muted/50" onClick={() => handleEntryClick(entry.key)}>
+                      <TableCell className="font-medium font-mono text-xs">{entry.key}</TableCell>
+                      <TableCell className="text-muted-foreground tabular-nums text-xs">
+                        {entry.created_at ? new Date(entry.created_at).toLocaleString() : '—'}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums text-muted-foreground">
+                        {entry.size_bytes !== null ? formatBytes(entry.size_bytes) : '—'}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Entry Detail Dialog */}
+      <Dialog open={!!selectedEntryKey} onOpenChange={(open) => {
+        if (!open) {
+          setSelectedEntryKey(null)
+          setEntryDetail(null)
+        }
+      }}>
+        <DialogContent className="max-w-5xl max-h-[85vh] flex flex-col p-0">
+          <DialogHeader className="p-6 pb-2 border-b">
+            <DialogTitle className="flex items-center gap-2">
+              <ExternalLink className="h-5 w-5" /> Detail: {selectedEntryKey}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-auto bg-muted/10 p-6">
+            {loadingDetail ? (
+              <div className="space-y-4">
+                <Skeleton className="h-8 w-1/3" />
+                <Skeleton className="h-[200px] w-full" />
+              </div>
+            ) : entryDetail ? (
+              <div className="relative">
+                <pre className="p-4 rounded-md bg-zinc-950 text-zinc-50 border whitespace-pre-wrap word-break break-all font-mono text-sm overflow-x-auto shadow-inner">
+                  {(() => {
+                    try {
+                      // Attempt to pretty-print if JSON
+                      const obj = JSON.parse(entryDetail.data)
+                      return JSON.stringify(obj, null, 2)
+                    } catch {
+                      // Fallback to raw string
+                      return entryDetail.data
+                    }
+                  })()}
+                </pre>
+              </div>
+            ) : null}
+          </div>
+        </DialogContent>
+      </Dialog>
+
     </div>
   )
 }

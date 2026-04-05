@@ -120,3 +120,23 @@ pub(crate) async fn delete_definition(
 
     Ok(StatusCode::NO_CONTENT)
 }
+
+pub(crate) async fn delete_all_definitions(
+    State(state): State<Arc<AppState>>,
+    Path(bpmn_id): Path<String>,
+    axum::extract::Query(query): axum::extract::Query<DeleteDefinitionQuery>,
+) -> Result<impl IntoResponse, AppError> {
+    let engine = &state.engine;
+
+    // Get all versions before deleting so we can clean up the XML cache
+    let versions = engine.list_definition_versions(&bpmn_id).await;
+
+    engine.delete_all_definitions(&bpmn_id, query.cascade.unwrap_or(false)).await?;
+
+    let mut xml_cache = state.deployed_xml.write().await;
+    for (key, _, _) in versions {
+        xml_cache.remove(&key.to_string());
+    }
+
+    Ok(StatusCode::NO_CONTENT)
+}

@@ -1,9 +1,10 @@
-use std::collections::HashMap;
 use std::sync::Arc;
 use dashmap::DashMap;
 use uuid::Uuid;
 
 // Re-export model types used by test modules via `use super::*`
+#[cfg(test)]
+use std::collections::HashMap;
 #[cfg(test)]
 use serde_json::Value;
 #[cfg(test)]

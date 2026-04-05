@@ -9,7 +9,7 @@ use crate::condition::evaluate_condition;
 use crate::model::ListenerEvent;
 
 
-async fn complete_all_service_tasks(engine: &mut WorkflowEngine, worker: &str, vars: HashMap<String, Value>) {
+async fn complete_all_service_tasks(engine: &WorkflowEngine, worker: &str, vars: HashMap<String, Value>) {
     let mut to_complete = Vec::new();
     for task in engine.pending_service_tasks.iter().map(|r| r.value().clone()) {
         to_complete.push((task.id, task.topic.clone()));
@@ -21,7 +21,7 @@ async fn complete_all_service_tasks(engine: &mut WorkflowEngine, worker: &str, v
 }
 
 async fn setup_linear_engine() -> (WorkflowEngine, Uuid) {
-    let mut engine = WorkflowEngine::new();
+    let engine = WorkflowEngine::new();
 
     // Register a simple service handler
 
@@ -42,7 +42,7 @@ async fn setup_linear_engine() -> (WorkflowEngine, Uuid) {
 
 #[tokio::test]
 async fn conditional_routing_on_service_task() {
-    let mut engine = WorkflowEngine::new();
+    let engine = WorkflowEngine::new();
 
     let def = ProcessDefinitionBuilder::new("cond_svc")
         .node("start", BpmnElement::StartEvent)
@@ -64,7 +64,7 @@ async fn conditional_routing_on_service_task() {
         .await
         .unwrap();
 
-    complete_all_service_tasks(&mut engine, "worker_1", HashMap::new()).await;
+    complete_all_service_tasks(&engine, "worker_1", HashMap::new()).await;
 
     assert_eq!(
         engine.get_instance_state(inst_id).await.unwrap(),
@@ -77,10 +77,10 @@ async fn conditional_routing_on_service_task() {
 
 #[tokio::test]
 async fn start_instance_pauses_at_user_task() {
-    let (mut engine, def_key) = setup_linear_engine().await;
+    let (engine, def_key) = setup_linear_engine().await;
     let inst_id = engine.start_instance(def_key).await.unwrap();
 
-    complete_all_service_tasks(&mut engine, "worker_1", HashMap::new()).await;
+    complete_all_service_tasks(&engine, "worker_1", HashMap::new()).await;
 
     assert_eq!(
         engine.get_instance_state(inst_id).await.unwrap(),
@@ -93,9 +93,9 @@ async fn start_instance_pauses_at_user_task() {
 
 #[tokio::test]
 async fn complete_user_task_reaches_end() {
-    let (mut engine, def_key) = setup_linear_engine().await;
+    let (engine, def_key) = setup_linear_engine().await;
     let inst_id = engine.start_instance(def_key).await.unwrap();
-    complete_all_service_tasks(&mut engine, "worker", HashMap::new()).await;
+    complete_all_service_tasks(&engine, "worker", HashMap::new()).await;
 
     let task_id = engine.pending_user_tasks.iter().map(|r| r.value().clone()).next().unwrap().task_id;
     engine
@@ -103,7 +103,7 @@ async fn complete_user_task_reaches_end() {
         .await
         .unwrap();
 
-    complete_all_service_tasks(&mut engine, "worker_1", HashMap::new()).await;
+    complete_all_service_tasks(&engine, "worker_1", HashMap::new()).await;
 
     assert_eq!(
         engine.get_instance_state(inst_id).await.unwrap(),
@@ -114,9 +114,9 @@ async fn complete_user_task_reaches_end() {
 
 #[tokio::test]
 async fn completing_wrong_task_gives_error() {
-    let (mut engine, def_key) = setup_linear_engine().await;
+    let (engine, def_key) = setup_linear_engine().await;
     engine.start_instance(def_key).await.unwrap();
-    complete_all_service_tasks(&mut engine, "worker", HashMap::new()).await;
+    complete_all_service_tasks(&engine, "worker", HashMap::new()).await;
 
     let wrong_id = Uuid::new_v4();
     let result = engine
@@ -127,12 +127,12 @@ async fn completing_wrong_task_gives_error() {
 
 #[tokio::test]
 async fn service_handler_modifies_variables() {
-    let (mut engine, def_key) = setup_linear_engine().await;
+    let (engine, def_key) = setup_linear_engine().await;
     let inst_id = engine.start_instance(def_key).await.unwrap();
 
     let mut vars = HashMap::new();
     vars.insert("validated".into(), Value::Bool(true));
-    complete_all_service_tasks(&mut engine, "worker_1", vars).await;
+    complete_all_service_tasks(&engine, "worker_1", vars).await;
 
     // The token stored centrally should have 'validated: true' from the service handler
     let pending = engine.pending_user_tasks.iter().map(|r| r.value().clone()).next().unwrap();
@@ -147,7 +147,7 @@ async fn service_handler_modifies_variables() {
 
 #[tokio::test]
 async fn timer_start_succeeds() {
-    let mut engine = WorkflowEngine::new();
+    let engine = WorkflowEngine::new();
     let dur = Duration::from_secs(60);
 
     let def = ProcessDefinitionBuilder::new("timer_proc")
@@ -160,7 +160,7 @@ async fn timer_start_succeeds() {
     let (def_key, _) = engine.deploy_definition(def).await;
     let inst_id = engine.trigger_timer_start(def_key, dur).await.unwrap();
 
-    complete_all_service_tasks(&mut engine, "worker_1", HashMap::new()).await;
+    complete_all_service_tasks(&engine, "worker_1", HashMap::new()).await;
 
     assert_eq!(
         engine.get_instance_state(inst_id).await.unwrap(),
@@ -170,7 +170,7 @@ async fn timer_start_succeeds() {
 
 #[tokio::test]
 async fn timer_mismatch_gives_error() {
-    let mut engine = WorkflowEngine::new();
+    let engine = WorkflowEngine::new();
 
     let def = ProcessDefinitionBuilder::new("timer_proc")
         .node("ts", BpmnElement::TimerStartEvent(Duration::from_secs(60)))
@@ -188,7 +188,7 @@ async fn timer_mismatch_gives_error() {
 
 #[tokio::test]
 async fn plain_start_rejects_timer_def() {
-    let mut engine = WorkflowEngine::new();
+    let engine = WorkflowEngine::new();
 
     let def = ProcessDefinitionBuilder::new("timer_proc")
         .node("ts", BpmnElement::TimerStartEvent(Duration::from_secs(5)))
@@ -207,7 +207,7 @@ async fn plain_start_rejects_timer_def() {
 
 #[tokio::test]
 async fn unknown_definition_gives_error() {
-    let mut engine = WorkflowEngine::new();
+    let engine = WorkflowEngine::new();
     let result = engine.start_instance(Uuid::new_v4()).await;
     assert!(matches!(
         result,
@@ -219,9 +219,9 @@ async fn unknown_definition_gives_error() {
 
 #[tokio::test]
 async fn audit_log_captures_all_steps() {
-    let (mut engine, def_key) = setup_linear_engine().await;
+    let (engine, def_key) = setup_linear_engine().await;
     let inst_id = engine.start_instance(def_key).await.unwrap();
-    complete_all_service_tasks(&mut engine, "worker", HashMap::new()).await;
+    complete_all_service_tasks(&engine, "worker", HashMap::new()).await;
 
     let task_id = engine.pending_user_tasks.iter().map(|r| r.value().clone()).next().unwrap().task_id;
     engine
@@ -292,7 +292,7 @@ fn condition_missing_variable() {
 
 #[tokio::test]
 async fn exclusive_gateway_takes_matching_path() {
-    let mut engine = WorkflowEngine::new();
+    let engine = WorkflowEngine::new();
 
     // Start → XOR Gateway → (amount > 100 → high) / (default → low) → End
     let def = ProcessDefinitionBuilder::new("xor_test")
@@ -324,7 +324,7 @@ async fn exclusive_gateway_takes_matching_path() {
         .await
         .unwrap();
 
-    complete_all_service_tasks(&mut engine, "worker_1", HashMap::new()).await;
+    complete_all_service_tasks(&engine, "worker_1", HashMap::new()).await;
 
     assert_eq!(
         engine.get_instance_state(inst_id).await.unwrap(),
@@ -337,7 +337,7 @@ async fn exclusive_gateway_takes_matching_path() {
 
 #[tokio::test]
 async fn exclusive_gateway_uses_default_when_no_match() {
-    let mut engine = WorkflowEngine::new();
+    let engine = WorkflowEngine::new();
 
     let def = ProcessDefinitionBuilder::new("xor_default")
         .node("start", BpmnElement::StartEvent)
@@ -368,7 +368,7 @@ async fn exclusive_gateway_uses_default_when_no_match() {
         .await
         .unwrap();
 
-    complete_all_service_tasks(&mut engine, "worker_1", HashMap::new()).await;
+    complete_all_service_tasks(&engine, "worker_1", HashMap::new()).await;
 
     assert_eq!(
         engine.get_instance_state(inst_id).await.unwrap(),
@@ -381,7 +381,7 @@ async fn exclusive_gateway_uses_default_when_no_match() {
 
 #[tokio::test]
 async fn exclusive_gateway_error_when_no_match_no_default() {
-    let mut engine = WorkflowEngine::new();
+    let engine = WorkflowEngine::new();
 
     let def = ProcessDefinitionBuilder::new("xor_fail")
         .node("start", BpmnElement::StartEvent)
@@ -413,7 +413,7 @@ async fn exclusive_gateway_error_when_no_match_no_default() {
 
 #[tokio::test]
 async fn inclusive_gateway_forks_multiple_paths() {
-    let mut engine = WorkflowEngine::new();
+    let engine = WorkflowEngine::new();
 
     // Start → Inclusive GW → (a > 0 → svc_a → end) / (b > 0 → svc_b → end)
     let def = ProcessDefinitionBuilder::new("or_test")
@@ -441,7 +441,7 @@ async fn inclusive_gateway_forks_multiple_paths() {
         .await
         .unwrap();
 
-    complete_all_service_tasks(&mut engine, "worker_1", HashMap::new()).await;
+    complete_all_service_tasks(&engine, "worker_1", HashMap::new()).await;
 
     assert_eq!(
         engine.get_instance_state(inst_id).await.unwrap(),
@@ -457,7 +457,7 @@ async fn inclusive_gateway_forks_multiple_paths() {
 
 #[tokio::test]
 async fn inclusive_gateway_single_match_no_fork() {
-    let mut engine = WorkflowEngine::new();
+    let engine = WorkflowEngine::new();
 
     let def = ProcessDefinitionBuilder::new("or_single")
         .node("start", BpmnElement::StartEvent)
@@ -483,7 +483,7 @@ async fn inclusive_gateway_single_match_no_fork() {
         .await
         .unwrap();
 
-    complete_all_service_tasks(&mut engine, "worker_1", HashMap::new()).await;
+    complete_all_service_tasks(&engine, "worker_1", HashMap::new()).await;
 
     assert_eq!(
         engine.get_instance_state(inst_id).await.unwrap(),
@@ -524,7 +524,7 @@ fn build_xor_user_task_definition() -> ProcessDefinition {
 
 #[tokio::test]
 async fn xor_gateway_positive_x_routes_to_user_task_1() {
-    let mut engine = WorkflowEngine::new();
+    let engine = WorkflowEngine::new();
     let (def_key, _) = engine.deploy_definition(build_xor_user_task_definition()).await;
 
     // x = 5 → condition "x > 0" matches → user-task-1
@@ -561,7 +561,7 @@ async fn xor_gateway_positive_x_routes_to_user_task_1() {
         .await
         .unwrap();
 
-    complete_all_service_tasks(&mut engine, "worker_1", HashMap::new()).await;
+    complete_all_service_tasks(&engine, "worker_1", HashMap::new()).await;
 
     assert_eq!(
         engine.get_instance_state(inst_id).await.unwrap(),
@@ -572,7 +572,7 @@ async fn xor_gateway_positive_x_routes_to_user_task_1() {
 
 #[tokio::test]
 async fn xor_gateway_negative_x_routes_to_user_task_2() {
-    let mut engine = WorkflowEngine::new();
+    let engine = WorkflowEngine::new();
     let (def_key, _) = engine.deploy_definition(build_xor_user_task_definition()).await;
 
     // x = -3 → condition "x > 0" does NOT match → default → user-task-2
@@ -604,7 +604,7 @@ async fn xor_gateway_negative_x_routes_to_user_task_2() {
         .await
         .unwrap();
 
-    complete_all_service_tasks(&mut engine, "worker_1", HashMap::new()).await;
+    complete_all_service_tasks(&engine, "worker_1", HashMap::new()).await;
 
     assert_eq!(
         engine.get_instance_state(inst_id).await.unwrap(),
@@ -614,7 +614,7 @@ async fn xor_gateway_negative_x_routes_to_user_task_2() {
 
 #[tokio::test]
 async fn xor_gateway_zero_x_routes_to_user_task_2() {
-    let mut engine = WorkflowEngine::new();
+    let engine = WorkflowEngine::new();
     let (def_key, _) = engine.deploy_definition(build_xor_user_task_definition()).await;
 
     // x = 0 → boundary: "x > 0" is false → default → user-task-2
@@ -637,7 +637,7 @@ async fn xor_gateway_zero_x_routes_to_user_task_2() {
         .await
         .unwrap();
 
-    complete_all_service_tasks(&mut engine, "worker_1", HashMap::new()).await;
+    complete_all_service_tasks(&engine, "worker_1", HashMap::new()).await;
 
     assert_eq!(
         engine.get_instance_state(inst_id).await.unwrap(),
@@ -647,7 +647,7 @@ async fn xor_gateway_zero_x_routes_to_user_task_2() {
 
 #[tokio::test]
 async fn xor_gateway_user_task_merges_variables() {
-    let mut engine = WorkflowEngine::new();
+    let engine = WorkflowEngine::new();
     let (def_key, _) = engine.deploy_definition(build_xor_user_task_definition()).await;
 
     // x = 10 → user-task-1
@@ -668,7 +668,7 @@ async fn xor_gateway_user_task_merges_variables() {
         .await
         .unwrap();
 
-    complete_all_service_tasks(&mut engine, "worker_1", HashMap::new()).await;
+    complete_all_service_tasks(&engine, "worker_1", HashMap::new()).await;
 
     assert_eq!(
         engine.get_instance_state(inst_id).await.unwrap(),
@@ -703,7 +703,7 @@ fn build_script_test_definition() -> ProcessDefinition {
 
 #[tokio::test]
 async fn script_mutates_state_and_executes_logic() {
-    let mut engine = WorkflowEngine::new();
+    let engine = WorkflowEngine::new();
     let (def_key, _) = engine.deploy_definition(build_script_test_definition()).await;
 
     let mut vars = HashMap::new();
@@ -714,7 +714,7 @@ async fn script_mutates_state_and_executes_logic() {
         .await
         .unwrap();
 
-    complete_all_service_tasks(&mut engine, "worker_1", HashMap::new()).await;
+    complete_all_service_tasks(&engine, "worker_1", HashMap::new()).await;
 
     assert_eq!(
         engine.get_instance_state(inst_id).await.unwrap(),
@@ -723,7 +723,7 @@ async fn script_mutates_state_and_executes_logic() {
 
     let details = engine.get_instance_details(inst_id).await.unwrap();
 
-    complete_all_service_tasks(&mut engine, "worker_1", HashMap::new()).await;
+    complete_all_service_tasks(&engine, "worker_1", HashMap::new()).await;
 
     assert_eq!(
         details.variables.get("x"),
@@ -740,7 +740,7 @@ async fn script_mutates_state_and_executes_logic() {
 
 #[tokio::test]
 async fn test_delete_instance() {
-    let mut engine = WorkflowEngine::new();
+    let engine = WorkflowEngine::new();
     let def = ProcessDefinitionBuilder::new("test")
         .node("start", BpmnElement::StartEvent)
         .node("end", BpmnElement::EndEvent)
@@ -760,7 +760,7 @@ async fn test_delete_instance() {
 
 #[tokio::test]
 async fn test_delete_definition_cascade() {
-    let mut engine = WorkflowEngine::new();
+    let engine = WorkflowEngine::new();
     let def = ProcessDefinitionBuilder::new("test")
         .node("start", BpmnElement::StartEvent)
         .node("end", BpmnElement::EndEvent)
@@ -788,7 +788,7 @@ async fn test_delete_definition_cascade() {
 
 #[tokio::test]
 async fn parallel_gateway_forks_and_joins() {
-    let mut engine = WorkflowEngine::new();
+    let engine = WorkflowEngine::new();
 
     // Start -> Split -> (A, B) -> Join -> End
     let def = ProcessDefinitionBuilder::new("and_test")
@@ -871,7 +871,7 @@ async fn parallel_gateway_forks_and_joins() {
 
 #[tokio::test]
 async fn service_task_fail_and_retries() {
-    let mut engine = WorkflowEngine::new();
+    let engine = WorkflowEngine::new();
     let def = ProcessDefinitionBuilder::new("retries")
         .node("start", BpmnElement::StartEvent)
         .node("svc", BpmnElement::ServiceTask { topic: "fail_test".into() })
@@ -911,7 +911,7 @@ async fn service_task_fail_and_retries() {
 
 #[tokio::test]
 async fn service_task_extend_lock() {
-    let mut engine = WorkflowEngine::new();
+    let engine = WorkflowEngine::new();
     let def = ProcessDefinitionBuilder::new("extend")
         .node("start", BpmnElement::StartEvent)
         .node("svc", BpmnElement::ServiceTask { topic: "ext".into() })
@@ -936,7 +936,7 @@ async fn service_task_extend_lock() {
 
 #[tokio::test]
 async fn service_task_handle_bpmn_error() {
-    let mut engine = WorkflowEngine::new();
+    let engine = WorkflowEngine::new();
     let def = ProcessDefinitionBuilder::new("err")
         .node("start", BpmnElement::StartEvent)
         .node("svc", BpmnElement::ServiceTask { topic: "err".into() })
@@ -964,7 +964,7 @@ async fn service_task_handle_bpmn_error() {
 
 #[tokio::test]
 async fn restore_instance_loads_from_persistence() {
-    let mut engine = WorkflowEngine::new();
+    let engine = WorkflowEngine::new();
     
     // Deploy a definition so it exists
     let def = ProcessDefinitionBuilder::new("restore")
@@ -999,7 +999,7 @@ async fn restore_instance_loads_from_persistence() {
 
 #[tokio::test]
 async fn mutation_delete_instance_and_variables() {
-    let mut engine = WorkflowEngine::new();
+    let engine = WorkflowEngine::new();
     let def = ProcessDefinitionBuilder::new("del")
         .node("start", BpmnElement::StartEvent)
         .node("t1", BpmnElement::UserTask("a".into()))
@@ -1047,7 +1047,7 @@ async fn mutation_delete_instance_and_variables() {
 
 #[tokio::test]
 async fn mutation_fetch_service_task_boundary() {
-    let mut engine = WorkflowEngine::new();
+    let engine = WorkflowEngine::new();
     let def = ProcessDefinitionBuilder::new("lock")
         .node("start", BpmnElement::StartEvent)
         .node("t1", BpmnElement::ServiceTask { topic: "bound".into() })
@@ -1078,7 +1078,7 @@ async fn mutation_fetch_service_task_boundary() {
 
 #[tokio::test]
 async fn mutation_find_downstream_join() {
-    let mut engine = WorkflowEngine::new();
+    let engine = WorkflowEngine::new();
     let def = ProcessDefinitionBuilder::new("join")
         .node("start", BpmnElement::StartEvent)
         .node("gw_split", BpmnElement::ParallelGateway)
@@ -1108,7 +1108,7 @@ async fn mutation_find_downstream_join() {
 
 #[tokio::test]
 async fn message_start_event_succeeds() {
-    let mut engine = WorkflowEngine::new();
+    let engine = WorkflowEngine::new();
     let def = ProcessDefinitionBuilder::new("msg_start")
         .node("start", BpmnElement::MessageStartEvent { message_name: "start_msg".to_string() })
         .node("end", BpmnElement::EndEvent)
@@ -1133,7 +1133,7 @@ async fn message_start_event_succeeds() {
 
 #[tokio::test]
 async fn timer_catch_event_succeeds() {
-    let mut engine = WorkflowEngine::new();
+    let engine = WorkflowEngine::new();
     let def = ProcessDefinitionBuilder::new("timer_catch")
         .node("start", BpmnElement::StartEvent)
         .node("timer", BpmnElement::TimerCatchEvent(std::time::Duration::from_millis(50)))
@@ -1162,7 +1162,7 @@ async fn timer_catch_event_succeeds() {
 
 #[tokio::test]
 async fn boundary_timer_event_cancels_task() {
-    let mut engine = WorkflowEngine::new();
+    let engine = WorkflowEngine::new();
     let def = ProcessDefinitionBuilder::new("bound_timer")
         .node("start", BpmnElement::StartEvent)
         .node("task", BpmnElement::UserTask("assignee".into()))
@@ -1192,7 +1192,7 @@ async fn boundary_timer_event_cancels_task() {
 
 #[tokio::test]
 async fn boundary_error_event_catches_error() {
-    let mut engine = WorkflowEngine::new();
+    let engine = WorkflowEngine::new();
     let def = ProcessDefinitionBuilder::new("bound_err")
         .node("start", BpmnElement::StartEvent)
         .node("task", BpmnElement::ServiceTask { topic: "err_topic".into() })
@@ -1220,7 +1220,7 @@ async fn boundary_error_event_catches_error() {
 
 #[tokio::test]
 async fn call_activity_lifecycle() {
-    let mut engine = WorkflowEngine::new();
+    let engine = WorkflowEngine::new();
     
     // Deploy Child
     let child_def = ProcessDefinitionBuilder::new("child_proc")
@@ -1287,7 +1287,7 @@ async fn call_activity_lifecycle() {
 
 #[tokio::test]
 async fn in_memory_simultaneous_timer_and_message_race() {
-    let mut engine = WorkflowEngine::with_in_memory_persistence();
+    let engine = WorkflowEngine::with_in_memory_persistence();
     
     let def = ProcessDefinitionBuilder::new("race")
         .node("start", BpmnElement::StartEvent)
@@ -1332,7 +1332,7 @@ async fn in_memory_simultaneous_timer_and_message_race() {
 
 #[tokio::test]
 async fn in_memory_script_robust_failure_handling() {
-    let mut engine = WorkflowEngine::with_in_memory_persistence();
+    let engine = WorkflowEngine::with_in_memory_persistence();
     let script = "let a = 1; throw \"Intentional crash!\";";
     
     let def = ProcessDefinitionBuilder::new("script_crash")
@@ -1355,7 +1355,7 @@ async fn in_memory_script_robust_failure_handling() {
 
 #[tokio::test]
 async fn in_memory_large_file_variables() {
-    let mut engine = WorkflowEngine::with_in_memory_persistence();
+    let engine = WorkflowEngine::with_in_memory_persistence();
     
     let def = ProcessDefinitionBuilder::new("large_file")
         .node("start", BpmnElement::StartEvent)
@@ -1408,7 +1408,7 @@ async fn in_memory_large_file_variables() {
 
 #[tokio::test]
 async fn test_definition_versioning_and_migration() {
-    let mut engine = WorkflowEngine::with_in_memory_persistence();
+    let engine = WorkflowEngine::with_in_memory_persistence();
 
     // V1 Definition
     let def_v1 = ProcessDefinitionBuilder::new("my_process")
@@ -1458,7 +1458,7 @@ async fn test_definition_versioning_and_migration() {
 
 #[tokio::test]
 async fn restore_timer_and_message_catch() {
-    let mut engine = WorkflowEngine::new();
+    let engine = WorkflowEngine::new();
     
     let timer = PendingTimer {
         id: Uuid::new_v4(),
@@ -1485,7 +1485,7 @@ async fn restore_timer_and_message_catch() {
 
 #[tokio::test]
 async fn test_nested_parallel_gateways() {
-    let mut engine = WorkflowEngine::new();
+    let engine = WorkflowEngine::new();
     let def = ProcessDefinitionBuilder::new("nested")
         .node("start", BpmnElement::StartEvent)
         .node("s1", BpmnElement::ParallelGateway)
@@ -1533,7 +1533,7 @@ async fn test_nested_parallel_gateways() {
 
 #[tokio::test]
 async fn top_level_error_end_event_results_in_completed_with_error() {
-    let mut engine = WorkflowEngine::new();
+    let engine = WorkflowEngine::new();
     let def = ProcessDefinitionBuilder::new("top_err")
         .node("start", BpmnElement::StartEvent)
         .node("err_end", BpmnElement::ErrorEndEvent { error_code: String::from("CRITICAL_FAIL") })
@@ -1562,7 +1562,7 @@ fn build_child_error_process(code: &str) -> ProcessDefinition {
 
 #[tokio::test]
 async fn call_activity_propagates_error_to_matching_boundary_event() {
-    let mut engine = WorkflowEngine::new();
+    let engine = WorkflowEngine::new();
     let (_, _) = engine.deploy_definition(build_child_error_process("ERR_CHILD")).await;
 
     let parent_def = ProcessDefinitionBuilder::new("parent_proc")
@@ -1590,7 +1590,7 @@ async fn call_activity_propagates_error_to_matching_boundary_event() {
 
 #[tokio::test]
 async fn call_activity_propagates_error_to_wildcard_boundary_event() {
-    let mut engine = WorkflowEngine::new();
+    let engine = WorkflowEngine::new();
     let (_, _) = engine.deploy_definition(build_child_error_process("ANY_ERR_CODE")).await;
 
     let parent_def = ProcessDefinitionBuilder::new("parent_wildcard")
@@ -1617,7 +1617,7 @@ async fn call_activity_propagates_error_to_wildcard_boundary_event() {
 
 #[tokio::test]
 async fn call_activity_unhandled_error_becomes_incident() {
-    let mut engine = WorkflowEngine::new();
+    let engine = WorkflowEngine::new();
     let (_, _) = engine.deploy_definition(build_child_error_process("UNHANDLED_CODE")).await;
 
     let parent_def = ProcessDefinitionBuilder::new("parent_unhandled")

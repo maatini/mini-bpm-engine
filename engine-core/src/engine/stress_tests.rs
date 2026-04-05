@@ -55,7 +55,7 @@ fn parallel_definition(id: &str, n_branches: usize) -> ProcessDefinition {
 }
 
 /// Completes all currently pending service tasks by fetching and executing them repeatedly until none are left.
-async fn drain_service_tasks(engine: &mut WorkflowEngine, worker: &str) {
+async fn drain_service_tasks(engine: &WorkflowEngine, worker: &str) {
     loop {
         let topics: Vec<String> = engine.get_pending_service_tasks().iter().map(|t| t.topic.clone()).collect();
         if topics.is_empty() { break; }
@@ -73,7 +73,7 @@ async fn drain_service_tasks(engine: &mut WorkflowEngine, worker: &str) {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn stress_throughput_1000_linear_instances() {
-    let mut engine = WorkflowEngine::new();
+    let engine = WorkflowEngine::new();
     let def = linear_definition("linear_1", 1);
     let (def_key, _) = engine.deploy_definition(def).await;
     
@@ -84,7 +84,7 @@ async fn stress_throughput_1000_linear_instances() {
         instances.push(engine.start_instance(def_key).await.unwrap());
     }
     
-    drain_service_tasks(&mut engine, "worker_1").await;
+    drain_service_tasks(&engine, "worker_1").await;
     
     let elapsed = start_time.elapsed();
     assert!(elapsed.as_secs() < 15, "Throughput too slow: {:?}", elapsed);
@@ -95,7 +95,7 @@ async fn stress_throughput_1000_linear_instances() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn stress_concurrent_fetch_and_lock() {
-    let mut engine = WorkflowEngine::new();
+    let engine = WorkflowEngine::new();
     let def = parallel_definition("par_50", 50);
     let (def_key, _) = engine.deploy_definition(def).await;
     
@@ -124,7 +124,7 @@ async fn stress_concurrent_fetch_and_lock() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn stress_parallel_gateway_100_branches() {
-    let mut engine = WorkflowEngine::new();
+    let engine = WorkflowEngine::new();
     let def = parallel_definition("par_100", 100);
     let (def_key, _) = engine.deploy_definition(def).await;
     
@@ -132,7 +132,7 @@ async fn stress_parallel_gateway_100_branches() {
     let inst_id = engine.start_instance(def_key).await.unwrap();
     
     assert_eq!(engine.get_stats().await.pending_service_tasks, 100);
-    drain_service_tasks(&mut engine, "worker_1").await;
+    drain_service_tasks(&engine, "worker_1").await;
     
     let elapsed = start_time.elapsed();
     assert!(elapsed.as_secs() < 30, "Parallel handling too slow: {:?}", elapsed);
@@ -141,7 +141,7 @@ async fn stress_parallel_gateway_100_branches() {
 
 #[tokio::test]
 async fn stress_memory_10000_instances() {
-    let mut engine = WorkflowEngine::new();
+    let engine = WorkflowEngine::new();
     let def = ProcessDefinitionBuilder::new("wait")
         .node("start", BpmnElement::StartEvent)
         .node("wait", BpmnElement::UserTask("assignee".into()))
@@ -170,7 +170,7 @@ async fn stress_memory_10000_instances() {
 
 #[tokio::test]
 async fn correctness_nested_parallel_3_levels() {
-    let mut engine = WorkflowEngine::new();
+    let engine = WorkflowEngine::new();
     let def = ProcessDefinitionBuilder::new("nested_par")
         .node("start", BpmnElement::StartEvent)
         .node("split1", BpmnElement::ParallelGateway)
@@ -213,7 +213,7 @@ async fn correctness_nested_parallel_3_levels() {
 
 #[tokio::test]
 async fn correctness_inclusive_gateway_partial_match() {
-    let mut engine = WorkflowEngine::new();
+    let engine = WorkflowEngine::new();
     let def = ProcessDefinitionBuilder::new("incl_part")
         .node("start", BpmnElement::StartEvent)
         .node("gw", BpmnElement::InclusiveGateway)
@@ -239,7 +239,7 @@ async fn correctness_inclusive_gateway_partial_match() {
     let inst_id = engine.start_instance_with_variables(def_key, vars).await.unwrap();
     assert_eq!(engine.get_stats().await.pending_service_tasks, 2);
     
-    drain_service_tasks(&mut engine, "worker_1").await;
+    drain_service_tasks(&engine, "worker_1").await;
     
     // As it was 2 partial matches, completing them completes the workflow.
     assert_eq!(engine.get_instance_state(inst_id).await.unwrap(), InstanceState::Completed);
@@ -247,7 +247,7 @@ async fn correctness_inclusive_gateway_partial_match() {
 
 #[tokio::test]
 async fn correctness_exclusive_no_default_all_false() {
-    let mut engine = WorkflowEngine::new();
+    let engine = WorkflowEngine::new();
     let def = ProcessDefinitionBuilder::new("xor")
         .node("start", BpmnElement::StartEvent)
         .node("gw", BpmnElement::ExclusiveGateway { default: None })
@@ -265,7 +265,7 @@ async fn correctness_exclusive_no_default_all_false() {
 
 #[tokio::test]
 async fn correctness_mixed_xor_and_parallel() {
-    let mut engine = WorkflowEngine::new();
+    let engine = WorkflowEngine::new();
     let def = ProcessDefinitionBuilder::new("mixed")
         .node("start", BpmnElement::StartEvent)
         .node("split_par", BpmnElement::ParallelGateway)
@@ -293,7 +293,7 @@ async fn correctness_mixed_xor_and_parallel() {
     
     assert_eq!(engine.get_stats().await.pending_service_tasks, 2); // t1 and t3 should be pending
     
-    drain_service_tasks(&mut engine, "w").await;
+    drain_service_tasks(&engine, "w").await;
     assert_eq!(engine.get_instance_state(inst_id).await.unwrap(), InstanceState::Completed);
 }
 
@@ -303,7 +303,7 @@ async fn correctness_mixed_xor_and_parallel() {
 
 #[tokio::test]
 async fn persistence_crash_recovery_user_task() {
-    let mut engine = WorkflowEngine::with_in_memory_persistence();
+    let engine = WorkflowEngine::with_in_memory_persistence();
     let def = ProcessDefinitionBuilder::new("usr1")
         .node("start", BpmnElement::StartEvent)
         .node("ut", BpmnElement::UserTask("u".into()))
@@ -344,7 +344,7 @@ async fn persistence_crash_recovery_user_task() {
 
 #[tokio::test]
 async fn persistence_crash_recovery_parallel() {
-    let mut engine = WorkflowEngine::with_in_memory_persistence();
+    let engine = WorkflowEngine::with_in_memory_persistence();
     let def = ProcessDefinitionBuilder::new("parcr")
         .node("start", BpmnElement::StartEvent)
         .node("split", BpmnElement::ParallelGateway)
@@ -394,7 +394,7 @@ async fn persistence_crash_recovery_parallel() {
 
 #[tokio::test]
 async fn persistence_audit_log_roundtrip_at_max() {
-    let mut engine = WorkflowEngine::with_in_memory_persistence();
+    let engine = WorkflowEngine::with_in_memory_persistence();
     let def = ProcessDefinitionBuilder::new("al")
         .node("start", BpmnElement::StartEvent)
         .node("ut", BpmnElement::UserTask("u".into()))
@@ -461,6 +461,8 @@ async fn persistence_error_counter_increments() {
         async fn get_storage_info(&self) -> EngineResult<Option<crate::persistence::StorageInfo>> { Ok(None) }
         async fn append_history_entry(&self, _: &crate::history::HistoryEntry) -> EngineResult<()> { Ok(()) }
         async fn query_history(&self, _: crate::persistence::HistoryQuery) -> EngineResult<Vec<crate::history::HistoryEntry>> { Ok(vec![]) }
+        async fn get_bucket_entries(&self, _: &str, _: usize, _: usize) -> EngineResult<Vec<crate::persistence::BucketEntry>> { Ok(vec![]) }
+        async fn get_bucket_entry_detail(&self, _: &str, _: &str) -> EngineResult<crate::persistence::BucketEntryDetail> { Err(crate::error::EngineError::PersistenceError("Mock".into())) }
     }
 
     let mut engine = WorkflowEngine::new();
@@ -484,7 +486,7 @@ async fn persistence_error_counter_increments() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn race_concurrent_complete_same_user_task() {
-    let mut engine = WorkflowEngine::new();
+    let engine = WorkflowEngine::new();
     let def = ProcessDefinitionBuilder::new("race1")
         .node("start", BpmnElement::StartEvent)
         .node("ut", BpmnElement::UserTask("worker".into()))
@@ -525,7 +527,7 @@ async fn race_concurrent_complete_same_user_task() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn race_concurrent_message_correlation() {
-    let mut engine = WorkflowEngine::new();
+    let engine = WorkflowEngine::new();
     let def = ProcessDefinitionBuilder::new("race2")
         .node("start", BpmnElement::StartEvent)
         .node("msg", BpmnElement::MessageCatchEvent { message_name: "MSG_A".into() })
@@ -558,7 +560,7 @@ async fn race_concurrent_message_correlation() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn race_concurrent_fetch_same_task() {
-    let mut engine = WorkflowEngine::new();
+    let engine = WorkflowEngine::new();
     let def = linear_definition("race3", 1);
     let (def_key, _) = engine.deploy_definition(def).await;
     engine.start_instance(def_key).await.unwrap();
@@ -589,7 +591,7 @@ async fn race_concurrent_fetch_same_task() {
 
 #[tokio::test]
 async fn edge_1000_variables_at_start() {
-    let mut engine = WorkflowEngine::new();
+    let engine = WorkflowEngine::new();
     let def = ProcessDefinitionBuilder::new("e1")
         .node("start", BpmnElement::StartEvent)
         .node("end", BpmnElement::EndEvent)
@@ -611,7 +613,7 @@ async fn edge_1000_variables_at_start() {
 
 #[tokio::test]
 async fn edge_timer_zero_duration() {
-    let mut engine = WorkflowEngine::new();
+    let engine = WorkflowEngine::new();
     let def = ProcessDefinitionBuilder::new("e3")
         .node("start", BpmnElement::StartEvent)
         .node("timer", BpmnElement::TimerCatchEvent(std::time::Duration::from_secs(0)))
@@ -629,7 +631,7 @@ async fn edge_timer_zero_duration() {
 
 #[tokio::test]
 async fn edge_rhai_infinite_loop() {
-    let mut engine = WorkflowEngine::new();
+    let engine = WorkflowEngine::new();
     let def = ProcessDefinitionBuilder::new("e4")
         .node("start", BpmnElement::StartEvent)
         .node("end", BpmnElement::EndEvent)
@@ -645,7 +647,7 @@ async fn edge_rhai_infinite_loop() {
 
 #[tokio::test]
 async fn edge_empty_start_to_end() {
-    let mut engine = WorkflowEngine::new();
+    let engine = WorkflowEngine::new();
     let def = ProcessDefinitionBuilder::new("e5")
         .node("start", BpmnElement::StartEvent)
         .node("end", BpmnElement::EndEvent)
@@ -660,7 +662,7 @@ async fn edge_empty_start_to_end() {
 
 #[tokio::test]
 async fn edge_complete_task_on_completed_instance() {
-    let mut engine = WorkflowEngine::new();
+    let engine = WorkflowEngine::new();
     let def = ProcessDefinitionBuilder::new("e7")
         .node("start", BpmnElement::StartEvent)
         .node("end", BpmnElement::EndEvent)
@@ -680,7 +682,7 @@ async fn edge_complete_task_on_completed_instance() {
 
 #[tokio::test]
 async fn history_completeness_complex_process() {
-    let mut engine = WorkflowEngine::with_in_memory_persistence();
+    let engine = WorkflowEngine::with_in_memory_persistence();
     let def = ProcessDefinitionBuilder::new("hist_cplx")
         .node("start", BpmnElement::StartEvent)
         .node("ut", BpmnElement::UserTask("worker".into()))
@@ -712,12 +714,12 @@ async fn history_completeness_complex_process() {
 
 #[tokio::test]
 async fn history_query_limit_and_offset() {
-    let mut engine = WorkflowEngine::with_in_memory_persistence();
+    let engine = WorkflowEngine::with_in_memory_persistence();
     let def = linear_definition("hist_pag", 5); // 5 service tasks
     let (def_key, _) = engine.deploy_definition(def).await;
     let inst_id = engine.start_instance(def_key).await.unwrap();
     
-    drain_service_tasks(&mut engine, "w").await;
+    drain_service_tasks(&engine, "w").await;
     
     let hist = engine.persistence.as_ref().unwrap().query_history(crate::persistence::HistoryQuery {
         instance_id: inst_id,

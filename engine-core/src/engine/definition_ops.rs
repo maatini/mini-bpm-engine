@@ -88,4 +88,14 @@ impl WorkflowEngine {
 
         Ok(())
     }
+
+    /// Deletes all process definition versions for a given BPMN ID.
+    /// If cascade is true, deletes all associated process instances first.
+    pub async fn delete_all_definitions(&self, bpmn_id: &str, cascade: bool) -> EngineResult<()> {
+        let versions = self.definitions.all_versions_of(bpmn_id).await;
+        for (key, _) in versions {
+            self.delete_definition(key, cascade).await?;
+        }
+        Ok(())
+    }
 }

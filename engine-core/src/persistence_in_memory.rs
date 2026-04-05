@@ -7,7 +7,7 @@ use crate::engine::{ProcessInstance, PendingUserTask, PendingServiceTask, Pendin
 use crate::error::EngineResult;
 use crate::model::{Token, ProcessDefinition};
 use crate::history::{HistoryEntry};
-use crate::persistence::{WorkflowPersistence, StorageInfo, HistoryQuery};
+use crate::persistence::{WorkflowPersistence, StorageInfo, HistoryQuery, BucketEntry, BucketEntryDetail};
 
 #[derive(Default, Clone)]
 pub struct InMemoryPersistence {
@@ -270,5 +270,15 @@ impl WorkflowPersistence for InMemoryPersistence {
         }
         
         Ok(events)
+    }
+
+    async fn get_bucket_entries(&self, bucket_name: &str, offset: usize, limit: usize) -> EngineResult<Vec<BucketEntry>> {
+        let _ = (bucket_name, offset, limit);
+        Err(crate::error::EngineError::PersistenceError("Bucket browsing not implemented for in-memory persistence".into()))
+    }
+
+    async fn get_bucket_entry_detail(&self, bucket_name: &str, key: &str) -> EngineResult<BucketEntryDetail> {
+        let _ = (bucket_name, key);
+        Err(crate::error::EngineError::PersistenceError("Bucket detail browsing not implemented for in-memory persistence".into()))
     }
 }

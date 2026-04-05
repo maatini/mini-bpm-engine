@@ -94,6 +94,7 @@ pub(crate) fn create_retry_queue() -> (RetryQueueTx, RetryQueueRx) {
 ///
 /// The `persistence`, `instances`, and `definitions` parameters are shared
 /// references from the WorkflowEngine.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn spawn_retry_worker(
     mut rx: RetryQueueRx,
     persistence: Arc<dyn WorkflowPersistence>,
@@ -164,6 +165,7 @@ pub(crate) fn spawn_retry_worker(
 /// For "Save" jobs, re-reads the current state from in-memory stores.
 /// If the entity no longer exists in memory (e.g. instance was deleted),
 /// the job is silently skipped (returns Ok).
+#[allow(clippy::too_many_arguments)]
 async fn execute_job(
     job: &PersistJob,
     persistence: &Arc<dyn WorkflowPersistence>,
@@ -195,7 +197,7 @@ async fn execute_job(
         }
         PersistJob::SaveUserTask(id) => {
             if let Some(task_ref) = pending_user_tasks.get(id) {
-                persistence.save_user_task(&*task_ref).await
+                persistence.save_user_task(&task_ref).await
                     .map_err(|e| e.to_string())
             } else {
                 Ok(())
@@ -207,7 +209,7 @@ async fn execute_job(
         }
         PersistJob::SaveServiceTask(id) => {
             if let Some(task_ref) = pending_service_tasks.get(id) {
-                persistence.save_service_task(&*task_ref).await
+                persistence.save_service_task(&task_ref).await
                     .map_err(|e| e.to_string())
             } else {
                 Ok(())
@@ -219,7 +221,7 @@ async fn execute_job(
         }
         PersistJob::SaveTimer(id) => {
             if let Some(timer_ref) = pending_timers.get(id) {
-                persistence.save_timer(&*timer_ref).await
+                persistence.save_timer(&timer_ref).await
                     .map_err(|e| e.to_string())
             } else {
                 Ok(())
@@ -231,7 +233,7 @@ async fn execute_job(
         }
         PersistJob::SaveMessageCatch(id) => {
             if let Some(catch_ref) = pending_message_catches.get(id) {
-                persistence.save_message_catch(&*catch_ref).await
+                persistence.save_message_catch(&catch_ref).await
                     .map_err(|e| e.to_string())
             } else {
                 Ok(())

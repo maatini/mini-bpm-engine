@@ -147,12 +147,14 @@ pub(crate) struct BpmnProcess {
     pub parallel_gateways: Vec<BpmnGateway>,
     #[serde(rename = "inclusiveGateway", default)]
     pub inclusive_gateways: Vec<BpmnGateway>,
+    #[allow(dead_code)]
     #[serde(rename = "eventBasedGateway", default)]
     pub event_based_gateways: Vec<BpmnGateway>,
 
     /// Intermediate events — treated as pass-through nodes.
     #[serde(rename = "intermediateThrowEvent", default)]
     pub intermediate_throw_events: Vec<BpmnGenericTask>,
+    #[allow(dead_code)]
     #[serde(rename = "intermediateCatchEvent", default)]
     pub intermediate_catch_events: Vec<BpmnIntermediateCatchEvent>,
 }
@@ -291,6 +293,7 @@ pub(crate) struct BpmnBoundaryEvent {
     pub error_event_definition: Option<BpmnErrorEventDefinition>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub(crate) struct BpmnSubProcess {
     #[serde(rename = "@id")]

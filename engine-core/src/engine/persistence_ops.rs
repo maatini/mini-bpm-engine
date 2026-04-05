@@ -164,7 +164,7 @@ impl WorkflowEngine {
             if let Some(task_ref) = self.pending_user_tasks.get(&task_id) {
                 let mut last_err = None;
                 for attempt in 0..=INLINE_RETRIES {
-                    match p.save_user_task(&*task_ref).await {
+                    match p.save_user_task(&task_ref).await {
                         Ok(()) => { last_err = None; break; }
                         Err(e) if attempt < INLINE_RETRIES => {
                             let delay = INLINE_BACKOFF_MS * 2u64.pow(attempt);
@@ -212,7 +212,7 @@ impl WorkflowEngine {
             if let Some(task_ref) = self.pending_service_tasks.get(&task_id) {
                 let mut last_err = None;
                 for attempt in 0..=INLINE_RETRIES {
-                    match p.save_service_task(&*task_ref).await {
+                    match p.save_service_task(&task_ref).await {
                         Ok(()) => { last_err = None; break; }
                         Err(e) if attempt < INLINE_RETRIES => {
                             let delay = INLINE_BACKOFF_MS * 2u64.pow(attempt);
@@ -258,7 +258,7 @@ impl WorkflowEngine {
             if let Some(timer_ref) = self.pending_timers.get(&timer_id) {
                 let mut last_err = None;
                 for attempt in 0..=INLINE_RETRIES {
-                    match p.save_timer(&*timer_ref).await {
+                    match p.save_timer(&timer_ref).await {
                         Ok(()) => { last_err = None; break; }
                         Err(e) if attempt < INLINE_RETRIES => {
                             let delay = INLINE_BACKOFF_MS * 2u64.pow(attempt);
@@ -304,7 +304,7 @@ impl WorkflowEngine {
             if let Some(catch_ref) = self.pending_message_catches.get(&catch_id) {
                 let mut last_err = None;
                 for attempt in 0..=INLINE_RETRIES {
-                    match p.save_message_catch(&*catch_ref).await {
+                    match p.save_message_catch(&catch_ref).await {
                         Ok(()) => { last_err = None; break; }
                         Err(e) if attempt < INLINE_RETRIES => {
                             let delay = INLINE_BACKOFF_MS * 2u64.pow(attempt);

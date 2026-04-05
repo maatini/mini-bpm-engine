@@ -525,4 +525,180 @@ impl WorkflowPersistence for NatsPersistence {
         
         Ok(entries.into_iter().skip(offset).take(limit).collect())
     }
+
+    async fn get_bucket_entries(&self, bucket_name: &str, offset: usize, limit: usize) -> EngineResult<Vec<engine_core::persistence::BucketEntry>> {
+        use engine_core::persistence::BucketEntry;
+        let mut entries = Vec::new();
+
+        let obj_bucket_names = ["bpmn_xml", "instance_files"];
+        let kv_bucket_names = ["instances", "definitions", "user_tasks", "service_tasks", "timers", "messages"];
+
+        if kv_bucket_names.contains(&bucket_name) {
+            let store = self.js.get_key_value(bucket_name).await.map_err(|e| {
+                EngineError::PersistenceError(format!("Failed to get {} KV: {}", bucket_name, e))
+            })?;
+            
+            let mut keys = store.keys().await.map_err(|e| {
+                EngineError::PersistenceError(format!("Failed to list KV keys for {}: {}", bucket_name, e))
+            })?;
+            
+            let mut all_keys = Vec::new();
+            while let Some(Ok(key)) = keys.next().await {
+                all_keys.push(key);
+            }
+            // Sort to ensure deterministic pagination across multiple calls
+            all_keys.sort();
+            
+            let page_keys = all_keys.into_iter().skip(offset).take(limit).collect::<Vec<_>>();
+            for key in page_keys {
+                if let Ok(Some(entry)) = store.get(&key).await {
+                    entries.push(BucketEntry {
+                        key,
+                        size_bytes: Some(entry.len() as u64),
+                        created_at: Some(chrono::Utc::now()), // KV get doesn't expose metadata like created_at directly easily here
+                    });
+                } else {
+                    entries.push(BucketEntry {
+                        key,
+                        size_bytes: None,
+                        created_at: None,
+                    });
+                }
+            }
+        } else if obj_bucket_names.contains(&bucket_name) {
+            let store = self.js.get_object_store(bucket_name).await.map_err(|e| {
+                EngineError::PersistenceError(format!("Failed to get {} Object Store: {}", bucket_name, e))
+            })?;
+            
+            let mut list = store.list().await.map_err(|e| {
+                EngineError::PersistenceError(format!("Failed to list Object Store {}: {}", bucket_name, e))
+            })?;
+            
+            let mut metadata_list = Vec::new();
+            while let Some(Ok(info)) = list.next().await {
+                metadata_list.push(info);
+            }
+            // Sort by name
+            metadata_list.sort_by(|a, b| a.name.cmp(&b.name));
+            
+            for info in metadata_list.into_iter().skip(offset).take(limit) {
+                let Some(dt) = info.modified else {
+                    entries.push(BucketEntry {
+                        key: info.name,
+                        size_bytes: Some(info.size as u64),
+                        created_at: None,
+                    });
+                    continue;
+                };
+
+                let nt = chrono::DateTime::from_timestamp(dt.unix_timestamp(), dt.nanosecond());
+                entries.push(BucketEntry {
+                    key: info.name,
+                    size_bytes: Some(info.size as u64),
+                    created_at: nt,
+                });
+            }
+        } else if bucket_name == "WORKFLOW_HISTORY" || bucket_name == "WORKFLOW_EVENTS" {
+            // For Streams, just dump latest messages sequence
+            let mut stream = self.js.get_stream(bucket_name).await.map_err(|e| {
+                EngineError::PersistenceError(format!("Failed to get stream {}: {}", bucket_name, e))
+            })?;
+            
+            // To properly do this for streams genericly, we get the state
+            let info = stream.info().await.map_err(|e| {
+                EngineError::PersistenceError(format!("Failed to get stream info: {}", e))
+            })?;
+            
+            // Just simulate keys based on first/last sequence
+            let start = info.state.first_sequence.saturating_add(offset as u64);
+            let last_seq = info.state.last_sequence;
+            let _ = info; // Free any borrow
+
+            let mut current = start;
+            let mut count = 0;
+            
+            while count < limit && current <= last_seq {
+                if let Ok(msg) = stream.get_raw_message(current).await {
+                    entries.push(BucketEntry {
+                        key: current.to_string(),
+                        size_bytes: Some(msg.payload.len() as u64),
+                        created_at: Some(chrono::DateTime::from_timestamp(msg.time.unix_timestamp(), msg.time.nanosecond()).unwrap_or_else(chrono::Utc::now)),
+                    });
+                }
+                current += 1;
+                count += 1;
+            }
+        } else {
+            return Err(EngineError::PersistenceError(format!("Unknown bucket name: {}", bucket_name)));
+        }
+
+        Ok(entries)
+    }
+
+    async fn get_bucket_entry_detail(&self, bucket_name: &str, key: &str) -> EngineResult<engine_core::persistence::BucketEntryDetail> {
+        use engine_core::persistence::BucketEntryDetail;
+        
+        let obj_bucket_names = ["bpmn_xml", "instance_files"];
+        let kv_bucket_names = ["instances", "definitions", "user_tasks", "service_tasks", "timers", "messages"];
+
+        if kv_bucket_names.contains(&bucket_name) {
+            let store = self.js.get_key_value(bucket_name).await.map_err(|e| {
+                EngineError::PersistenceError(format!("Failed to get {} KV: {}", bucket_name, e))
+            })?;
+            
+            if let Ok(Some(entry)) = store.get(key).await {
+                let data = match String::from_utf8(entry.to_vec()) {
+                    Ok(s) => s,
+                    Err(_) => "Binary Data".to_string(), // Fallback if somehow not UTF8 json
+                };
+                return Ok(BucketEntryDetail { key: key.to_string(), data });
+            } else {
+                return Err(EngineError::PersistenceError(format!("Key {} not found in KV {}", key, bucket_name)));
+            }
+        } else if obj_bucket_names.contains(&bucket_name) {
+            let store = self.js.get_object_store(bucket_name).await.map_err(|e| {
+                EngineError::PersistenceError(format!("Failed to get {} Object Store: {}", bucket_name, e))
+            })?;
+            
+            use tokio::io::AsyncReadExt;
+            match store.get(key).await {
+                Ok(mut result) => {
+                    let mut data = Vec::new();
+                    result.read_to_end(&mut data).await.map_err(|e| {
+                        EngineError::PersistenceError(format!("Error reading object data: {}", e))
+                    })?;
+                    
+                    if bucket_name == "bpmn_xml" {
+                        let xml = String::from_utf8(data).unwrap_or_else(|_| "Invalid UTF-8 XML".to_string());
+                        Ok(BucketEntryDetail { key: key.to_string(), data: xml })
+                    } else {
+                        // Return Base64 for raw files
+                        use base64::{Engine as _, engine::general_purpose::STANDARD};
+                        let b64 = STANDARD.encode(data);
+                        Ok(BucketEntryDetail { key: key.to_string(), data: b64 })
+                    }
+                }
+                Err(e) => Err(EngineError::PersistenceError(format!("Key {} not found in Object Store {}: {}", key, bucket_name, e)))
+            }
+        } else if bucket_name == "WORKFLOW_HISTORY" || bucket_name == "WORKFLOW_EVENTS" {
+            let stream = self.js.get_stream(bucket_name).await.map_err(|e| {
+                EngineError::PersistenceError(format!("Failed to get stream {}: {}", bucket_name, e))
+            })?;
+            
+            let seq: u64 = key.parse().map_err(|_| EngineError::PersistenceError(format!("Invalid sequence ID {}", key)))?;
+            
+            match stream.get_raw_message(seq).await {
+                Ok(msg) => {
+                    let data = match String::from_utf8(msg.payload.to_vec()) {
+                        Ok(s) => s,
+                        Err(_) => "Binary Message".to_string(),
+                    };
+                    Ok(BucketEntryDetail { key: key.to_string(), data })
+                }
+                Err(e) => Err(EngineError::PersistenceError(format!("Sequence {} not found in stream {}: {}", key, bucket_name, e)))
+            }
+        } else {
+            Err(EngineError::PersistenceError(format!("Unknown bucket name: {}", bucket_name)))
+        }
+    }
 }

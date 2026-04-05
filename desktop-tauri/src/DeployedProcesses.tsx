@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { save } from '@tauri-apps/plugin-dialog';
 import { writeTextFile } from '@tauri-apps/plugin-fs';
-import { listDefinitions, getDefinitionXml, listInstances, deleteDefinition, type DefinitionInfo, type ProcessInstance } from './lib/tauri';
+import { listDefinitions, getDefinitionXml, listInstances, deleteDefinition, deleteAllDefinitions, type DefinitionInfo, type ProcessInstance } from './lib/tauri';
 import { RefreshCw, Eye, Download, Activity, Clock, Trash, FileCode2, Network, Key, Boxes, Database } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
@@ -34,7 +34,7 @@ export function DeployedProcesses({ onView, onViewInstance }: { onView: (xml: st
   const [error, setError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState<string | null>(null);
   const [viewingId, setViewingId] = useState<string | null>(null);
-  const [deleteRequest, setDeleteRequest] = useState<{defId: string, cascade: boolean, msg: string} | null>(null);
+  const [deleteRequest, setDeleteRequest] = useState<{defId: string, bpmnId?: string, isAll: boolean, cascade: boolean, msg: string} | null>(null);
   
   const fetchDefinitions = useCallback(async () => {
     setLoading(true);
@@ -93,13 +93,35 @@ export function DeployedProcesses({ onView, onViewInstance }: { onView: (xml: st
       msg = `This version has ${relatedInstances.length} associated instance(s). Deleting it will also permanently delete all associated instances.\n\nAre you sure?`;
       cascade = true;
     }
-    setDeleteRequest({ defId, cascade, msg });
+    setDeleteRequest({ defId, isAll: false, cascade, msg });
+  };
+
+  const handleDeleteAllCheck = (bpmnId: string, versions: DefinitionInfo[]) => {
+    const versionKeys = versions.map(v => v.key);
+    const relatedInstances = instances.filter(i => versionKeys.includes(i.definition_key));
+    let cascade = false;
+    
+    const versionListInfo = versions.length > 1 
+      ? `\n\nVersions to be deleted: ${versions.length}` 
+      : '';
+
+    let msg = `Are you sure you want to delete ALL versions of process "${bpmnId}"?${versionListInfo}`;
+
+    if (relatedInstances.length > 0) {
+      msg = `Process "${bpmnId}" has ${relatedInstances.length} associated instance(s) across all versions.${versionListInfo}\n\nDeleting the entire deployment will also permanently delete all associated instances.\n\nAre you absolutely sure?`;
+      cascade = true;
+    }
+    setDeleteRequest({ defId: '', bpmnId, isAll: true, cascade, msg });
   };
 
   const confirmDelete = async () => {
     if (!deleteRequest) return;
     try {
-      await deleteDefinition(deleteRequest.defId, deleteRequest.cascade);
+      if (deleteRequest.isAll && deleteRequest.bpmnId) {
+        await deleteAllDefinitions(deleteRequest.bpmnId, deleteRequest.cascade);
+      } else {
+        await deleteDefinition(deleteRequest.defId, deleteRequest.cascade);
+      }
       fetchDefinitions();
     } catch (e: any) {
       toast({ variant: 'destructive', description: 'Delete failed: ' + e });
@@ -159,13 +181,18 @@ export function DeployedProcesses({ onView, onViewInstance }: { onView: (xml: st
                     <FileCode2 className="h-5 w-5 text-primary" />
                     <CardTitle className="text-xl">{bpmnId}</CardTitle>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex items-center gap-2">
                     <Badge variant="secondary">{versions.length} deployed version{versions.length > 1 ? 's' : ''}</Badge>
                     {instancesForProcess.length > 0 && (
                       <Badge variant="default" className="bg-yellow-500/20 text-yellow-700 hover:bg-yellow-500/30 border-yellow-500/50 dark:text-yellow-400">
                         {instancesForProcess.length} active instance{instancesForProcess.length > 1 ? 's' : ''}
                       </Badge>
                     )}
+                    <div className="ml-2 pl-2 border-l border-muted-foreground/20">
+                      <Button variant="outline" onClick={() => handleDeleteAllCheck(bpmnId, versions)} size="sm" className="text-destructive hover:bg-destructive/10 hover:text-destructive h-7 px-2 gap-1.5" title="Delete entire deployment (all versions)">
+                        <Trash className="h-3.5 w-3.5" /> <span className="text-xs">Delete All</span>
+                      </Button>
+                    </div>
                   </div>
                 </CardHeader>
 

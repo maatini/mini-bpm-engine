@@ -59,6 +59,7 @@ pub fn build_app_with_engine(
         .route("/api/definitions", get(deploy::list_definitions))
         .route("/api/definitions/:id/xml", get(deploy::get_definition_xml))
         .route("/api/definitions/:id", delete(deploy::delete_definition))
+        .route("/api/definitions/bpmn/:bpmn_id", delete(deploy::delete_all_definitions))
         .route("/api/instances/:id/variables", put(instances::update_instance_variables))
         .route("/api/instances/:id/files/:var_name",
             post(files::upload_instance_file)
@@ -69,6 +70,8 @@ pub fn build_app_with_engine(
         .route("/api/instances/:id/history/:event_id", get(history::get_instance_history_entry))
         .route("/api/info", get(monitoring::get_backend_info))
         .route("/api/monitoring", get(monitoring::get_monitoring_data))
+        .route("/api/monitoring/buckets/:bucket/entries", get(monitoring::get_bucket_entries))
+        .route("/api/monitoring/buckets/:bucket/entries/:key", get(monitoring::get_bucket_entry_detail))
         // Phase 1 endpoints
         .route("/api/message", post(messages::correlate_message))
         .route("/api/timers/process", post(timers::process_timers))

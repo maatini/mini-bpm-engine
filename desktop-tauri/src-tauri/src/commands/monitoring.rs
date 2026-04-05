@@ -46,3 +46,40 @@ pub async fn read_bpmn_file(path: String) -> Result<String, String> {
         .map_err(|e| format!("Could not read file '{}': {}", path, e))?;
     Ok(xml)
 }
+
+#[tauri::command]
+pub async fn get_bucket_entries(
+    state: tauri::State<'_, AppState>,
+    bucket: String,
+    offset: usize,
+    limit: usize,
+) -> Result<serde_json::Value, String> {
+    let base = crate::state::get_base_url(&state)?;
+    let url = format!("{}/api/monitoring/buckets/{}/entries?offset={}&limit={}", base, bucket, offset, limit);
+    match state.client.get(&url).send().await {
+        Ok(res) if res.status().is_success() => {
+            let data = res.json::<serde_json::Value>().await.map_err(|e| e.to_string())?;
+            Ok(data)
+        }
+        Ok(res) => Err(res.text().await.unwrap_or_else(|_| "Unknown error".to_string())),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+#[tauri::command]
+pub async fn get_bucket_entry_detail(
+    state: tauri::State<'_, AppState>,
+    bucket: String,
+    key: String,
+) -> Result<serde_json::Value, String> {
+    let base = crate::state::get_base_url(&state)?;
+    let url = format!("{}/api/monitoring/buckets/{}/entries/{}", base, bucket, key);
+    match state.client.get(&url).send().await {
+        Ok(res) if res.status().is_success() => {
+            let data = res.json::<serde_json::Value>().await.map_err(|e| e.to_string())?;
+            Ok(data)
+        }
+        Ok(res) => Err(res.text().await.unwrap_or_else(|_| "Unknown error".to_string())),
+        Err(e) => Err(e.to_string()),
+    }
+}

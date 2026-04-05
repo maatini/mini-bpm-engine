@@ -25,6 +25,7 @@ fn main() {
             commands::deploy::list_definitions,
             commands::deploy::get_definition_xml,
             commands::deploy::delete_definition,
+            commands::deploy::delete_all_definitions,
             commands::instances::start_instance,
             commands::instances::list_instances,
             commands::instances::get_instance_details,
@@ -42,6 +43,8 @@ fn main() {
             commands::monitoring::get_api_url,
             commands::monitoring::set_api_url,
             commands::monitoring::get_monitoring_data,
+            commands::monitoring::get_bucket_entries,
+            commands::monitoring::get_bucket_entry_detail,
             commands::monitoring::read_bpmn_file,
             commands::messages::correlate_message
         ])

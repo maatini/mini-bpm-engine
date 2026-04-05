@@ -270,9 +270,6 @@ impl WorkflowEngine {
                         }
                     }
                 }
-                NextAction::WaitForEventGroup(_) => {
-                    // Handled in `execute_step` mapping
-                }
             }
         } // end while
 

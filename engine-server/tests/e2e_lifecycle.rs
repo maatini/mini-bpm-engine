@@ -7,7 +7,7 @@
 
 use serde_json::Value;
 
-const MINIMAL_BPMN: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
+const _MINIMAL_BPMN: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 <definitions id="Definitions_1" xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL">
   <process id="LifecycleProcess" isExecutable="true">
     <startEvent id="start" />
@@ -27,7 +27,7 @@ const USER_TASK_BPMN: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
   </process>
 </definitions>"#;
 
-const MSG_CATCH_BPMN: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
+const _MSG_CATCH_BPMN: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 <definitions id="Definitions_1" xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL">
   <process id="MsgCatchProcess" isExecutable="true">
     <startEvent id="start" />
