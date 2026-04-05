@@ -222,3 +222,267 @@ fn test_parse_execution_listeners_and_scripts() {
     assert!(matches!(task_listeners[0].event, ListenerEvent::End));
     assert_eq!(task_listeners[0].script, "print(\"Task Ended\");");
 }
+
+// ---- WP-5: Additional test coverage ----
+
+#[test]
+fn parse_parallel_gateway() {
+    let xml = r#"
+        <definitions id="def1" xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL">
+            <process id="proc1">
+                <startEvent id="s1" />
+                <parallelGateway id="fork" />
+                <serviceTask id="a" data-topic="task_a" />
+                <serviceTask id="b" data-topic="task_b" />
+                <parallelGateway id="join" />
+                <endEvent id="e1" />
+                <sequenceFlow id="f1" sourceRef="s1" targetRef="fork" />
+                <sequenceFlow id="f2" sourceRef="fork" targetRef="a" />
+                <sequenceFlow id="f3" sourceRef="fork" targetRef="b" />
+                <sequenceFlow id="f4" sourceRef="a" targetRef="join" />
+                <sequenceFlow id="f5" sourceRef="b" targetRef="join" />
+                <sequenceFlow id="f6" sourceRef="join" targetRef="e1" />
+            </process>
+        </definitions>
+    "#;
+
+    let def = parse_bpmn_xml(xml).unwrap();
+    assert!(matches!(def.nodes.get("fork").unwrap(), BpmnElement::ParallelGateway));
+    assert!(matches!(def.nodes.get("join").unwrap(), BpmnElement::ParallelGateway));
+    assert_eq!(def.next_nodes("fork").len(), 2);
+}
+
+#[test]
+fn parse_inclusive_gateway() {
+    let xml = r#"
+        <definitions id="def1" xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL">
+            <process id="proc1">
+                <startEvent id="s1" />
+                <inclusiveGateway id="gw1" />
+                <endEvent id="e1" />
+                <endEvent id="e2" />
+                <sequenceFlow id="f1" sourceRef="s1" targetRef="gw1" />
+                <sequenceFlow id="f2" sourceRef="gw1" targetRef="e1">
+                    <conditionExpression xsi:type="tFormalExpression">x &gt; 0</conditionExpression>
+                </sequenceFlow>
+                <sequenceFlow id="f3" sourceRef="gw1" targetRef="e2">
+                    <conditionExpression xsi:type="tFormalExpression">y &gt; 0</conditionExpression>
+                </sequenceFlow>
+            </process>
+        </definitions>
+    "#;
+
+    let def = parse_bpmn_xml(xml).unwrap();
+    assert!(matches!(def.nodes.get("gw1").unwrap(), BpmnElement::InclusiveGateway));
+    assert_eq!(def.next_nodes("gw1").len(), 2);
+}
+
+#[test]
+fn parse_message_start_event() {
+    let xml = r#"
+        <definitions id="def1" xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL">
+            <message id="msg1" name="OrderReceived" />
+            <process id="proc1">
+                <startEvent id="s1">
+                    <messageEventDefinition messageRef="msg1" />
+                </startEvent>
+                <endEvent id="e1" />
+                <sequenceFlow id="f1" sourceRef="s1" targetRef="e1" />
+            </process>
+        </definitions>
+    "#;
+
+    let def = parse_bpmn_xml(xml).unwrap();
+    match def.nodes.get("s1").unwrap() {
+        BpmnElement::MessageStartEvent { message_name } => {
+            assert_eq!(message_name, "OrderReceived");
+        }
+        other => panic!("Expected MessageStartEvent, got {:?}", other),
+    }
+}
+
+#[test]
+fn parse_message_catch_event() {
+    let xml = r#"
+        <definitions id="def1" xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL">
+            <message id="msg1" name="PaymentConfirmed" />
+            <process id="proc1">
+                <startEvent id="s1" />
+                <intermediateCatchEvent id="wait_payment">
+                    <messageEventDefinition messageRef="msg1" />
+                </intermediateCatchEvent>
+                <endEvent id="e1" />
+                <sequenceFlow id="f1" sourceRef="s1" targetRef="wait_payment" />
+                <sequenceFlow id="f2" sourceRef="wait_payment" targetRef="e1" />
+            </process>
+        </definitions>
+    "#;
+
+    let def = parse_bpmn_xml(xml).unwrap();
+    match def.nodes.get("wait_payment").unwrap() {
+        BpmnElement::MessageCatchEvent { message_name } => {
+            assert_eq!(message_name, "PaymentConfirmed");
+        }
+        other => panic!("Expected MessageCatchEvent, got {:?}", other),
+    }
+}
+
+#[test]
+fn parse_error_end_event() {
+    let xml = r#"
+        <definitions id="def1" xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL">
+            <error id="err1" errorCode="VALIDATION_FAILED" />
+            <process id="proc1">
+                <startEvent id="s1" />
+                <endEvent id="e1">
+                    <errorEventDefinition errorRef="err1" />
+                </endEvent>
+                <sequenceFlow id="f1" sourceRef="s1" targetRef="e1" />
+            </process>
+        </definitions>
+    "#;
+
+    let def = parse_bpmn_xml(xml).unwrap();
+    match def.nodes.get("e1").unwrap() {
+        BpmnElement::ErrorEndEvent { error_code } => {
+            assert_eq!(error_code, "VALIDATION_FAILED");
+        }
+        other => panic!("Expected ErrorEndEvent, got {:?}", other),
+    }
+}
+
+#[test]
+fn parse_timer_catch_event() {
+    let xml = r#"
+        <definitions id="def1" xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL">
+            <process id="proc1">
+                <startEvent id="s1" />
+                <intermediateCatchEvent id="wait">
+                    <timerEventDefinition>
+                        <timeDuration>PT30S</timeDuration>
+                    </timerEventDefinition>
+                </intermediateCatchEvent>
+                <endEvent id="e1" />
+                <sequenceFlow id="f1" sourceRef="s1" targetRef="wait" />
+                <sequenceFlow id="f2" sourceRef="wait" targetRef="e1" />
+            </process>
+        </definitions>
+    "#;
+
+    let def = parse_bpmn_xml(xml).unwrap();
+    match def.nodes.get("wait").unwrap() {
+        BpmnElement::TimerCatchEvent(d) => assert_eq!(d.as_secs(), 30),
+        other => panic!("Expected TimerCatchEvent, got {:?}", other),
+    }
+}
+
+#[test]
+fn parse_boundary_timer_event() {
+    let xml = r#"
+        <definitions id="def1" xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL">
+            <process id="proc1">
+                <startEvent id="s1" />
+                <serviceTask id="task1" data-topic="long_task" />
+                <boundaryEvent id="timeout" attachedToRef="task1" cancelActivity="true">
+                    <timerEventDefinition>
+                        <timeDuration>PT5M</timeDuration>
+                    </timerEventDefinition>
+                </boundaryEvent>
+                <endEvent id="e1" />
+                <endEvent id="e2" />
+                <sequenceFlow id="f1" sourceRef="s1" targetRef="task1" />
+                <sequenceFlow id="f2" sourceRef="task1" targetRef="e1" />
+                <sequenceFlow id="f3" sourceRef="timeout" targetRef="e2" />
+            </process>
+        </definitions>
+    "#;
+
+    let def = parse_bpmn_xml(xml).unwrap();
+    match def.nodes.get("timeout").unwrap() {
+        BpmnElement::BoundaryTimerEvent { attached_to, duration, cancel_activity } => {
+            assert_eq!(attached_to, "task1");
+            assert_eq!(duration.as_secs(), 300);
+            assert!(*cancel_activity);
+        }
+        other => panic!("Expected BoundaryTimerEvent, got {:?}", other),
+    }
+}
+
+#[test]
+fn parse_boundary_error_event() {
+    let xml = r#"
+        <definitions id="def1" xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL">
+            <error id="err1" errorCode="PAYMENT_FAILED" />
+            <process id="proc1">
+                <startEvent id="s1" />
+                <serviceTask id="task1" data-topic="charge" />
+                <boundaryEvent id="on_error" attachedToRef="task1">
+                    <errorEventDefinition errorRef="err1" />
+                </boundaryEvent>
+                <endEvent id="e1" />
+                <endEvent id="e2" />
+                <sequenceFlow id="f1" sourceRef="s1" targetRef="task1" />
+                <sequenceFlow id="f2" sourceRef="task1" targetRef="e1" />
+                <sequenceFlow id="f3" sourceRef="on_error" targetRef="e2" />
+            </process>
+        </definitions>
+    "#;
+
+    let def = parse_bpmn_xml(xml).unwrap();
+    match def.nodes.get("on_error").unwrap() {
+        BpmnElement::BoundaryErrorEvent { attached_to, error_code } => {
+            assert_eq!(attached_to, "task1");
+            assert_eq!(error_code.as_deref(), Some("PAYMENT_FAILED"));
+        }
+        other => panic!("Expected BoundaryErrorEvent, got {:?}", other),
+    }
+}
+
+#[test]
+fn parse_picks_executable_process() {
+    let xml = r#"
+        <definitions id="def1" xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL">
+            <process id="collab_proc" isExecutable="false">
+                <startEvent id="cs1" />
+                <endEvent id="ce1" />
+                <sequenceFlow id="cf1" sourceRef="cs1" targetRef="ce1" />
+            </process>
+            <process id="main_proc" isExecutable="true">
+                <startEvent id="s1" />
+                <endEvent id="e1" />
+                <sequenceFlow id="f1" sourceRef="s1" targetRef="e1" />
+            </process>
+        </definitions>
+    "#;
+
+    let def = parse_bpmn_xml(xml).unwrap();
+    assert_eq!(def.id, "main_proc", "Should pick the executable process");
+}
+
+#[test]
+fn parse_duration_rejects_invalid_input() {
+    // P1D (days not supported), empty, garbage — all must fail
+    let template = |dur: &str| format!(r#"
+        <definitions id="def1" xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL">
+            <process id="proc1">
+                <startEvent id="s1">
+                    <timerEventDefinition>
+                        <timeDuration>{}</timeDuration>
+                    </timerEventDefinition>
+                </startEvent>
+                <endEvent id="e1" />
+                <sequenceFlow id="f1" sourceRef="s1" targetRef="e1" />
+            </process>
+        </definitions>"#, dur);
+
+    // Valid inputs must still work
+    assert!(parse_bpmn_xml(&template("PT5S")).is_ok());
+    assert!(parse_bpmn_xml(&template("PT1H30M")).is_ok());
+    assert!(parse_bpmn_xml(&template("PT0S")).is_ok());
+
+    // Invalid inputs must now fail
+    assert!(parse_bpmn_xml(&template("P1D")).is_err(), "P1D should be rejected");
+    assert!(parse_bpmn_xml(&template("")).is_err(), "Empty duration should be rejected");
+    assert!(parse_bpmn_xml(&template("HELLO")).is_err(), "Garbage should be rejected");
+    assert!(parse_bpmn_xml(&template("PT")).is_err(), "PT without value should be rejected");
+}

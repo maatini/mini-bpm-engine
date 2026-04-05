@@ -29,33 +29,74 @@ fn add_listeners(
     builder
 }
 
-/// Helper to parse basic ISO 8601 durations like PT1H30M, PT5M.
-fn parse_iso8601_duration(s: &str) -> Duration {
+/// Parse ISO 8601 time-duration (PT subset: hours, minutes, seconds).
+///
+/// Supported formats: `PT5S`, `PT1H30M`, `PT10M`, `PT1H`.
+/// Returns `Err` for invalid input (empty, no PT prefix, unknown units).
+fn parse_iso8601_duration(s: &str) -> EngineResult<Duration> {
     let s = s.trim();
-    if !s.starts_with("PT") {
-        return Duration::from_secs(0);
+    if s.is_empty() {
+        return Err(EngineError::InvalidDefinition(
+            "Timer duration is empty".to_string(),
+        ));
     }
-    let s = &s[2..];
-    
-    let mut total_secs = 0;
+    if !s.starts_with("PT") {
+        return Err(EngineError::InvalidDefinition(format!(
+            "Invalid ISO 8601 duration '{}': must start with 'PT'",
+            s
+        )));
+    }
+    let body = &s[2..];
+    if body.is_empty() {
+        return Err(EngineError::InvalidDefinition(format!(
+            "Invalid ISO 8601 duration '{}': no value after 'PT'",
+            s
+        )));
+    }
+
+    let mut total_secs: u64 = 0;
     let mut current_num = String::new();
-    
-    for c in s.chars() {
+
+    for c in body.chars() {
         if c.is_ascii_digit() {
             current_num.push(c);
         } else {
-            let val = current_num.parse::<u64>().unwrap_or(0);
+            if current_num.is_empty() {
+                return Err(EngineError::InvalidDefinition(format!(
+                    "Invalid ISO 8601 duration '{}': missing number before '{}'",
+                    s, c
+                )));
+            }
+            let val: u64 = current_num.parse().map_err(|_| {
+                EngineError::InvalidDefinition(format!(
+                    "Invalid number in duration '{}'",
+                    s
+                ))
+            })?;
             match c {
                 'H' => total_secs += val * 3600,
                 'M' => total_secs += val * 60,
                 'S' => total_secs += val,
-                _ => {}
+                other => {
+                    return Err(EngineError::InvalidDefinition(format!(
+                        "Invalid ISO 8601 duration '{}': unknown unit '{}'",
+                        s, other
+                    )));
+                }
             }
             current_num.clear();
         }
     }
-    
-    Duration::from_secs(total_secs)
+
+    // Trailing digits without unit (e.g. "PT5")
+    if !current_num.is_empty() {
+        return Err(EngineError::InvalidDefinition(format!(
+            "Invalid ISO 8601 duration '{}': trailing digits without unit (H/M/S)",
+            s
+        )));
+    }
+
+    Ok(Duration::from_secs(total_secs))
 }
 
 /// Parses a subset of BPMN 2.0 XML and builds a `ProcessDefinition`.
@@ -81,8 +122,24 @@ pub fn parse_bpmn_xml(xml: &str) -> EngineResult<ProcessDefinition> {
     let process_id = process.id.clone();
     let mut builder = ProcessDefinitionBuilder::new(process_id.clone());
 
+    // Separate event sub-processes from regular embedded sub-processes.
+    // Event sub-processes (triggeredByEvent="true") are scope-level handlers
+    // that will be supported in a future release — skip them gracefully.
+    // Regular embedded sub-processes are not yet supported and cause an error.
+    let has_regular_subprocess = process.sub_processes.iter().any(|sp| {
+        sp.triggered_by_event != Some(true)
+    });
+    if has_regular_subprocess {
+        return Err(EngineError::InvalidDefinition(
+            "Embedded subprocesses are not yet supported. Please use flat processes or event sub-processes (triggeredByEvent=\"true\").".to_string(),
+        ));
+    }
     if !process.sub_processes.is_empty() {
-        return Err(EngineError::InvalidDefinition("Embedded subprocesses are not yet supported. Please use flat processes.".to_string()));
+        tracing::info!(
+            "Process '{}': skipping {} event sub-process(es) (not yet executed, but parsing succeeds)",
+            process_id,
+            process.sub_processes.len()
+        );
     }
 
     // Lookup maps for messages and errors
@@ -109,7 +166,7 @@ pub fn parse_bpmn_xml(xml: &str) -> EngineResult<ProcessDefinition> {
         let node_id = start.id.clone();
         if let Some(timer) = start.timer_event_definition {
             let dur = if let Some(time) = timer.time_duration {
-                parse_iso8601_duration(&time)
+                parse_iso8601_duration(&time)?
             } else {
                 Duration::from_secs(0)
             };
@@ -209,12 +266,19 @@ pub fn parse_bpmn_xml(xml: &str) -> EngineResult<ProcessDefinition> {
         builder = add_listeners(builder, &node_id, gw.extension_elements);
     }
 
+    // 6d. Event-based gateways
+    for gw in process.event_based_gateways {
+        let node_id = gw.id.clone();
+        builder = builder.node(gw.id, BpmnElement::EventBasedGateway);
+        builder = add_listeners(builder, &node_id, gw.extension_elements);
+    }
+
     // 7. Intermediate catch events 
     for catch_evt in process.intermediate_catch_events {
         let node_id = catch_evt.id.clone();
         if let Some(timer) = catch_evt.timer_event_definition {
             let dur = if let Some(time) = timer.time_duration {
-                parse_iso8601_duration(&time)
+                parse_iso8601_duration(&time)?
             } else {
                 Duration::from_secs(0)
             };
@@ -247,7 +311,7 @@ pub fn parse_bpmn_xml(xml: &str) -> EngineResult<ProcessDefinition> {
 
         if let Some(timer) = bd.timer_event_definition {
             let dur = if let Some(time) = timer.time_duration {
-                parse_iso8601_duration(&time)
+                parse_iso8601_duration(&time)?
             } else {
                 Duration::from_secs(0)
             };

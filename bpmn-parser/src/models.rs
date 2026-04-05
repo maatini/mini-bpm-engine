@@ -147,7 +147,6 @@ pub(crate) struct BpmnProcess {
     pub parallel_gateways: Vec<BpmnGateway>,
     #[serde(rename = "inclusiveGateway", default)]
     pub inclusive_gateways: Vec<BpmnGateway>,
-    #[allow(dead_code)]
     #[serde(rename = "eventBasedGateway", default)]
     pub event_based_gateways: Vec<BpmnGateway>,
 
