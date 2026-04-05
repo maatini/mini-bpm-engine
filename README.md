@@ -1,7 +1,7 @@
 # BPMNinja
 
 [![Rust](https://img.shields.io/badge/Rust-stable-brightgreen.svg?style=flat-square)](https://www.rust-lang.org/)
-[![Tests](https://img.shields.io/badge/Tests-136_passing-success?style=flat-square)]()
+[![Tests](https://img.shields.io/badge/Tests-140_passing-success?style=flat-square)]()
 [![Mutation Score](https://img.shields.io/badge/Mutation_Score-93%25-blue?style=flat-square)]()
 
 <div align="center">
@@ -32,7 +32,7 @@
 bpmninja ist eine leichtgewichtige, embeddable BPMN 2.0 Engine mit folgenden Kernfeatures:
 
 - **Token-basierte Ausführung** — jeder Pfad wird als eigenständiger Token verfolgt
-- **16 BPMN-Elemente** — Start/End Events, User/Service Tasks, Gateways, Timer, Messages, Boundary Events
+- **18 BPMN-Elemente** — Start/End Events, User/Service Tasks, Gateways (XOR, AND, OR, Event-Based), Timer, Messages, Boundary Events, Call Activities, Sub-Processes
 - **Lock-Free Concurrency** — Multi-threaded Skalierung dank `DashMap` Wait-State Queues
 - **NATS JetStream Persistenz** — KV-Stores für Instanzen, Object Store für Dateien, Event-Streaming für History
 - **Fault-Tolerant Retry Queue** — 2-stufiges Retry-System mit Background-Worker gegen NATS-Ausfälle
@@ -77,6 +77,7 @@ bpmninja ist eine leichtgewichtige, embeddable BPMN 2.0 Engine mit folgenden Ker
 | <img src="readme-assets/bpmn-icons/exclusive-gateway.svg" width="28"> | **ExclusiveGateway (XOR)** | Genau ein Pfad wird gewählt (Bedingungsauswertung). Optionaler Default-Flow. |
 | <img src="readme-assets/bpmn-icons/parallel-gateway.svg" width="28"> | **ParallelGateway (AND)** | Alle Pfade werden parallel verfolgt (Token-Fork). Join wartet auf alle Tokens (JoinBarrier). |
 | <img src="readme-assets/bpmn-icons/inclusive-gateway.svg" width="28"> | **InclusiveGateway (OR)** | Alle Pfade mit `true`-Bedingung werden parallel verfolgt. Join wartet auf erwartete Tokens. |
+| <img src="readme-assets/bpmn-icons/exclusive-gateway.svg" width="28"> | **EventBasedGateway** | Execution pausiert bis genau eines der Ziel-Catch-Events (Timer/Message) auslöst. |
 
 ### Intermediate Events
 
@@ -87,17 +88,26 @@ bpmninja ist eine leichtgewichtige, embeddable BPMN 2.0 Engine mit folgenden Ker
 | <img src="readme-assets/bpmn-icons/boundary-timer-event.svg" width="28"> | **BoundaryTimerEvent** | An einen Task angeheftetes Timer-Event (interrupting). Timer wird bei Task-Abschluss automatisch storniert. |
 | <img src="readme-assets/bpmn-icons/boundary-error-event.svg" width="28"> | **BoundaryErrorEvent** | Fängt BPMN-Fehler (`errorCode`) eines ServiceTasks ab und leitet auf einen alternativen Pfad. |
 
+### Aktivitäten & Sub-Prozesse
+
+| BPMN | Element | Beschreibung |
+|:---:|---|---|
+| <img src="readme-assets/bpmn-icons/service-task.svg" width="34"> | **CallActivity** | Ruft eine andere Prozessdefinition auf (`calledElement`). Variablen werden propagiert. |
+| <img src="readme-assets/bpmn-icons/service-task.svg" width="34"> | **SubProcess** | Eingebetteter Sub-Prozess mit eigenem Scope und Event-Sub-Process-Support. |
+
 ### Zusätzliche Konzepte
 
 | Feature | Beschreibung |
 |---------|-------------|
 | **Conditional Flows** | Kanten mit Bedingungen (`amount > 100`, `status == 'approved'`). Operatoren: `==`, `!=`, `>`, `>=`, `<`, `<=`, Truthy-Checks. |
 | **Execution Listeners** | Start-/End-Scripts auf Nodes (Rhai). Können Variablen lesen und mutieren. |
+| **Scope Event Listeners** | Timer-/Message-/Error-Event-Sub-Prozesse auf Scope-Ebene (interrupting/non-interrupting). |
 | **Datei-Variablen** | Upload/Download von Dateien als Prozessvariablen via NATS Object Store. |
 | **Message Correlation** | Matching über `messageName` + optionalem `businessKey`. |
 | **BPMN Error Handling** | ServiceTasks melden Fehler via `bpmnError`. Routing an passendes `BoundaryErrorEvent`. |
 | **Detail-Historie** | Lückenloses Event-Log mit Diffs, Snapshots und Aktoren (`User`, `Engine`, `Timer`, `ServiceWorker`). |
 | **Persistente Wait-States** | Timer, Messages, User/Service Tasks überleben Server-Neustarts via NATS KV. |
+| **Structured JSON Logging** | Konfigurierbar via `tracing-subscriber` mit JSON-Feature und `RUST_LOG` Filter. |
 
 ---
 
@@ -205,6 +215,7 @@ Der Server läuft auf `http://localhost:8081`.
 | `GET` | `/api/definitions` | Alle Definitionen auflisten |
 | `GET` | `/api/definitions/:id/xml` | BPMN-XML einer Definition abrufen |
 | `DELETE` | `/api/definitions/:id` | Definition löschen (`?cascade=true` für inkl. Instanzen) |
+| `DELETE` | `/api/definitions/bpmn/:bpmn_id` | Alle Versionen einer BPMN-ID löschen |
 
 ### Instanzen
 
@@ -258,6 +269,8 @@ Der Server läuft auf `http://localhost:8081`.
 | `GET` | `/api/ready` | Readiness Check (prüft NATS-Verbindung) |
 | `GET` | `/api/info` | Backend-Informationen (Typ, NATS-URL, Status) |
 | `GET` | `/api/monitoring` | Engine-Statistiken (Instanzen, Tasks, Storage, Fehler) |
+| `GET` | `/api/monitoring/buckets/:bucket/entries` | KV-Bucket Einträge auflisten |
+| `GET` | `/api/monitoring/buckets/:bucket/entries/:key` | Einzelnen KV-Eintrag laden |
 | `GET` | `/api/instances/:id/history` | Event-Historie einer Instanz |
 | `GET` | `/api/instances/:id/history/:eid` | Einzelnes History-Event |
 
@@ -312,25 +325,25 @@ Services erreichbar unter `localhost:8081` (API) und `localhost:4222` (NATS).
 
 ## Test-Metriken
 
-> Ermittelt via `cargo test --workspace` am 05.04.2026 — **136 Tests, 0 Fehler**
+> Ermittelt via `cargo test --workspace` am 05.04.2026 — **140 Tests, 0 Fehler**
 
 ### Workspace-Übersicht
 
 | Crate | Unit | E2E | Gesamt |
 |-------|------|-----|--------|
-| **engine-core** | 92 | — | 92 |
+| **engine-core** | 96 | — | 96 |
 | **bpmn-parser** | 6 | — | 6 |
 | **persistence-nats** | 2 | — | 2 |
 | **engine-server** | — | 36 | 36 |
-| **Gesamt** | **100** | **36** | **136** ✅ |
+| **Gesamt** | **104** | **36** | **140** ✅ |
 
-### engine-core Breakdown (92 Tests)
+### engine-core Breakdown (96 Tests)
 
 | Modul | Tests | Abdeckung |
 |-------|-------|-----------|
-| `engine::tests` | 50 | State Machine, Gateways, User/Service Tasks, Boundary Events, Call Activities, Timers, Messages, Mutation-Checks |
+| `engine::tests` | 53 | State Machine, Gateways, User/Service Tasks, Boundary Events, Call Activities, EventBasedGateway, Timers, Messages, Error Propagation, Mutation-Checks |
 | `engine::stress_tests` | 22 | Throughput (1000 Instanzen), Gateway-Korrektheit, Crash Recovery, Concurrency, Race Conditions, Memory (10k Instanzen) |
-| `model::tests` | 16 | ProcessDefinition Builder, Token-Serialisierung, SequenceFlow, Validation, FileReference, Gateway-Constraints |
+| `model::tests` | 17 | ProcessDefinition Builder, Token-Serialisierung, SequenceFlow, Validation, FileReference, Gateway-Constraints, EventBasedGateway-Constraints |
 | `history::tests` | 4 | Diff-Berechnung, File-Upload-Erkennung, Human-Readable Text, Empty Diffs |
 
 ### engine-server E2E Tests (36 Tests, 12 Dateien)
@@ -363,16 +376,16 @@ Services erreichbar unter `localhost:8081` (API) und `localhost:4222` (NATS).
 
 | Bereich | Dateien | LoC |
 |---------|---------|-----|
-| engine-core (Lib) | 17 | 4.750 |
-| engine-core (Tests) | 2 | 2.400 |
-| bpmn-parser | 4 | 803 |
-| persistence-nats | 5 | 794 |
-| engine-server (Lib) | 3 | 1.051 |
-| engine-server (E2E Tests) | 12 | 1.800 |
-| desktop-tauri (TypeScript + CSS) | 22 | 4.036 |
-| desktop-tauri (Rust Backend) | 8 | 478 |
-| **Rust Workspace** | **43** | **~11.600** |
-| **Projekt Gesamt** | **~73** | **~16.100** |
+| engine-core (Lib) | 24 | 5.450 |
+| engine-core (Tests) | 2 | 2.482 |
+| bpmn-parser | 4 | 867 |
+| persistence-nats | 5 | 970 |
+| engine-server (Lib) | 12 | 1.125 |
+| engine-server (E2E Tests) | 12 | 1.649 |
+| desktop-tauri (TypeScript + CSS) | 38 | 5.187 |
+| desktop-tauri (Rust Backend) | 10 | 623 |
+| **Rust Workspace** | **59** | **~12.543** |
+| **Projekt Gesamt** | **~107** | **~18.353** |
 
 ---
 
@@ -380,9 +393,10 @@ Services erreichbar unter `localhost:8081` (API) und `localhost:4222` (NATS).
 
 | Feature | Status |
 |---------|--------|
+| Embedded Subprozesse (BPMN Scopes) | ✅ Implementiert |
+| Event-Based Gateway | ✅ Implementiert |
+| Structured JSON Logging (`tracing-subscriber` + JSON) | ✅ Implementiert |
 | Multi-Node Cluster (NATS-basiertes Token-Locking) | 🔲 Geplant |
-| Embedded Subprozesse (BPMN Scopes) | 🔲 Geplant |
-| Complex Gateway / Event-Based Gateway | 🔲 Geplant |
+| Complex Gateway | 🔲 Geplant |
 | OIDC/OAuth2 Middleware | 🔲 Geplant |
 | Prometheus Metrics Endpoint | 🔲 Geplant |
-| Structured JSON Logging | 🔲 Geplant |

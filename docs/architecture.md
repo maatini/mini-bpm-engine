@@ -11,11 +11,11 @@ Das Projekt ist ein Cargo-Workspace mit 6 Crates, einer Tauri Desktop-App und ei
 
 | Crate | Lib LoC | Test LoC | Zweck |
 |---|---|---|---|
-| **engine-core** | ~4.546 | ~2.276 | Reine State Machine, Token-Execution, Gateways, Scripting |
-| **bpmn-parser** | ~579 | ~224 | BPMN 2.0 XML → `ProcessDefinition` (quick-xml + serde) |
-| **persistence-nats** | ~705 | ~89 | `WorkflowPersistence` via NATS JetStream KV/ObjectStore |
-| **engine-server** | ~1.051 | ~1.232 | Axum REST API (HTTP-Adapter) + Background Timer Scheduler |
-| **desktop-tauri** | ~4.036 (TS) + ~478 (Rust) | — | Tauri + React + TailwindCSS + bpmn-js Modeler (Thin Client) |
+| **engine-core** | ~5.450 | ~2.482 | Reine State Machine, Token-Execution, Gateways, Scripting |
+| **bpmn-parser** | ~867 | (inline) | BPMN 2.0 XML → `ProcessDefinition` (quick-xml + serde) |
+| **persistence-nats** | ~970 | (inline) | `WorkflowPersistence` via NATS JetStream KV/ObjectStore |
+| **engine-server** | ~1.125 | ~1.649 | Axum REST API (HTTP-Adapter) + Background Timer Scheduler |
+| **desktop-tauri** | ~5.187 (TS) + ~623 (Rust) | — | Tauri + React + TailwindCSS + bpmn-js Modeler (Thin Client) |
 | **agent-orchestrator** | stub | — | External Worker Orchestrierung (geplant) |
 
 ### Workspace Dependency Graph
@@ -64,14 +64,22 @@ graph TB
         end
         
         subgraph "engine module"
-            MOD["mod.rs<br/>WorkflowEngine<br/>(1.139 LOC)"]
+            MOD["mod.rs<br/>WorkflowEngine"]
             TYPES["types.rs<br/>ProcessInstance<br/>PendingTasks<br/>InstanceState"]
             EXEC["executor.rs<br/>run_instance_batch<br/>execute_step"]
-            GW["gateway.rs<br/>XOR / AND / OR"]
+            GW["gateway.rs<br/>XOR / AND / OR / Event-Based"]
             SVC["service_task.rs<br/>fetch-and-lock<br/>complete/fail"]
             BOUND["boundary.rs<br/>Timer/Error Events"]
             REG["registry.rs<br/>DefinitionRegistry"]
             STORE["instance_store.rs<br/>InstanceStore"]
+            DEFOPS["definition_ops.rs<br/>Deploy/Delete/List"]
+            INSTOPS["instance_ops.rs<br/>Start/Complete/Delete"]
+            PROCSTART["process_start.rs<br/>Process Instantiation"]
+            MSGPROC["message_processor.rs<br/>Message Correlation"]
+            TIMERPROC["timer_processor.rs<br/>Timer Processing"]
+            PERSISTOPS["persistence_ops.rs<br/>Save/Restore State"]
+            RETRY["retry_queue.rs<br/>Fault-Tolerant Retry"]
+            USERTASK["user_task.rs<br/>User Task Ops"]
         end
         
         subgraph "support"
@@ -92,6 +100,14 @@ graph TB
     MOD --> BOUND
     MOD --> REG
     MOD --> STORE
+    MOD --> DEFOPS
+    MOD --> INSTOPS
+    MOD --> PROCSTART
+    MOD --> MSGPROC
+    MOD --> TIMERPROC
+    MOD --> PERSISTOPS
+    MOD --> RETRY
+    MOD --> USERTASK
     EXEC --> GW
     EXEC --> BOUND
     EXEC --> SCRIPT
@@ -221,11 +237,13 @@ pub enum BpmnElement {
     ExclusiveGateway { default: Option<String> },   // XOR
     InclusiveGateway,                               // OR
     ParallelGateway,                                // AND
+    EventBasedGateway,                              // waits for first catch event
     TimerCatchEvent(Duration),
     BoundaryTimerEvent { attached_to, duration, cancel_activity },
     BoundaryErrorEvent { attached_to, error_code },
     MessageCatchEvent { message_name: String },
     CallActivity { called_element: String },
+    SubProcess { called_element: String },           // embedded sub-process
 }
 ```
 
@@ -413,7 +431,7 @@ Dadurch entsteht kein State-Verlust nach einem transienten Netzwerkfehler.
 
 > Vollständige OpenAPI 3.0 Spezifikation: **[docs/openapi.yaml](openapi.yaml)**
 
-### 6.1 Route-Übersicht (30 Endpoints)
+### 6.1 Route-Übersicht (32 Endpoints)
 
 ```mermaid
 graph LR
@@ -422,6 +440,7 @@ graph LR
         D2["GET /api/definitions"]
         D3["GET /api/definitions/:id/xml"]
         D4["DELETE /api/definitions/:id"]
+        D5["DELETE /api/definitions/bpmn/:bpmn_id"]
     end
     
     subgraph "Process Instances"
@@ -463,6 +482,8 @@ graph LR
         M0b["GET /api/ready"]
         M1["GET /api/info"]
         M2["GET /api/monitoring"]
+        M2b["GET /api/monitoring/buckets/:bucket/entries"]
+        M2c["GET /api/monitoring/buckets/:bucket/entries/:key"]
         M3["GET /api/instances/:id/history"]
         M3b["GET /api/instances/:id/history/:eid"]
     end
@@ -493,15 +514,17 @@ struct AppState {
 Der Server startet einen Tokio-Background-Task, der periodisch `engine.process_timers()` aufruft:
 
 ```rust
-// main.rs — automatisches Timer-Polling
+// main.rs — automatisches Timer-Polling (lock-free via Arc<WorkflowEngine>)
 let timer_interval_ms: u64 = env::var("TIMER_INTERVAL_MS")
     .ok().and_then(|v| v.parse().ok()).unwrap_or(1000);
 
 tokio::spawn(async move {
     loop {
         tokio::time::sleep(Duration::from_millis(timer_interval_ms)).await;
-        let mut engine = timer_engine.write().await;
-        engine.process_timers().await;
+        match timer_engine.process_timers().await {
+            Ok(n) => tracing::info!("Timer scheduler: processed {} expired timer(s)", n),
+            Err(e) => tracing::warn!("Timer scheduler error: {}", e),
+        }
     }
 });
 ```
@@ -528,15 +551,15 @@ tokio::spawn(async move {
 | `Instances.tsx` | 518 | Instanz-Liste (grouped by Definition), Detail-Overlay |
 | `InstanceViewer.tsx` | 108 | Read-only BPMN-Viewer mit aktiver Node-Markierung |
 | `HistoryTimeline.tsx` | 225 | Event-Tabelle mit Filtern, Detail-Dialog, Diff-Anzeige |
-| `DeployedProcesses.tsx` | 299 | Versions-Gruppierung, Accordion, Cascade Delete |
+| `DeployedProcesses.tsx` | 326 | Versions-Gruppierung, Accordion, Cascade Delete |
 | `VariableEditor.tsx` | 479 | Typed Editor (6 Typen inkl. File), Upload/Download |
-| `Monitoring.tsx` | 239 | 8 Metric Cards, NATS Storage Breakdown, Auto-Refresh (5s) |
+| `Monitoring.tsx` | 362 | Metric Cards, NATS Storage Breakdown, KV-Browser, Auto-Refresh (5s) |
 | `PendingTasks.tsx` | 286 | User & Service Task Listen mit Completion-Dialogen |
 | `Settings.tsx` | 161 | API URL Config + Connection Verify |
 | `ErrorBoundary.tsx` | 72 | React Error Boundary |
 | `MessageDialog.tsx` | 93 | Message-Korrelations-Dialog |
 | `IncidentsView.tsx` | 120 | Incident-List (Persistence Errors) |
-| `lib/tauri.ts` | 240 | Alle Tauri Command Wrappers (typisierte API-Schicht) |
+| `lib/tauri.ts` | 263 | Alle Tauri Command Wrappers (typisierte API-Schicht) |
 | Custom Properties | ~337 | Condition, Script, Topic Extensions für bpmn-js |
 | `index.css` | 161 | TailwindCSS + HSL Design-Token-Variablen |
 
@@ -547,7 +570,7 @@ Die Desktop-App operiert als **Thin Client** — alle Workflow-Logik liegt im `e
 ```mermaid
 graph TD
     UI["React UI<br/>(desktop-tauri/src)"]
-    UI -->|"invoke('deploy_definition')"| TC["Tauri Commands<br/>(src-tauri/src/, 478 LoC)"]
+    UI -->|"invoke('deploy_definition')"| TC["Tauri Commands<br/>(src-tauri/src/, 623 LoC)"]
     TC -->|"HTTP REST (reqwest)"| SERVER["engine-server<br/>:8081"]
     SERVER --> ENGINE["WorkflowEngine"]
     ENGINE -.-> NATS[("NATS JetStream")]
@@ -615,27 +638,27 @@ Jeder State-Übergang wird als `HistoryEntry` gespeichert:
 
 ## 10. Code-Statistiken
 
-> Stand: 04.04.2026 — gemessen via `wc -l` und `cargo test --workspace`
+> Stand: 05.04.2026 — gemessen via `wc -l` und `cargo test --workspace`
 
 | Bereich | Dateien | LOC |
 |---|---|---|
-| engine-core (lib) | 17 | 4.750 |
-| engine-core (tests) | 2 | 2.400 |
-| bpmn-parser | 4 | 803 |
-| persistence-nats | 5 | 794 |
-| engine-server (lib + main) | 3 | 1.051 |
-| engine-server (E2E tests) | 12 | 1.800 |
-| **Rust Workspace Gesamt** | **43** | **~11.600** |
-| desktop-tauri (TypeScript + CSS) | 22 | 4.036 |
-| desktop-tauri (Rust Backend) | 8 | 478 |
-| **Projekt Gesamt** | **~73** | **~16.100** |
+| engine-core (lib) | 24 | 5.450 |
+| engine-core (tests) | 2 | 2.482 |
+| bpmn-parser | 4 | 867 |
+| persistence-nats | 5 | 970 |
+| engine-server (lib + main) | 12 | 1.125 |
+| engine-server (E2E tests) | 12 | 1.649 |
+| **Rust Workspace Gesamt** | **59** | **~12.543** |
+| desktop-tauri (TypeScript + CSS) | 38 | 5.187 |
+| desktop-tauri (Rust Backend) | 10 | 623 |
+| **Projekt Gesamt** | **~107** | **~18.353** |
 
-### Test-Übersicht (136 Tests, alle ✅)
+### Test-Übersicht (140 Tests, alle ✅)
 
 | Crate | Unit | E2E | Gesamt |
 |---|---|---|---|
-| engine-core | 92 | — | 92 |
+| engine-core | 96 | — | 96 |
 | bpmn-parser | 6 | — | 6 |
 | persistence-nats | 2 | — | 2 |
 | engine-server | — | 36 | 36 |
-| **Gesamt** | **100** | **36** | **136** |
+| **Gesamt** | **104** | **36** | **140** |
