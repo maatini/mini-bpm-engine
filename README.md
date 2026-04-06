@@ -68,12 +68,12 @@ bpmninja ist eine leichtgewichtige BPMN 2.0 Engine mit folgenden Kernfeatures:
 | <img src="readme-assets/bpmn-icons/timer-start-event.svg" width="28"> | **TimerStartEvent** | Timer-gesteuerter Start nach ISO 8601 Dauer (`PT30S`, `PT5M`). |
 | <img src="readme-assets/bpmn-icons/message-start-event.svg" width="28"> | **MessageStartEvent** | Prozess wird durch eingehende Nachricht (via `messageName`) gestartet. |
 | <img src="readme-assets/bpmn-icons/end-event.svg" width="28"> | **EndEvent** | Endpunkt — Prozessinstanz wird als abgeschlossen markiert. |
-| <img src="readme-assets/bpmn-icons/end-event.svg" width="28"> | **TerminateEndEvent** | Endpunkt — Bricht alle aktiven Tokens sofort ab. |
+| <img src="readme-assets/bpmn-icons/terminate-end-event.svg" width="28"> | **TerminateEndEvent** | Endpunkt — Bricht alle aktiven Tokens sofort ab. |
 | <img src="readme-assets/bpmn-icons/error-end-event.svg" width="28"> | **ErrorEndEvent** | Terminiert den Prozess mit einem BPMN-Fehlercode (`errorCode`). |
 | <img src="readme-assets/bpmn-icons/user-task.svg" width="34"> | **UserTask** | Erstellt einen Pending-Task, der extern abgeschlossen werden muss. |
 | <img src="readme-assets/bpmn-icons/service-task.svg" width="34"> | **ServiceTask** | Externe Verarbeitung via Fetch-and-Lock Pattern (Camunda-kompatibel). |
-| <img src="readme-assets/bpmn-icons/service-task.svg" width="34"> | **ScriptTask** | Führt inline verankerte Scripte über die Rhai Engine aus. |
-| <img src="readme-assets/bpmn-icons/service-task.svg" width="34"> | **SendTask** | Versendet via Throw Event eine Message und läuft direkt weiter. |
+| <img src="readme-assets/bpmn-icons/script-task.svg" width="34"> | **ScriptTask** | Führt inline verankerte Scripte über die Rhai Engine aus. |
+| <img src="readme-assets/bpmn-icons/send-task.svg" width="34"> | **SendTask** | Versendet via Throw Event eine Message und läuft direkt weiter. |
 
 ### Gateways
 
@@ -97,9 +97,9 @@ bpmninja ist eine leichtgewichtige BPMN 2.0 Engine mit folgenden Kernfeatures:
 
 | BPMN | Element | Beschreibung |
 |:---:|---|---|
-| <img src="readme-assets/bpmn-icons/service-task.svg" width="34"> | **CallActivity** | Ruft eine andere Prozessdefinition auf (`calledElement`). Variablen werden propagiert. |
-| <img src="readme-assets/bpmn-icons/service-task.svg" width="34"> | **EmbeddedSubProcess** | Eingebetteter Sub-Prozess (wird in den Graph geflattened). |
-| <img src="readme-assets/bpmn-icons/end-event.svg" width="28"> | **SubProcessEndEvent** | Internes End-Event eines Embedded-Sub-Process (generiert beim Flattening). |
+| <img src="readme-assets/bpmn-icons/call-activity.svg" width="34"> | **CallActivity** | Ruft eine andere Prozessdefinition auf (`calledElement`). Variablen werden propagiert. |
+| <img src="readme-assets/bpmn-icons/embedded-subprocess.svg" width="34"> | **EmbeddedSubProcess** | Eingebetteter Sub-Prozess (wird in den Graph geflattened). |
+| <img src="readme-assets/bpmn-icons/subprocess-end-event.svg" width="28"> | **SubProcessEndEvent** | Internes End-Event eines Embedded-Sub-Process (generiert beim Flattening). |
 
 ### Zusätzliche Konzepte
 
