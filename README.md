@@ -231,7 +231,7 @@ Der Server läuft auf `http://localhost:8081`.
 
 ## REST API
 
-> Vollständige OpenAPI 3.0 Spezifikation: **[docs/openapi.yaml](docs/openapi.yaml)** | 🌐 **[API Portal (Redoc)](https://maatini.github.io/mini-bpm-engine/)** *(benötigt aktives GitHub Pages Deploy via /docs)*
+> Vollständige OpenAPI 3.0 Spezifikation: **[docs/openapi.yaml](docs/openapi.yaml)** | 🌐 **[API Portal (Redoc)](https://maatini.github.io/bpmninja/)** *(benötigt aktives GitHub Pages Deploy via /docs)*
 
 ### Definitionen
 
