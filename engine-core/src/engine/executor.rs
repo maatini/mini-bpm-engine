@@ -7,7 +7,8 @@ use uuid::Uuid;
 use crate::condition::evaluate_condition;
 use crate::engine::boundary::setup_boundary_events;
 use crate::engine::gateway::{
-    execute_exclusive_gateway, execute_inclusive_gateway, execute_parallel_gateway,
+    execute_complex_gateway, execute_exclusive_gateway, execute_inclusive_gateway,
+    execute_parallel_gateway,
 };
 use crate::engine::{WorkflowEngine, types::*};
 use crate::error::{EngineError, EngineResult};
@@ -803,6 +804,41 @@ impl WorkflowEngine {
                 Ok(action)
             }
 
+            BpmnElement::ComplexGateway {
+                join_condition: _,
+                default,
+            } => {
+                self.run_end_scripts(instance_id, token, &def_clone, &current_id)
+                    .await?;
+                let action = execute_complex_gateway(&def_clone, &current_id, token, default)?;
+                if let NextAction::ContinueMultiple(ref f) = action {
+                    let inst_arc = self
+                        .instances
+                        .get(&instance_id)
+                        .await
+                        .ok_or(EngineError::NoSuchInstance(instance_id))?;
+                    let mut inst = inst_arc.write().await;
+                    inst.current_node = current_id.clone();
+                    inst.audit_log.push(format!(
+                        "⟡ Complex gateway '{current_id}' → forked to {} path(s)",
+                        f.len()
+                    ));
+                } else if let NextAction::Continue(ref next_token) = action {
+                    let inst_arc = self
+                        .instances
+                        .get(&instance_id)
+                        .await
+                        .ok_or(EngineError::NoSuchInstance(instance_id))?;
+                    let mut inst = inst_arc.write().await;
+                    inst.audit_log.push(format!(
+                        "⟡ Complex gateway '{current_id}' → took path to '{}'",
+                        next_token.current_node
+                    ));
+                    inst.current_node = next_token.current_node.clone();
+                }
+                Ok(action)
+            }
+
             BpmnElement::EventBasedGateway => {
                 self.run_end_scripts(instance_id, token, &def_clone, &current_id)
                     .await?;
@@ -1162,7 +1198,23 @@ impl WorkflowEngine {
             gateway_id, current_arrived, expected_count
         ));
 
-        if current_arrived >= expected_count {
+        let mut condition_met = false;
+        if let Some(BpmnElement::ComplexGateway { join_condition: Some(cond), .. }) = def.get_node(gateway_id) {
+            let mut temp_vars = std::collections::HashMap::new();
+            if let Some(barrier) = inst.join_barriers.get(gateway_id) {
+                for t in &barrier.arrived_tokens {
+                    temp_vars.extend(t.variables.clone());
+                }
+            }
+            if evaluate_condition(cond, &temp_vars) {
+                condition_met = true;
+                inst.audit_log.push(format!(
+                    "⟡ Complex gateway join condition met early at '{gateway_id}'"
+                ));
+            }
+        }
+
+        if current_arrived >= expected_count || condition_met {
             let all_tokens = inst
                 .join_barriers
                 .remove(gateway_id)

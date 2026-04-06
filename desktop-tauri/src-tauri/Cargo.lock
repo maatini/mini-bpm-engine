@@ -144,7 +144,7 @@ dependencies = [
 
 [[package]]
 name = "bpmninja-desktop"
-version = "0.6.0"
+version = "0.6.4"
 dependencies = [
  "mime_guess",
  "reqwest 0.11.27",

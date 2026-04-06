@@ -803,3 +803,34 @@ fn parse_intermediate_message_throw() {
         matches!(node, BpmnElement::SendTask { message_name, .. } if message_name == "OrderShipped")
     );
 }
+
+#[test]
+fn test_parse_complex_gateway() {
+    let xml = r#"
+        <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+          <bpmn:process id="Process_1" isExecutable="true">
+            <bpmn:startEvent id="StartEvent_1"/>
+            <bpmn:complexGateway id="Complex_1" default="Flow_3">
+                <bpmn:activationCondition xsi:type="bpmn:tFormalExpression">
+                    token_count &gt;= 2
+                </bpmn:activationCondition>
+            </bpmn:complexGateway>
+            <bpmn:endEvent id="EndEvent_1"/>
+            <bpmn:endEvent id="EndEvent_2"/>
+            <bpmn:sequenceFlow id="Flow_1" sourceRef="StartEvent_1" targetRef="Complex_1"/>
+            <bpmn:sequenceFlow id="Flow_2" sourceRef="Complex_1" targetRef="EndEvent_1"/>
+            <bpmn:sequenceFlow id="Flow_3" sourceRef="Complex_1" targetRef="EndEvent_2"/>
+          </bpmn:process>
+        </bpmn:definitions>
+    "#;
+    let def = parse_bpmn_xml(xml).unwrap();
+    let node = def.get_node("Complex_1").unwrap();
+    
+    match node {
+        BpmnElement::ComplexGateway { default, join_condition } => {
+            assert_eq!(default.as_deref(), Some("EndEvent_2")); // Flow_3 points to EndEvent_2
+            assert_eq!(join_condition.as_deref(), Some("token_count >= 2"));
+        }
+        _ => panic!("Expected ComplexGateway"),
+    }
+}

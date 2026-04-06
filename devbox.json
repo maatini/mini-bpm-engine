@@ -60,6 +60,9 @@
       ],
       "test:e2e:ui": [
         "cd desktop-tauri && npm run test:e2e"
+      ],
+      "test:compliance": [
+        "cargo test --test bpmn_compliance"
       ]
     }
   }

@@ -451,6 +451,23 @@ pub fn parse_bpmn_xml(xml: &str) -> EngineResult<ProcessDefinition> {
         builder = add_listeners(builder, &node_id, gw.extension_elements);
     }
 
+    // 6e. Complex gateways
+    for gw in process.complex_gateways {
+        let node_id = gw.id.clone();
+        let default_target = gw
+            .default
+            .and_then(|flow_id| flow_lookup.get(&flow_id).cloned());
+        let join_condition = gw.activation_condition.map(|c| c.value.trim().to_string());
+        builder = builder.node(
+            gw.id,
+            BpmnElement::ComplexGateway {
+                default: default_target,
+                join_condition,
+            },
+        );
+        builder = add_listeners(builder, &node_id, gw.extension_elements);
+    }
+
     // 7. Intermediate catch events
     for catch_evt in process.intermediate_catch_events {
         let node_id = catch_evt.id.clone();
@@ -683,6 +700,18 @@ fn flatten_subprocess(
     }
     for gw in sp.parallel_gateways {
         builder = builder.node(gw.id, engine_core::model::BpmnElement::ParallelGateway);
+    }
+
+    for gw in sp.complex_gateways {
+        let default_target = gw.default.clone();
+        let join_condition = gw.activation_condition.map(|c| c.value.trim().to_string());
+        builder = builder.node(
+            gw.id,
+            engine_core::model::BpmnElement::ComplexGateway {
+                default: default_target,
+                join_condition,
+            },
+        );
     }
 
     for flow in sp.sequence_flows {

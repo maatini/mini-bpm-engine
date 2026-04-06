@@ -80,6 +80,11 @@ pub enum BpmnElement {
     ParallelGateway,
     /// An event-based gateway — execution pauses until exactly one of the target catch events is triggered.
     EventBasedGateway,
+    /// A complex gateway — custom logic to decide when to split and join tokens.
+    ComplexGateway {
+        join_condition: Option<String>,
+        default: Option<String>,
+    },
     /// A timer intermediate catch event that pauses the token until the duration elapses.
     TimerCatchEvent(TimerDefinition),
     /// A boundary timer event attached to an activity.
@@ -409,6 +414,7 @@ impl ProcessDefinition {
                     | BpmnElement::InclusiveGateway
                     | BpmnElement::ParallelGateway
                     | BpmnElement::EventBasedGateway
+                    | BpmnElement::ComplexGateway { .. }
             ) {
                 let outgoing = flows.get(node_id).map_or(0, |v| v.len());
                 let incoming = flows
@@ -517,6 +523,7 @@ impl ProcessDefinition {
                     | BpmnElement::InclusiveGateway
                     | BpmnElement::ParallelGateway
                     | BpmnElement::EventBasedGateway
+                    | BpmnElement::ComplexGateway { .. }
             ) && self.next_nodes(node_id).len() >= 2
         } else {
             false

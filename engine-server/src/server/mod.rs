@@ -54,45 +54,45 @@ pub fn build_app_with_engine(
         .route("/api/start", post(instances::start_instance))
         .route("/api/start/latest", post(instances::start_instance_latest))
         .route("/api/tasks", get(tasks::get_tasks))
-        .route("/api/complete/:id", post(tasks::complete_task))
+        .route("/api/complete/{id}", post(tasks::complete_task))
         .route("/api/instances", get(instances::list_instances))
         .route(
-            "/api/instances/:id",
+            "/api/instances/{id}",
             get(instances::get_instance).delete(instances::delete_instance),
         )
         .route("/api/definitions", get(deploy::list_definitions))
-        .route("/api/definitions/:id/xml", get(deploy::get_definition_xml))
-        .route("/api/definitions/:id", delete(deploy::delete_definition))
+        .route("/api/definitions/{id}/xml", get(deploy::get_definition_xml))
+        .route("/api/definitions/{id}", delete(deploy::delete_definition))
         .route(
-            "/api/definitions/bpmn/:bpmn_id",
+            "/api/definitions/bpmn/{bpmn_id}",
             delete(deploy::delete_all_definitions),
         )
         .route(
-            "/api/instances/:id/variables",
+            "/api/instances/{id}/variables",
             put(instances::update_instance_variables),
         )
         .route(
-            "/api/instances/:id/files/:var_name",
+            "/api/instances/{id}/files/{var_name}",
             post(files::upload_instance_file)
                 .get(files::get_instance_file)
                 .delete(files::delete_instance_file),
         )
         .route(
-            "/api/instances/:id/history",
+            "/api/instances/{id}/history",
             get(history::get_instance_history),
         )
         .route(
-            "/api/instances/:id/history/:event_id",
+            "/api/instances/{id}/history/{event_id}",
             get(history::get_instance_history_entry),
         )
         .route("/api/info", get(monitoring::get_backend_info))
         .route("/api/monitoring", get(monitoring::get_monitoring_data))
         .route(
-            "/api/monitoring/buckets/:bucket/entries",
+            "/api/monitoring/buckets/{bucket}/entries",
             get(monitoring::get_bucket_entries),
         )
         .route(
-            "/api/monitoring/buckets/:bucket/entries/:key",
+            "/api/monitoring/buckets/{bucket}/entries/{key}",
             get(monitoring::get_bucket_entry_detail),
         )
         // Phase 1 endpoints
@@ -105,15 +105,15 @@ pub fn build_app_with_engine(
             post(tasks::fetch_and_lock_service_tasks),
         )
         .route(
-            "/api/service-task/:id/complete",
+            "/api/service-task/{id}/complete",
             post(tasks::complete_service_task),
         )
         .route(
-            "/api/service-task/:id/failure",
+            "/api/service-task/{id}/failure",
             post(tasks::fail_service_task),
         )
-        .route("/api/service-task/:id/extendLock", post(tasks::extend_lock))
-        .route("/api/service-task/:id/bpmnError", post(tasks::bpmn_error))
+        .route("/api/service-task/{id}/extendLock", post(tasks::extend_lock))
+        .route("/api/service-task/{id}/bpmnError", post(tasks::bpmn_error))
         .route("/api/health", get(|| async { axum::http::StatusCode::OK }))
         .route("/api/ready", get(monitoring::ready_endpoint))
         .layer(axum::extract::DefaultBodyLimit::max(5 * 1024 * 1024))

@@ -166,6 +166,8 @@ pub(crate) struct BpmnProcess {
     pub inclusive_gateways: Vec<BpmnGateway>,
     #[serde(rename = "eventBasedGateway", default)]
     pub event_based_gateways: Vec<BpmnGateway>,
+    #[serde(rename = "complexGateway", default)]
+    pub complex_gateways: Vec<BpmnComplexGateway>,
 
     /// Intermediate events — treated as pass-through nodes.
     #[serde(rename = "intermediateThrowEvent", default)]
@@ -337,6 +339,18 @@ pub(crate) struct BpmnExclusiveGateway {
 }
 
 #[derive(Debug, Deserialize)]
+pub(crate) struct BpmnComplexGateway {
+    #[serde(rename = "@id")]
+    pub id: String,
+    #[serde(rename = "extensionElements")]
+    pub extension_elements: Option<BpmnExtensionElements>,
+    #[serde(rename = "@default", default)]
+    pub default: Option<String>,
+    #[serde(rename = "activationCondition")]
+    pub activation_condition: Option<BpmnConditionExpression>,
+}
+
+#[derive(Debug, Deserialize)]
 pub(crate) struct BpmnGateway {
     #[serde(rename = "@id")]
     pub id: String,
@@ -426,6 +440,8 @@ pub(crate) struct BpmnSubProcess {
     pub inclusive_gateways: Vec<BpmnGateway>,
     #[serde(rename = "eventBasedGateway", default)]
     pub event_based_gateways: Vec<BpmnGateway>,
+    #[serde(rename = "complexGateway", default)]
+    pub complex_gateways: Vec<BpmnComplexGateway>,
 
     #[serde(rename = "intermediateThrowEvent", default)]
     pub intermediate_throw_events: Vec<BpmnIntermediateThrowEvent>,
