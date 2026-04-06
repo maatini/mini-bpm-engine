@@ -9,7 +9,7 @@ file_patterns: ["**/*.rs", "**/Cargo.toml"]
 - Think step-by-step before writing code.
 - Always prioritize compile-time safety and idiomatic Rust.
 - Use proper error handling with thiserror + anyhow.
-- Run `cargo clippy --workspace --all-targets --all-features -- -D warnings` after every major change.
+- Run `cargo clippy --workspace --all-targets -- -D warnings` after every major change.
 - Write comprehensive unit + integration tests.
 - Keep the architecture clean and modular.
 

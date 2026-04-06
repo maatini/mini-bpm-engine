@@ -15,9 +15,9 @@ Pure state machine — no network code, no NATS, no HTTP. Built with Tokio.
 ## Module Structure
 | File | Purpose |
 |---|---|
-| `model.rs` | `BpmnElement` (19 variants), `Token`, `ProcessDefinition`, `SequenceFlow`, `ExecutionListener`, `ScopeEventListener` |
+| `model.rs` | `BpmnElement` (21 variants), `Token`, `ProcessDefinition`, `SequenceFlow`, `ExecutionListener`, `ScopeEventListener` |
 | `engine/mod.rs` | `WorkflowEngine` public API, `deploy_definition()`, `start_instance()`, message correlation |
-| `engine/types.rs` | `ProcessInstance`, `InstanceState` (9 variants), `NextAction` (8 variants), `PendingUserTask`, `PendingTimer`, `PendingMessageCatch`, `ActiveToken` |
+| `engine/types.rs` | `ProcessInstance`, `InstanceState` (10 variants), `NextAction` (14 variants), `PendingUserTask`, `PendingTimer`, `PendingMessageCatch`, `ActiveToken` |
 | `engine/executor.rs` | `execute_step()`, `advance_token()` — dispatches on `BpmnElement` |
 | `engine/gateway.rs` | XOR/OR/AND/EventBased gateway routing and join synchronization |
 | `engine/registry.rs` | `TokenRegistry` for parallel/inclusive gateway join tracking |
@@ -25,7 +25,15 @@ Pure state machine — no network code, no NATS, no HTTP. Built with Tokio.
 | `engine/boundary.rs` | Boundary event processing (timers, errors) |
 | `engine/service_task.rs` | External task ops (fetch-and-lock, complete, fail, BPMN error) |
 | `engine/tests.rs` | Comprehensive integration tests |
-| `engine/stress_tests.rs` | Concurrency and load stress tests |
+| `engine/stress_tests.rs
+| `engine/definition_ops.rs` | Ops |
+| `engine/instance_ops.rs` | Ops |
+| `engine/message_processor.rs` | Ops |
+| `engine/persistence_ops.rs` | Ops |
+| `engine/process_start.rs` | Ops |
+| `engine/retry_queue.rs` | Ops |
+| `engine/timer_processor.rs` | Ops |
+| `engine/user_task.rs` | Ops |` | Concurrency and load stress tests |
 | `condition.rs` | `evaluate_condition()` — condition evaluator for gateway routing |
 | `script_runner.rs` | Rhai execution listeners (start/end scripts) |
 | `persistence.rs` | `WorkflowPersistence` trait definition |
@@ -35,13 +43,13 @@ Pure state machine — no network code, no NATS, no HTTP. Built with Tokio.
 | `error.rs` | `EngineError` enum (14 variants), `EngineResult<T>` alias |
 | `lib.rs` | Public re-exports (including `EngineStats`) |
 
-## Supported BPMN Elements (19 variants)
+## Supported BPMN Elements (21 variants)
 - **StartEvent** / **TimerStartEvent(TimerDefinition)** / **MessageStartEvent { message_name }**
 - **EndEvent** / **TerminateEndEvent** / **ErrorEndEvent { error_code }**
-- **ServiceTask { topic }** (Camunda-style fetch-and-lock)
-- **UserTask(assignee)**
-- **ScriptTask { script }** (inline Rhai execution, auto-advances)
-- **SendTask { message_name }** (message throw, auto-advances)
+- **ServiceTask { topic, multi_instance }** (Camunda-style fetch-and-lock)
+- **UserTask(assignee, multi_instance)**
+- **ScriptTask { script, multi_instance }** (inline Rhai execution, auto-advances)
+- **SendTask { message_name, multi_instance }** (message throw, auto-advances)
 - **ExclusiveGateway { default }** (XOR split)
 - **InclusiveGateway** (OR split)
 - **ParallelGateway** (AND split/join)
@@ -50,7 +58,7 @@ Pure state machine — no network code, no NATS, no HTTP. Built with Tokio.
 - **BoundaryTimerEvent** / **BoundaryErrorEvent** (boundary events)
 - **MessageCatchEvent { message_name }** (intermediate message catch)
 - **CallActivity { called_element }** (sub-process invocation)
-- **SubProcess { called_element }** (embedded sub-process)
+- **EmbeddedSubProcess** (embedded sub-process)
 
 ## Key Design Decisions
 - `Arc<ProcessDefinition>` for shared definitions

@@ -7,9 +7,9 @@ file_patterns: ["engine-core/**"]
 - **Domain:** `engine-core/`
 - **Role:** Pure state machine — token advancement, `BpmnElement` dispatch, gateway routing, condition evaluation, script execution, timer/message/error boundary events.
 - **Key files:**
-  - `model.rs` — `BpmnElement` (19 variants), `Token`, `ProcessDefinition`, `ProcessDefinitionBuilder`, `SequenceFlow`, `ExecutionListener`, `ScopeEventListener`
+  - `model.rs` — `BpmnElement` (21 variants), `Token`, `ProcessDefinition`, `ProcessDefinitionBuilder`, `SequenceFlow`, `ExecutionListener`, `ScopeEventListener`
   - `engine/mod.rs` — `WorkflowEngine` public API, deploy, start, message correlation
-  - `engine/types.rs` — `ProcessInstance`, `InstanceState` (9 variants), `NextAction` (8 variants), `ActiveToken`, `PendingTimer`, `PendingMessageCatch`
+  - `engine/types.rs` — `ProcessInstance`, `InstanceState` (10 variants), `NextAction` (14 variants), `ActiveToken`, `PendingTimer`, `PendingMessageCatch`
   - `engine/executor.rs` — `execute_step()`, `advance_token()` — main execution loop
   - `engine/gateway.rs` — XOR/OR/AND/EventBased gateway routing and join synchronization
   - `engine/registry.rs` — `TokenRegistry` for parallel/inclusive gateway join tracking

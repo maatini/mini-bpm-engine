@@ -70,7 +70,7 @@ Axum-based HTTP REST API adapter. All business logic lives in `engine-core`; thi
 - Keep business logic in `engine-core`. The server is an adapter only.
 - Map `EngineError` to appropriate HTTP status codes via `AppError`.
 - Use `serde_json` for request/response serialization.
-- All handlers are async and use `State<Arc<AppState>>` with `RwLock<WorkflowEngine>`.
+- All handlers are async and use `State<Arc<AppState>>` with an internal `DashMap` (no external `RwLock<WorkflowEngine>` needed, just `Arc<WorkflowEngine>`).
 - Max body size: 5MB (configured via `DefaultBodyLimit`).
 - CORS: Allow all origins, methods, and headers.
 - File uploads use `Multipart` extractor.

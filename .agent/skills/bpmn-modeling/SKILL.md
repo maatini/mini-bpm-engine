@@ -45,6 +45,7 @@ pub fn parse_bpmn_xml(xml: &str) -> EngineResult<ProcessDefinition>
 | `<boundaryEvent>` + `<timerEventDefinition>` | `BoundaryTimerEvent { attached_to, timer, cancel_activity }` |
 | `<boundaryEvent>` + `<errorEventDefinition>` | `BoundaryErrorEvent { attached_to, error_code }` |
 | `<task>` (generic) | `ServiceTask { topic: name }` (fallback) |
+| `<multiInstanceLoopCharacteristics>` | `multi_instance: Option<MultiInstanceDef>` (Parallel/Sequential loops on tasks) |
 
 ## Timer Definition Support
 Parses `<timerEventDefinition>` children:
@@ -76,4 +77,4 @@ The parser resolves the BPMN `default` attribute (which is a **flow ID**) to the
 - Unknown task types fall back to `ServiceTask` (with name as topic)
 - Assignee defaults to `"unassigned"` if not specified
 - Full ISO 8601 duration parsing via internal `parse_iso8601_duration()`
-- Event sub-processes are detected and logged but handled separately
+- Event sub-processes and nested Embedded Sub-Processes are recursively **flattened** into the single main workflow graph via `flatten_subprocess()`, retaining their logical scopes.
