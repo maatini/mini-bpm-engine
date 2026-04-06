@@ -6,7 +6,7 @@ info:
     
     Built with Axum (Rust). Supports BPMN process deployment, instance management,
     user/service task handling, message correlation, timer processing, and file attachments.
-  version: 1.0.0
+  version: 0.6.3
   contact:
     name: bpmninja
   license:
@@ -103,6 +103,24 @@ paths:
           description: Definition not found
         '409':
           description: Definition has active instances (use cascade=true)
+
+  /api/definitions/bpmn/{bpmn_id}:
+    delete:
+      tags: [Definitions]
+      summary: Delete all versions of a BPMN process
+      description: Deletes all definition versions matching the given BPMN process ID.
+      parameters:
+        - name: bpmn_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The BPMN process ID (not the UUID key)
+      responses:
+        '200':
+          description: All versions deleted
+        '404':
+          description: No definitions found with this BPMN process ID
 
   /api/definitions/{id}/xml:
     get:
@@ -625,6 +643,59 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/MonitoringData'
+
+  /api/monitoring/buckets/{bucket}/entries:
+    get:
+      tags: [Monitoring]
+      summary: List KV bucket entries
+      description: Lists all entries in a NATS KV bucket for diagnostic purposes.
+      parameters:
+        - name: bucket
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Name of the NATS KV bucket
+      responses:
+        '200':
+          description: List of key-value entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    key:
+                      type: string
+                    value:
+                      type: object
+
+  /api/monitoring/buckets/{bucket}/entries/{key}:
+    get:
+      tags: [Monitoring]
+      summary: Get a single KV bucket entry
+      description: Returns the value of a specific key in a NATS KV bucket.
+      parameters:
+        - name: bucket
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Entry value
+          content:
+            application/json:
+              schema:
+                type: object
+        '404':
+          description: Key not found
 
 # ═══════════════════════════════ Components ═══════════════════════════════════
 

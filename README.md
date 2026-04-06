@@ -1,7 +1,7 @@
 # BPMNinja
 
 [![Rust](https://img.shields.io/badge/Rust-stable-brightgreen.svg?style=flat-square)](https://www.rust-lang.org/)
-[![Tests](https://img.shields.io/badge/Tests-140_passing-success?style=flat-square)]()
+[![Tests](https://img.shields.io/badge/Tests-163_passing-success?style=flat-square)]()
 [![Mutation Score](https://img.shields.io/badge/Mutation_Score-93%25-blue?style=flat-square)]()
 [![License](https://img.shields.io/badge/License-MIT%20OR%20Apache--2.0-blue.svg?style=flat-square)](#lizenz)
 
@@ -35,6 +35,7 @@ bpmninja ist eine leichtgewichtige BPMN 2.0 Engine mit folgenden Kernfeatures:
 
 - **Token-basierte Ausführung** — jeder Pfad wird als eigenständiger Token verfolgt
 - **18 BPMN-Elemente** — Start/End Events, User/Service Tasks, Gateways (XOR, AND, OR, Event-Based), Timer, Messages, Boundary Events, Call Activities, Sub-Processes
+- **Vollständige ISO 8601 Timer** — Duration (`PT30S`), AbsoluteDate (`2026-04-06T14:30:00Z`), Cron (`0 9 * * MON-FRI`), Repeating Interval (`R3/PT10M`)
 - **Lock-Free Concurrency** — Multi-threaded Skalierung dank `DashMap` Wait-State Queues
 - **NATS JetStream Persistenz** — KV-Stores für Instanzen, Object Store für Dateien, Event-Streaming für History
 - **Fault-Tolerant Retry Queue** — 2-stufiges Retry-System mit Background-Worker gegen NATS-Ausfälle
@@ -65,7 +66,7 @@ bpmninja ist eine leichtgewichtige BPMN 2.0 Engine mit folgenden Kernfeatures:
 | BPMN | Element | Beschreibung |
 |:---:|---|---|
 | <img src="readme-assets/bpmn-icons/start-event.svg" width="28"> | **StartEvent** | Einfacher Startpunkt — Prozess wird sofort gestartet. |
-| <img src="readme-assets/bpmn-icons/timer-start-event.svg" width="28"> | **TimerStartEvent** | Timer-gesteuerter Start nach ISO 8601 Dauer (`PT30S`, `PT5M`). |
+| <img src="readme-assets/bpmn-icons/timer-start-event.svg" width="28"> | **TimerStartEvent** | Timer-gesteuerter Start — unterstützt ISO 8601 Duration (`PT30S`), AbsoluteDate, Cron-Cycle und Repeating Intervals. |
 | <img src="readme-assets/bpmn-icons/message-start-event.svg" width="28"> | **MessageStartEvent** | Prozess wird durch eingehende Nachricht (via `messageName`) gestartet. |
 | <img src="readme-assets/bpmn-icons/end-event.svg" width="28"> | **EndEvent** | Endpunkt — Prozessinstanz wird als abgeschlossen markiert. |
 | <img src="readme-assets/bpmn-icons/terminate-end-event.svg" width="28"> | **TerminateEndEvent** | Endpunkt — Bricht alle aktiven Tokens sofort ab. |
@@ -88,7 +89,7 @@ bpmninja ist eine leichtgewichtige BPMN 2.0 Engine mit folgenden Kernfeatures:
 
 | BPMN | Element | Beschreibung |
 |:---:|---|---|
-| <img src="readme-assets/bpmn-icons/timer-catch-event.svg" width="28"> | **TimerCatchEvent** | Pausiert den Prozess bis ein Timer abläuft. Wird automatisch vom Timer-Scheduler verarbeitet. |
+| <img src="readme-assets/bpmn-icons/timer-catch-event.svg" width="28"> | **TimerCatchEvent** | Pausiert den Prozess bis ein Timer abläuft. Unterstützt Duration, AbsoluteDate, Cron und Repeating Intervals. Wird automatisch vom Timer-Scheduler verarbeitet. |
 | <img src="readme-assets/bpmn-icons/message-catch-event.svg" width="28"> | **MessageCatchEvent** | Pausiert den Prozess bis eine passende Nachricht via `POST /api/message` korreliert wird. |
 | <img src="readme-assets/bpmn-icons/boundary-timer-event.svg" width="28"> | **BoundaryTimerEvent** | An einen Task angeheftetes Timer-Event (interrupting/non-interrupting). Timer wird bei Task-Abschluss automatisch storniert. |
 | <img src="readme-assets/bpmn-icons/boundary-message-event.svg" width="28"> | **BoundaryMessageEvent** | An einen Task angeheftetes Message-Event (interrupting/non-interrupting). Wartet asynchron auf externe Nachrichten. |
@@ -351,26 +352,39 @@ Services erreichbar unter `localhost:8081` (API) und `localhost:4222` (NATS).
 
 ## Test-Metriken
 
-> Ermittelt via `cargo test --workspace` am 05.04.2026 — **140 Tests, 0 Fehler**
+> Ermittelt via `cargo test --workspace` am 06.04.2026 — **163 Tests, 0 Fehler**
 
 ### Workspace-Übersicht
 
 | Crate | Unit | E2E | Gesamt |
 |-------|------|-----|--------|
-| **engine-core** | 96 | — | 96 |
-| **bpmn-parser** | 6 | — | 6 |
+| **engine-core** | 99 | — | 99 |
+| **bpmn-parser** | 26 | — | 26 |
 | **persistence-nats** | 2 | — | 2 |
 | **engine-server** | — | 36 | 36 |
-| **Gesamt** | **104** | **36** | **140** ✅ |
+| **Gesamt** | **127** | **36** | **163** ✅ |
 
-### engine-core Breakdown (96 Tests)
+### engine-core Breakdown (99 Tests)
 
 | Modul | Tests | Abdeckung |
 |-------|-------|-----------|
-| `engine::tests` | 53 | State Machine, Gateways, User/Service Tasks, Boundary Events, Call Activities, EventBasedGateway, Timers, Messages, Error Propagation, Mutation-Checks |
-| `engine::stress_tests` | 22 | Throughput (1000 Instanzen), Gateway-Korrektheit, Crash Recovery, Concurrency, Race Conditions, Memory (10k Instanzen) |
+| `engine::tests` | 56 | State Machine, Gateways, User/Service Tasks, Boundary Events, Call Activities, EventBasedGateway, Timers, Messages, Error Propagation, Mutation-Checks |
+| `engine::stress_tests` | 22 | Throughput (1000 Instanzen), Gateway-Korrektheit, Crash Recovery, Concurrency, Race Conditions, Memory (10k Instanzen), History Completeness |
 | `model::tests` | 17 | ProcessDefinition Builder, Token-Serialisierung, SequenceFlow, Validation, FileReference, Gateway-Constraints, EventBasedGateway-Constraints |
 | `history::tests` | 4 | Diff-Berechnung, File-Upload-Erkennung, Human-Readable Text, Empty Diffs |
+
+### bpmn-parser Tests (26 Tests)
+
+| Bereich | Tests | Abdeckung |
+|---------|-------|-----------|
+| Basis-Parsing | 6 | Simple BPMN, Conditional Flows, XOR Gateway, Timer Start, Interleaved Output, Execution Listeners |
+| Gateways | 3 | Parallel, Inclusive, Event-Based |
+| Events | 5 | MessageStart, MessageCatch, ErrorEnd, TimerCatch, BoundaryTimer |
+| Boundary Events | 2 | BoundaryTimer, BoundaryError |
+| ISO 8601 Timer | 4 | TimeDate, CronCycle, RepeatingInterval, Duration-Reject |
+| Task-Typen | 3 | ScriptTask, SendTask, IntermediateMessageThrow |
+| Sub-Prozesse | 2 | EventSubProcess, RegularSubProcess |
+| Sonstiges | 1 | TerminateEndEvent |
 
 ### engine-server E2E Tests (36 Tests, 12 Dateien)
 
@@ -389,29 +403,20 @@ Services erreichbar unter `localhost:8081` (API) und `localhost:4222` (NATS).
 | `e2e_variables.rs` | 1 | Variable-Updates mid-execution |
 | `e2e_versioning.rs` | 3 | Version-Inkrement, Start-Latest, Instance-Isolation |
 
-### Mutation Testing
-
-| Metrik | Wert |
-|--------|------|
-| Generierte Mutanten | 301 |
-| Caught (erkannt) | 133 |
-| Missed | 10 |
-| **Mutation Score** | **93.0%** ✅ |
-
 ### Code-Statistiken
 
 | Bereich | Dateien | LoC |
 |---------|---------|-----|
-| engine-core (Lib) | 24 | 5.450 |
-| engine-core (Tests) | 2 | 2.482 |
-| bpmn-parser | 4 | 867 |
-| persistence-nats | 5 | 970 |
-| engine-server (Lib) | 12 | 1.125 |
-| engine-server (E2E Tests) | 12 | 1.649 |
-| desktop-tauri (TypeScript + CSS) | 38 | 5.187 |
+| engine-core (Lib) | 25 | 7.191 |
+| engine-core (Tests) | 2 | 3.545 |
+| bpmn-parser | 4 | 1.963 |
+| persistence-nats | 5 | 1.149 |
+| engine-server (Lib) | 12 | 1.280 |
+| engine-server (E2E Tests) | 12 | 1.934 |
+| desktop-tauri (TypeScript + CSS) | 38 | 5.186 |
 | desktop-tauri (Rust Backend) | 10 | 623 |
-| **Rust Workspace** | **59** | **~12.543** |
-| **Projekt Gesamt** | **~107** | **~18.353** |
+| **Rust Workspace** | **60** | **~17.062** |
+| **Projekt Gesamt** | **~108** | **~22.871** |
 
 ---
 

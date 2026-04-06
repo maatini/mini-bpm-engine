@@ -1,7 +1,7 @@
 # bpmninja — Architektur-Dokumentation
 
 > BPMN 2.0 Workflow Engine in Rust, token-basierte Execution
-> Stand: 2026-04-05
+> Stand: 2026-04-06
 
 ---
 
@@ -11,11 +11,11 @@ Das Projekt ist ein Cargo-Workspace mit 6 Crates, einer Tauri Desktop-App und ei
 
 | Crate | Lib LoC | Test LoC | Zweck |
 |---|---|---|---|
-| **engine-core** | ~5.450 | ~2.482 | Reine State Machine, Token-Execution, Gateways, Scripting |
-| **bpmn-parser** | ~867 | (inline) | BPMN 2.0 XML → `ProcessDefinition` (quick-xml + serde) |
-| **persistence-nats** | ~970 | (inline) | `WorkflowPersistence` via NATS JetStream KV/ObjectStore |
-| **engine-server** | ~1.125 | ~1.649 | Axum REST API (HTTP-Adapter) + Background Timer Scheduler |
-| **desktop-tauri** | ~5.187 (TS) + ~623 (Rust) | — | Tauri + React + TailwindCSS + bpmn-js Modeler (Thin Client) |
+| **engine-core** | ~7.191 | ~3.545 | Reine State Machine, Token-Execution, Gateways, Scripting |
+| **bpmn-parser** | ~1.963 | (inline) | BPMN 2.0 XML → `ProcessDefinition` (quick-xml + serde) |
+| **persistence-nats** | ~1.149 | (inline) | `WorkflowPersistence` via NATS JetStream KV/ObjectStore |
+| **engine-server** | ~1.280 | ~1.934 | Axum REST API (HTTP-Adapter) + Background Timer Scheduler |
+| **desktop-tauri** | ~5.186 (TS) + ~623 (Rust) | — | Tauri + React + TailwindCSS + bpmn-js Modeler (Thin Client) |
 | **agent-orchestrator** | stub | — | External Worker Orchestrierung (geplant) |
 
 ### Workspace Dependency Graph
@@ -228,22 +228,27 @@ classDiagram
 ```rust
 pub enum BpmnElement {
     StartEvent,
-    TimerStartEvent(Duration),
+    TimerStartEvent(TimerDefinition),              // Duration | AbsoluteDate | CronCycle | RepeatingInterval
     MessageStartEvent { message_name: String },
     EndEvent,
+    TerminateEndEvent,
     ErrorEndEvent { error_code: String },
     UserTask(String),                               // assignee
-    ServiceTask { topic: String },                  // Camunda-style
+    ServiceTask { topic: String, multi_instance: Option<MultiInstanceDef> },
+    ScriptTask { script: String, multi_instance: Option<MultiInstanceDef> },
+    SendTask { message_name: String, multi_instance: Option<MultiInstanceDef> },
     ExclusiveGateway { default: Option<String> },   // XOR
     InclusiveGateway,                               // OR
     ParallelGateway,                                // AND
     EventBasedGateway,                              // waits for first catch event
-    TimerCatchEvent(Duration),
-    BoundaryTimerEvent { attached_to, duration, cancel_activity },
-    BoundaryErrorEvent { attached_to, error_code },
+    TimerCatchEvent(TimerDefinition),
+    BoundaryTimerEvent { attached_to, timer: TimerDefinition, cancel_activity },
+    BoundaryMessageEvent { attached_to, message_name, cancel_activity },
+    BoundaryErrorEvent { attached_to, error_code: Option<String> },
     MessageCatchEvent { message_name: String },
     CallActivity { called_element: String },
-    SubProcess { called_element: String },           // embedded sub-process
+    EmbeddedSubProcess { start_node_id: String },   // embedded sub-process (flattened)
+    SubProcessEndEvent { sub_process_id: String },  // synthetic end event
 }
 ```
 
@@ -638,27 +643,27 @@ Jeder State-Übergang wird als `HistoryEntry` gespeichert:
 
 ## 10. Code-Statistiken
 
-> Stand: 05.04.2026 — gemessen via `wc -l` und `cargo test --workspace`
+> Stand: 06.04.2026 — gemessen via `wc -l` und `cargo test --workspace`
 
 | Bereich | Dateien | LOC |
 |---|---|---|
-| engine-core (lib) | 24 | 5.450 |
-| engine-core (tests) | 2 | 2.482 |
-| bpmn-parser | 4 | 867 |
-| persistence-nats | 5 | 970 |
-| engine-server (lib + main) | 12 | 1.125 |
-| engine-server (E2E tests) | 12 | 1.649 |
-| **Rust Workspace Gesamt** | **59** | **~12.543** |
-| desktop-tauri (TypeScript + CSS) | 38 | 5.187 |
+| engine-core (lib) | 25 | 7.191 |
+| engine-core (tests) | 2 | 3.545 |
+| bpmn-parser | 4 | 1.963 |
+| persistence-nats | 5 | 1.149 |
+| engine-server (lib + main) | 12 | 1.280 |
+| engine-server (E2E tests) | 12 | 1.934 |
+| **Rust Workspace Gesamt** | **60** | **~17.062** |
+| desktop-tauri (TypeScript + CSS) | 38 | 5.186 |
 | desktop-tauri (Rust Backend) | 10 | 623 |
-| **Projekt Gesamt** | **~107** | **~18.353** |
+| **Projekt Gesamt** | **~108** | **~22.871** |
 
-### Test-Übersicht (140 Tests, alle ✅)
+### Test-Übersicht (163 Tests, alle ✅)
 
 | Crate | Unit | E2E | Gesamt |
 |---|---|---|---|
-| engine-core | 96 | — | 96 |
-| bpmn-parser | 6 | — | 6 |
+| engine-core | 99 | — | 99 |
+| bpmn-parser | 26 | — | 26 |
 | persistence-nats | 2 | — | 2 |
 | engine-server | — | 36 | 36 |
-| **Gesamt** | **104** | **36** | **140** |
+| **Gesamt** | **127** | **36** | **163** |
