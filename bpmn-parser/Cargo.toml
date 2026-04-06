@@ -6,10 +6,10 @@ license = "MIT OR Apache-2.0"
 
 [dependencies]
 engine-core = { path = "../engine-core" }
-quick-xml = { version = "0.37", features = ["serialize", "overlapped-lists"] }
+quick-xml = { version = "0.39", features = ["serialize", "overlapped-lists"] }
 serde = { workspace = true }
 thiserror = { workspace = true }
 anyhow = { workspace = true }
 tracing = { workspace = true }
-croner = "2"
+croner = "3"
 chrono = { version = "0.4", features = ["serde"] }
