@@ -199,6 +199,8 @@ name = "bpmn-parser"
 version = "0.5.0"
 dependencies = [
  "anyhow",
+ "chrono",
+ "croner",
  "engine-core",
  "quick-xml",
  "serde",
@@ -310,6 +312,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "59ed5838eebb26a2bb2e58f6d5b5316989ae9d08bab10e0e6d103e656d1b0280"
 dependencies = [
  "libc",
+]
+
+[[package]]
+name = "croner"
+version = "2.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c344b0690c1ad1c7176fe18eb173e0c927008fdaaa256e40dfd43ddd149c0843"
+dependencies = [
+ "chrono",
 ]
 
 [[package]]
@@ -459,6 +470,7 @@ version = "0.5.0"
 dependencies = [
  "async-trait",
  "chrono",
+ "croner",
  "dashmap",
  "rhai",
  "serde",

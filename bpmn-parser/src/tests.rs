@@ -139,7 +139,7 @@ fn parse_timer_start() {
 
     let def = parse_bpmn_xml(xml).unwrap();
     match def.nodes.get("start1").unwrap() {
-        BpmnElement::TimerStartEvent(d) => assert_eq!(d.as_secs(), 60),
+        BpmnElement::TimerStartEvent(engine_core::timer_definition::TimerDefinition::Duration(d)) => assert_eq!(d.as_secs(), 60),
         _ => panic!("Expected TimerStartEvent"),
     }
 }
@@ -380,7 +380,7 @@ fn parse_timer_catch_event() {
 
     let def = parse_bpmn_xml(xml).unwrap();
     match def.nodes.get("wait").unwrap() {
-        BpmnElement::TimerCatchEvent(d) => assert_eq!(d.as_secs(), 30),
+        BpmnElement::TimerCatchEvent(engine_core::timer_definition::TimerDefinition::Duration(d)) => assert_eq!(d.as_secs(), 30),
         other => panic!("Expected TimerCatchEvent, got {:?}", other),
     }
 }
@@ -410,11 +410,14 @@ fn parse_boundary_timer_event() {
     match def.nodes.get("timeout").unwrap() {
         BpmnElement::BoundaryTimerEvent {
             attached_to,
-            duration,
+            timer,
             cancel_activity,
         } => {
             assert_eq!(attached_to, "task1");
-            assert_eq!(duration.as_secs(), 300);
+            match timer {
+                engine_core::timer_definition::TimerDefinition::Duration(d) => assert_eq!(d.as_secs(), 300),
+                _ => panic!("Expected Duration timer"),
+            }
             assert!(*cancel_activity);
         }
         other => panic!("Expected BoundaryTimerEvent, got {:?}", other),
@@ -502,9 +505,10 @@ fn parse_duration_rejects_invalid_input() {
     assert!(parse_bpmn_xml(&template("PT0S")).is_ok());
 
     // Invalid inputs must now fail
+    // P1D is now supported
     assert!(
-        parse_bpmn_xml(&template("P1D")).is_err(),
-        "P1D should be rejected"
+        parse_bpmn_xml(&template("P1D")).is_ok(),
+        "P1D should be accepted"
     );
     assert!(
         parse_bpmn_xml(&template("")).is_err(),
@@ -616,4 +620,81 @@ fn parse_regular_subprocess_rejected() {
     // Regular embedded sub-processes must still be rejected
     let result = parse_bpmn_xml(xml);
     assert!(result.is_err(), "Regular sub-process should be rejected");
+}
+
+#[test]
+fn parse_time_date() {
+    let xml = r#"
+        <definitions id="def1" xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL">
+            <process id="proc1">
+                <startEvent id="s1">
+                    <timerEventDefinition>
+                        <timeDate>2026-04-06T14:30:00Z</timeDate>
+                    </timerEventDefinition>
+                </startEvent>
+                <endEvent id="e1" />
+                <sequenceFlow id="f1" sourceRef="s1" targetRef="e1" />
+            </process>
+        </definitions>
+    "#;
+
+    let def = parse_bpmn_xml(xml).unwrap();
+    match def.nodes.get("s1").unwrap() {
+        BpmnElement::TimerStartEvent(engine_core::timer_definition::TimerDefinition::AbsoluteDate(dt)) => {
+            assert_eq!(dt.to_rfc3339(), "2026-04-06T14:30:00+00:00");
+        }
+        _ => panic!("Expected TimerStartEvent with AbsoluteDate"),
+    }
+}
+
+#[test]
+fn parse_time_cycle_cron() {
+    let xml = r#"
+        <definitions id="def1" xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL">
+            <process id="proc1">
+                <startEvent id="s1">
+                    <timerEventDefinition>
+                        <timeCycle>*/5 * * * *</timeCycle>
+                    </timerEventDefinition>
+                </startEvent>
+                <endEvent id="e1" />
+                <sequenceFlow id="f1" sourceRef="s1" targetRef="e1" />
+            </process>
+        </definitions>
+    "#;
+
+    let def = parse_bpmn_xml(xml).unwrap();
+    match def.nodes.get("s1").unwrap() {
+        BpmnElement::TimerStartEvent(engine_core::timer_definition::TimerDefinition::CronCycle { expression, max_repetitions }) => {
+            assert_eq!(expression, "*/5 * * * *");
+            assert_eq!(*max_repetitions, None);
+        }
+        _ => panic!("Expected TimerStartEvent with CronCycle"),
+    }
+}
+
+#[test]
+fn parse_time_cycle_repeating_interval() {
+    let xml = r#"
+        <definitions id="def1" xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL">
+            <process id="proc1">
+                <startEvent id="s1">
+                    <timerEventDefinition>
+                        <timeCycle>R3/PT10H</timeCycle>
+                    </timerEventDefinition>
+                </startEvent>
+                <endEvent id="e1" />
+                <sequenceFlow id="f1" sourceRef="s1" targetRef="e1" />
+            </process>
+        </definitions>
+    "#;
+
+    let def = parse_bpmn_xml(xml).unwrap();
+    match def.nodes.get("s1").unwrap() {
+        BpmnElement::TimerStartEvent(engine_core::timer_definition::TimerDefinition::RepeatingInterval { repetitions, interval }) => {
+            assert_eq!(*repetitions, Some(3));
+            assert_eq!(interval.as_secs(), 36000);
+        }
+        _ => panic!("Expected TimerStartEvent with RepeatingInterval"),
+    }
 }

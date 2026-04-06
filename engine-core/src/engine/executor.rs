@@ -626,15 +626,17 @@ impl WorkflowEngine {
                     let target_node = sf.target.clone();
                     if let Some(target_element) = def_clone.get_node(&target_node) {
                         match target_element {
-                            BpmnElement::TimerCatchEvent(dur) => {
+                            BpmnElement::TimerCatchEvent(timer_def) => {
+                                let now = Utc::now();
+                                let expires_at = timer_def.next_expiry(now).unwrap_or(now);
                                 let pending = PendingTimer {
                                     id: Uuid::new_v4(),
                                     instance_id,
                                     node_id: target_node.clone(),
-                                    expires_at: Utc::now()
-                                        + chrono::Duration::from_std(*dur)
-                                            .unwrap_or(chrono::Duration::seconds(0)),
+                                    expires_at,
                                     token_id: token.id,
+                                    timer_def: Some(timer_def.clone()),
+                                    remaining_repetitions: None,
                                 };
                                 actions.push(NextAction::WaitForTimer(pending));
                             }
@@ -673,14 +675,17 @@ impl WorkflowEngine {
                 Ok(NextAction::WaitForEventGroup(actions))
             }
 
-            BpmnElement::TimerCatchEvent(dur) => {
+            BpmnElement::TimerCatchEvent(timer_def) => {
+                let now = Utc::now();
+                let expires_at = timer_def.next_expiry(now).unwrap_or(now);
                 let pending = PendingTimer {
                     id: Uuid::new_v4(),
                     instance_id,
                     node_id: current_id.clone(),
-                    expires_at: Utc::now()
-                        + chrono::Duration::from_std(*dur).unwrap_or(chrono::Duration::seconds(0)),
+                    expires_at,
                     token_id: token.id,
+                    timer_def: Some(timer_def.clone()),
+                    remaining_repetitions: None,
                 };
                 let inst_arc = self
                     .instances

@@ -173,6 +173,10 @@ pub(crate) struct BpmnStartEvent {
 pub(crate) struct BpmnTimerEventDefinition {
     #[serde(rename = "timeDuration")]
     pub time_duration: Option<String>,
+    #[serde(rename = "timeDate")]
+    pub time_date: Option<String>,
+    #[serde(rename = "timeCycle")]
+    pub time_cycle: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

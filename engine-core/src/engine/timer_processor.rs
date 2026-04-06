@@ -135,6 +135,32 @@ impl WorkflowEngine {
 
             self.remove_persisted_timer(tid).await;
             self.run_instance_batch(timer.instance_id, token).await?;
+
+            // Re-schedule recurring timers
+            if let Some(ref def) = timer.timer_def {
+                if def.is_recurring() {
+                    let should_repeat = match timer.remaining_repetitions {
+                        Some(0) => false,
+                        _ => true,
+                    };
+                    if should_repeat {
+                        let now = chrono::Utc::now();
+                        if let Some(next_expiry) = def.next_expiry(now) {
+                            let new_remaining = timer.remaining_repetitions.map(|r| r.saturating_sub(1));
+                            let new_pending = crate::engine::types::PendingTimer {
+                                id: uuid::Uuid::new_v4(),
+                                instance_id: timer.instance_id,
+                                node_id: timer.node_id.clone(),
+                                expires_at: next_expiry,
+                                token_id: timer.token_id,
+                                timer_def: Some(def.clone()),
+                                remaining_repetitions: new_remaining,
+                            };
+                            self.pending_timers.insert(new_pending.id, new_pending);
+                        }
+                    }
+                }
+            }
         }
 
         Ok(count)

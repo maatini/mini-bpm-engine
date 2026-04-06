@@ -33,67 +33,161 @@ fn add_listeners(
 ///
 /// Supported formats: `PT5S`, `PT1H30M`, `PT10M`, `PT1H`.
 /// Returns `Err` for invalid input (empty, no PT prefix, unknown units).
+use engine_core::timer_definition::TimerDefinition;
+use chrono::DateTime;
+use chrono::Utc;
+
+/// Parse full ISO 8601 duration (P-prefix for date components, T-prefix for time).
+///
+/// Supported formats:
+/// - PT30S, PT5M, PT1H30M (time-only, existing)
+/// - P1D, P1DT12H (days + optional time)
+/// - P1W (weeks)  
+/// - P1M, P1Y, P1Y6M (months/years → converted to approximate days)
+/// - P1DT2H30M15S (full mixed format)
 fn parse_iso8601_duration(s: &str) -> EngineResult<Duration> {
     let s = s.trim();
     if s.is_empty() {
-        return Err(EngineError::InvalidDefinition(
-            "Timer duration is empty".to_string(),
-        ));
+        return Err(EngineError::InvalidDefinition("Timer duration is empty".into()));
     }
-    if !s.starts_with("PT") {
+    if !s.starts_with('P') {
         return Err(EngineError::InvalidDefinition(format!(
-            "Invalid ISO 8601 duration '{}': must start with 'PT'",
-            s
+            "Invalid ISO 8601 duration '{}': must start with 'P'", s
         )));
     }
-    let body = &s[2..];
+    let body = &s[1..];
     if body.is_empty() {
         return Err(EngineError::InvalidDefinition(format!(
-            "Invalid ISO 8601 duration '{}': no value after 'PT'",
-            s
+            "Invalid ISO 8601 duration '{}': no value after 'P'", s
         )));
     }
 
     let mut total_secs: u64 = 0;
     let mut current_num = String::new();
+    let mut in_time_part = false;
+    let mut has_value = false;
 
     for c in body.chars() {
-        if c.is_ascii_digit() {
-            current_num.push(c);
-        } else {
-            if current_num.is_empty() {
+        if c == 'T' {
+            if !current_num.is_empty() {
                 return Err(EngineError::InvalidDefinition(format!(
-                    "Invalid ISO 8601 duration '{}': missing number before '{}'",
-                    s, c
+                    "Invalid ISO 8601 duration '{}': digits before 'T' without unit", s
                 )));
             }
-            let val: u64 = current_num.parse().map_err(|_| {
-                EngineError::InvalidDefinition(format!("Invalid number in duration '{}'", s))
-            })?;
-            match c {
-                'H' => total_secs += val * 3600,
-                'M' => total_secs += val * 60,
-                'S' => total_secs += val,
-                other => {
-                    return Err(EngineError::InvalidDefinition(format!(
-                        "Invalid ISO 8601 duration '{}': unknown unit '{}'",
-                        s, other
-                    )));
-                }
-            }
-            current_num.clear();
+            in_time_part = true;
+            continue;
         }
+        if c.is_ascii_digit() {
+            current_num.push(c);
+            continue;
+        }
+        if current_num.is_empty() {
+            return Err(EngineError::InvalidDefinition(format!(
+                "Invalid ISO 8601 duration '{}': missing number before '{}'", s, c
+            )));
+        }
+        let val: u64 = current_num.parse().map_err(|_| {
+            EngineError::InvalidDefinition(format!("Invalid number in duration '{}'", s))
+        })?;
+        match (in_time_part, c) {
+            (false, 'Y') => total_secs += val * 365 * 86400,  // approximate
+            (false, 'M') => total_secs += val * 30 * 86400,   // approximate
+            (false, 'W') => total_secs += val * 7 * 86400,
+            (false, 'D') => total_secs += val * 86400,
+            (true, 'H')  => total_secs += val * 3600,
+            (true, 'M')  => total_secs += val * 60,
+            (true, 'S')  => total_secs += val,
+            _ => return Err(EngineError::InvalidDefinition(format!(
+                "Invalid ISO 8601 duration '{}': unknown unit '{}' (time_part={})", s, c, in_time_part
+            ))),
+        }
+        has_value = true;
+        current_num.clear();
     }
 
-    // Trailing digits without unit (e.g. "PT5")
     if !current_num.is_empty() {
         return Err(EngineError::InvalidDefinition(format!(
-            "Invalid ISO 8601 duration '{}': trailing digits without unit (H/M/S)",
-            s
+            "Invalid ISO 8601 duration '{}': trailing digits without unit", s
+        )));
+    }
+
+    if !has_value {
+        return Err(EngineError::InvalidDefinition(format!(
+            "Invalid ISO 8601 duration '{}': no duration components found", s
         )));
     }
 
     Ok(Duration::from_secs(total_secs))
+}
+
+/// Parse a BpmnTimerEventDefinition into a TimerDefinition.
+///
+/// Priority: timeDuration > timeDate > timeCycle (per BPMN spec, only one should be set).
+fn parse_timer_definition(
+    timer: &crate::models::BpmnTimerEventDefinition,
+) -> EngineResult<TimerDefinition> {
+    if let Some(ref dur_str) = timer.time_duration {
+        let dur = parse_iso8601_duration(dur_str)?;
+        return Ok(TimerDefinition::Duration(dur));
+    }
+
+    if let Some(ref date_str) = timer.time_date {
+        let dt = date_str.trim().parse::<DateTime<Utc>>().map_err(|e| {
+            EngineError::InvalidDefinition(format!(
+                "Invalid timeDate '{}': {}", date_str, e
+            ))
+        })?;
+        return Ok(TimerDefinition::AbsoluteDate(dt));
+    }
+
+    if let Some(ref cycle_str) = timer.time_cycle {
+        let s = cycle_str.trim();
+        // Check for ISO 8601 repeating interval: R[n]/PT...
+        if s.starts_with('R') {
+            return parse_repeating_interval(s);
+        }
+        // Otherwise treat as cron expression
+        // Validate by parsing
+        croner::Cron::new(s).parse().map_err(|e| {
+            EngineError::InvalidDefinition(format!(
+                "Invalid cron expression '{}': {}", s, e
+            ))
+        })?;
+        return Ok(TimerDefinition::CronCycle {
+            expression: s.to_string(),
+            max_repetitions: None,
+        });
+    }
+
+    // No timer type specified — default to zero duration
+    Ok(TimerDefinition::Duration(Duration::from_secs(0)))
+}
+
+/// Parse ISO 8601 repeating interval: R[n]/PT... or R/PT...
+fn parse_repeating_interval(s: &str) -> EngineResult<TimerDefinition> {
+    let parts: Vec<&str> = s.splitn(2, '/').collect();
+    if parts.len() != 2 {
+        return Err(EngineError::InvalidDefinition(format!(
+            "Invalid repeating interval '{}': expected R[n]/duration", s
+        )));
+    }
+    let r_part = parts[0]; // "R" or "R3"
+    let dur_part = parts[1]; // "PT10M"
+
+    let repetitions = if r_part == "R" {
+        None // infinite
+    } else {
+        let count_str = &r_part[1..];
+        let count: u32 = count_str.parse().map_err(|_| {
+            EngineError::InvalidDefinition(format!(
+                "Invalid repetition count in '{}': '{}' is not a number", s, count_str
+            ))
+        })?;
+        Some(count)
+    };
+
+    let interval = parse_iso8601_duration(dur_part)?;
+    Ok(TimerDefinition::RepeatingInterval { repetitions, interval })
 }
 
 /// Parses a subset of BPMN 2.0 XML and builds a `ProcessDefinition`.
@@ -173,12 +267,8 @@ pub fn parse_bpmn_xml(xml: &str) -> EngineResult<ProcessDefinition> {
     for start in process.start_events {
         let node_id = start.id.clone();
         if let Some(timer) = start.timer_event_definition {
-            let dur = if let Some(time) = timer.time_duration {
-                parse_iso8601_duration(&time)?
-            } else {
-                Duration::from_secs(0)
-            };
-            builder = builder.node(start.id, BpmnElement::TimerStartEvent(dur));
+            let timer_def = parse_timer_definition(&timer)?;
+            builder = builder.node(start.id, BpmnElement::TimerStartEvent(timer_def));
         } else if let Some(msg) = start.message_event_definition {
             let message_name = msg
                 .message_ref
@@ -294,12 +384,8 @@ pub fn parse_bpmn_xml(xml: &str) -> EngineResult<ProcessDefinition> {
     for catch_evt in process.intermediate_catch_events {
         let node_id = catch_evt.id.clone();
         if let Some(timer) = catch_evt.timer_event_definition {
-            let dur = if let Some(time) = timer.time_duration {
-                parse_iso8601_duration(&time)?
-            } else {
-                Duration::from_secs(0)
-            };
-            builder = builder.node(catch_evt.id, BpmnElement::TimerCatchEvent(dur));
+            let timer_def = parse_timer_definition(&timer)?;
+            builder = builder.node(catch_evt.id, BpmnElement::TimerCatchEvent(timer_def));
         } else if let Some(msg) = catch_evt.message_event_definition {
             let message_name = msg
                 .message_ref
@@ -341,16 +427,12 @@ pub fn parse_bpmn_xml(xml: &str) -> EngineResult<ProcessDefinition> {
         let cancel_activity = bd.cancel_activity.unwrap_or(true);
 
         if let Some(timer) = bd.timer_event_definition {
-            let dur = if let Some(time) = timer.time_duration {
-                parse_iso8601_duration(&time)?
-            } else {
-                Duration::from_secs(0)
-            };
+            let timer_def = parse_timer_definition(&timer)?;
             builder = builder.node(
                 bd.id,
                 BpmnElement::BoundaryTimerEvent {
                     attached_to,
-                    duration: dur,
+                    timer: timer_def,
                     cancel_activity,
                 },
             );

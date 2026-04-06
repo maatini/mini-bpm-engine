@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::time::Duration;
+use crate::timer_definition::TimerDefinition;
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -36,7 +36,7 @@ pub enum BpmnElement {
     /// A plain (none) start event — the process starts immediately.
     StartEvent,
     /// A timer-triggered start event that fires after the given duration.
-    TimerStartEvent(Duration),
+    TimerStartEvent(TimerDefinition),
     /// An end event — the process terminates here.
     EndEvent,
     /// A service task that pauses the workflow and must be fetched and completed by remote workers.
@@ -56,11 +56,11 @@ pub enum BpmnElement {
     /// An event-based gateway — execution pauses until exactly one of the target catch events is triggered.
     EventBasedGateway,
     /// A timer intermediate catch event that pauses the token until the duration elapses.
-    TimerCatchEvent(Duration),
+    TimerCatchEvent(TimerDefinition),
     /// A boundary timer event attached to an activity.
     BoundaryTimerEvent {
         attached_to: String,
-        duration: Duration,
+        timer: TimerDefinition,
         cancel_activity: bool,
     },
     /// A start event triggered by a named message.
@@ -87,7 +87,7 @@ pub enum BpmnElement {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ScopeEventListener {
     Timer {
-        duration: Duration,
+        timer: TimerDefinition,
         is_interrupting: bool,
         target_definition: String,
     },
@@ -719,7 +719,7 @@ mod tests {
     #[test]
     fn timer_start_event_definition() {
         let def = ProcessDefinitionBuilder::new("timer")
-            .node("ts", BpmnElement::TimerStartEvent(Duration::from_secs(5)))
+            .node("ts", BpmnElement::TimerStartEvent(crate::timer_definition::TimerDefinition::Duration(std::time::Duration::from_secs(5))))
             .node("end", BpmnElement::EndEvent)
             .flow("ts", "end")
             .build();
@@ -789,7 +789,7 @@ mod tests {
             )
             .node(
                 "catch",
-                BpmnElement::TimerCatchEvent(Duration::from_secs(5)),
+                BpmnElement::TimerCatchEvent(crate::timer_definition::TimerDefinition::Duration(std::time::Duration::from_secs(5))),
             )
             .node("end", BpmnElement::EndEvent)
             .flow("start", "gw")

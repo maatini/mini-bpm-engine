@@ -128,18 +128,20 @@ impl WorkflowEngine {
         for listener in &def.event_listeners {
             match listener {
                 ScopeEventListener::Timer {
-                    duration,
+                    timer,
                     is_interrupting: _,
                     target_definition,
                 } => {
+                    let now = Utc::now();
+                    let expires_at = timer.next_expiry(now).unwrap_or(now);
                     let pending = PendingTimer {
                         id: Uuid::new_v4(),
                         instance_id,
                         node_id: target_definition.clone(), // Abusing node_id to store the target definition for Scope Events! Or we need a special token? Wait!
-                        expires_at: Utc::now()
-                            + chrono::Duration::from_std(*duration)
-                                .unwrap_or(chrono::Duration::seconds(0)),
+                        expires_at,
                         token_id: Uuid::nil(), // No specific token, applies to whole instance
+                        timer_def: Some(timer.clone()),
+                        remaining_repetitions: None,
                     };
                     self.pending_timers.insert(pending.id, pending);
                 }
@@ -359,10 +361,17 @@ impl WorkflowEngine {
             .ok_or_else(|| EngineError::InvalidDefinition("No start event".into()))?;
 
         match start_element {
-            BpmnElement::TimerStartEvent(expected_dur) => {
-                if *expected_dur != provided_duration {
+            BpmnElement::TimerStartEvent(expected_timer) => {
+                let is_match = match expected_timer {
+                    crate::timer_definition::TimerDefinition::Duration(d) => *d == provided_duration,
+                    _ => false,
+                };
+                if !is_match {
                     return Err(EngineError::TimerMismatch {
-                        expected: expected_dur.as_secs(),
+                        expected: match expected_timer {
+                            crate::timer_definition::TimerDefinition::Duration(d) => d.as_secs(),
+                            _ => 0,
+                        },
                         provided: provided_duration.as_secs(),
                     });
                 }

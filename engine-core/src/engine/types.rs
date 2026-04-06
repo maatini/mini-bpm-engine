@@ -6,6 +6,7 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use crate::model::{FileReference, Token};
+use crate::timer_definition::TimerDefinition;
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -73,6 +74,14 @@ pub struct PendingTimer {
     pub expires_at: DateTime<Utc>,
     /// Reference to the token stored in ProcessInstance.tokens
     pub token_id: Uuid,
+    /// Original timer definition — needed for recurring timers to
+    /// compute the next expiry after each trigger.
+    #[serde(default)]
+    pub timer_def: Option<TimerDefinition>,
+    /// Remaining repetitions for RepeatingInterval timers.
+    /// None = check timer_def, Some(0) = do not repeat.
+    #[serde(default)]
+    pub remaining_repetitions: Option<u32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

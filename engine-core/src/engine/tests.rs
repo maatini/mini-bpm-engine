@@ -191,7 +191,7 @@ async fn timer_start_succeeds() {
     let dur = Duration::from_secs(60);
 
     let def = ProcessDefinitionBuilder::new("timer_proc")
-        .node("ts", BpmnElement::TimerStartEvent(dur))
+        .node("ts", BpmnElement::TimerStartEvent(crate::timer_definition::TimerDefinition::Duration(dur)))
         .node("end", BpmnElement::EndEvent)
         .flow("ts", "end")
         .build()
@@ -213,7 +213,7 @@ async fn timer_mismatch_gives_error() {
     let engine = WorkflowEngine::new();
 
     let def = ProcessDefinitionBuilder::new("timer_proc")
-        .node("ts", BpmnElement::TimerStartEvent(Duration::from_secs(60)))
+        .node("ts", BpmnElement::TimerStartEvent(crate::timer_definition::TimerDefinition::Duration(Duration::from_secs(60))))
         .node("end", BpmnElement::EndEvent)
         .flow("ts", "end")
         .build()
@@ -231,7 +231,7 @@ async fn plain_start_rejects_timer_def() {
     let engine = WorkflowEngine::new();
 
     let def = ProcessDefinitionBuilder::new("timer_proc")
-        .node("ts", BpmnElement::TimerStartEvent(Duration::from_secs(5)))
+        .node("ts", BpmnElement::TimerStartEvent(crate::timer_definition::TimerDefinition::Duration(Duration::from_secs(5))))
         .node("end", BpmnElement::EndEvent)
         .flow("ts", "end")
         .build()
@@ -1376,7 +1376,7 @@ async fn timer_catch_event_succeeds() {
         .node("start", BpmnElement::StartEvent)
         .node(
             "timer",
-            BpmnElement::TimerCatchEvent(std::time::Duration::from_millis(50)),
+            BpmnElement::TimerCatchEvent(crate::timer_definition::TimerDefinition::Duration(std::time::Duration::from_millis(50))),
         )
         .node("end", BpmnElement::EndEvent)
         .flow("start", "timer")
@@ -1425,7 +1425,7 @@ async fn boundary_timer_event_cancels_task() {
             "bound_timer",
             BpmnElement::BoundaryTimerEvent {
                 attached_to: "task".into(),
-                duration: std::time::Duration::from_millis(50),
+                timer: crate::timer_definition::TimerDefinition::Duration(std::time::Duration::from_millis(50)),
                 cancel_activity: true,
             },
         )
@@ -1600,7 +1600,7 @@ async fn in_memory_simultaneous_timer_and_message_race() {
         .node("fork", BpmnElement::ParallelGateway)
         .node(
             "timer",
-            BpmnElement::TimerCatchEvent(std::time::Duration::from_millis(50)),
+            BpmnElement::TimerCatchEvent(crate::timer_definition::TimerDefinition::Duration(std::time::Duration::from_millis(50))),
         )
         .node(
             "msg",
@@ -1798,6 +1798,8 @@ async fn restore_timer_and_message_catch() {
         node_id: "timer_1".into(),
         expires_at: chrono::Utc::now() + chrono::Duration::seconds(60),
         token_id: Uuid::new_v4(),
+        timer_def: None,
+        remaining_repetitions: None,
     };
     engine.restore_timer(timer.clone());
     assert_eq!(engine.pending_timers.len(), 1);
@@ -2067,7 +2069,7 @@ async fn event_based_gateway_timer_wins() {
         .node("gw", BpmnElement::EventBasedGateway)
         .node(
             "catch_timer",
-            BpmnElement::TimerCatchEvent(Duration::from_millis(50)),
+            BpmnElement::TimerCatchEvent(crate::timer_definition::TimerDefinition::Duration(Duration::from_millis(50))),
         )
         .node(
             "catch_msg",
@@ -2121,7 +2123,7 @@ async fn event_based_gateway_message_wins() {
         .node("gw", BpmnElement::EventBasedGateway)
         .node(
             "catch_timer",
-            BpmnElement::TimerCatchEvent(Duration::from_millis(5000)),
+            BpmnElement::TimerCatchEvent(crate::timer_definition::TimerDefinition::Duration(Duration::from_millis(5000))),
         ) // Long timer
         .node(
             "catch_msg",

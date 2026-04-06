@@ -18,24 +18,27 @@ pub(crate) fn setup_boundary_events(
     for (node_id, node) in &def.nodes {
         if let BpmnElement::BoundaryTimerEvent {
             attached_to,
-            duration,
+            timer,
             ..
         } = node
         {
             if attached_to == attached_node_id {
-                bounds.push((node_id.clone(), *duration));
+                bounds.push((node_id.clone(), timer.clone()));
             }
         }
     }
 
-    for (node_id, duration) in bounds {
+    for (node_id, timer_def) in bounds {
+        let now = Utc::now();
+        let expires_at = timer_def.next_expiry(now).unwrap_or(now);
         let pending = PendingTimer {
             id: Uuid::new_v4(),
             instance_id,
             node_id,
-            expires_at: Utc::now()
-                + chrono::Duration::from_std(duration).unwrap_or(chrono::Duration::seconds(0)),
+            expires_at,
             token_id: token.id,
+            timer_def: Some(timer_def),
+            remaining_repetitions: None,
         };
         pending_timers.push(pending);
     }

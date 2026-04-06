@@ -845,7 +845,7 @@ async fn edge_timer_zero_duration() {
         .node("start", BpmnElement::StartEvent)
         .node(
             "timer",
-            BpmnElement::TimerCatchEvent(std::time::Duration::from_secs(0)),
+            BpmnElement::TimerCatchEvent(crate::timer_definition::TimerDefinition::Duration(std::time::Duration::from_secs(0))),
         )
         .node("end", BpmnElement::EndEvent)
         .flow("start", "timer")
