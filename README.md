@@ -231,7 +231,7 @@ Der Server läuft auf `http://localhost:8081`.
 
 ## REST API
 
-> Vollständige OpenAPI 3.0 Spezifikation: **[docs/openapi.yaml](docs/openapi.yaml)**
+> Vollständige OpenAPI 3.0 Spezifikation: **[docs/openapi.yaml](docs/openapi.yaml)** | 🌐 **[In Swagger UI & Editor öffnen](https://editor.swagger.io/?url=https://raw.githubusercontent.com/maatini/mini-bpm-engine/main/docs/openapi.yaml)**
 
 ### Definitionen
 
