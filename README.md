@@ -111,6 +111,26 @@ bpmninja ist eine leichtgewichtige BPMN 2.0 Engine mit folgenden Kernfeatures:
 | **Persistente Wait-States** | Timer, Messages, User/Service Tasks überleben Server-Neustarts via NATS KV. |
 | **Structured JSON Logging** | Konfigurierbar via `tracing-subscriber` mit JSON-Feature und `RUST_LOG` Filter. |
 
+### Abweichungen vom BPMN 2.0 Standard
+
+Aus Performance- und Architekturgründen (Keep-It-Simple) weicht bpmninja in einigen Punkten vom strikten BPMN 2.0 Standard ab:
+
+- **Service Tasks (External Task Pattern):** Anstatt synchron Code innerhalb der Engine auszuführen, pausieren `Service Tasks` die Ausführung. Sie stellen den Task asynchron in eine Fetch-And-Lock-Queue (ähnlich Camunda), von wo aus externe Worker den Task abrufen (`topic`-basiert) und via API den Abschluss melden.
+- **Embedded Sub-Processes (Flattening):** Eingebettete Sub-Prozesse werden direkt beim Parsen aufgelöst und tief in den Hauptgraphen eingefügt (**Flattening**). Es gibt zur Laufzeit keine komplex verschachtelten Instanz-Strukturen, sondern nur direkte Knotenfolgen. Rücksprünge aus dem Sub-Prozess erfolgen über simulierte `SubProcessEndEvent`s in demselben Variablen-Scope.
+- **Script Tasks:** Die Auswertung von Skripten erfolgt nicht per JavaScript oder Groovy, sondern nativ in Rust via **Rhai Engine**.
+- **Multi-Instance (Parallel):** Statt gekapselte Execution-Scopes pro Iteration zu öffnen, erzeugt das Engine-Forking simple parallele Tokens auf demselben Task-Objekt innerhalb der globalen Instanzvariablen.
+
+### Aktuell nicht unterstützte BPMN-Elemente
+
+Die Engine orientiert sich an einem zweckmäßigen und performanten Kern-Feature-Set. Folgende BPMN-Elemente werden derzeit **nicht** unterstützt und führen beim Deployment zu Parser-Fehlern oder werden vollständig ignoriert:
+
+- **Weitere Task-Typen:** `BusinessRuleTask` (kein DMN-Support), `ManualTask`, `ReceiveTask`.
+- **Spezifische Intermediate/Boundary Events:** `SignalEvent`, `EscalationEvent`, `CompensationEvent`, `CancelEvent`, `LinkEvent`.
+- **Non-Interrupting Boundary Events:** Boundary Events arbeiten derzeit standardmäßig "Interrupting" (der angeheftete Task wird sofort abgebrochen). Non-Interrupting Events werden noch nicht unterstützt.
+- **Erweiterte Sub-Prozesse:** `Transaction Sub-Process`, `Ad-Hoc Sub-Process`.
+- **Spezialisierte Gateways:** `Complex Gateway`.
+- **Data Objects / Data Stores:** Visuelle Datenobjekte und Assoziationen (`Data Input/Output Association`) werden ignoriert. Der Datenaustausch erfolgt ausnahmslos über den JSON-Variablen-State (`HashMap<String, serde_json::Value>`).
+
 ---
 
 ## Architektur
