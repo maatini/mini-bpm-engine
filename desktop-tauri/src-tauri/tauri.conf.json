@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/schema.json",
   "productName": "bpmninja-desktop",
-  "version": "0.6.3",
+  "version": "0.6.4",
   "identifier": "com.minibpm.dev",
   "build": {
     "beforeDevCommand": "npm run dev",

@@ -6,7 +6,7 @@ info:
     
     Built with Axum (Rust). Supports BPMN process deployment, instance management,
     user/service task handling, message correlation, timer processing, and file attachments.
-  version: 0.6.3
+  version: 0.6.4
   contact:
     name: bpmninja
   license:

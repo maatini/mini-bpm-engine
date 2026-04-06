@@ -2,7 +2,7 @@
 
 [package]
 name = "bpmninja-desktop"
-version = "0.6.3"
+version = "0.6.4"
 description = "A Tauri App"
 authors = ["you"]
 edition = "2021"

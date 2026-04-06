@@ -2,7 +2,7 @@
   "name": "bpmninja-desktop",
   "private": true,
   "license": "MIT OR Apache-2.0",
-  "version": "0.6.3",
+  "version": "0.6.4",
   "type": "module",
   "scripts": {
     "dev": "vite",
