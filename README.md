@@ -9,7 +9,7 @@
   <img src="desktop-tauri/public/logo.png" alt="BPMNinja Logo" width="300" />
 </div>
 
-**Eine einbettbare BPMN 2.0 Workflow-Engine in Rust** — token-basierte Ausführung, NATS-Persistenz, REST-API und Desktop-UI.
+**Eine BPMN 2.0 Workflow-Engine in Rust** — token-basierte Ausführung, NATS-Persistenz, REST-API und Desktop-UI.
 
 ---
 
@@ -31,7 +31,7 @@
 
 ## Überblick
 
-bpmninja ist eine leichtgewichtige, embeddable BPMN 2.0 Engine mit folgenden Kernfeatures:
+bpmninja ist eine leichtgewichtige BPMN 2.0 Engine mit folgenden Kernfeatures:
 
 - **Token-basierte Ausführung** — jeder Pfad wird als eigenständiger Token verfolgt
 - **18 BPMN-Elemente** — Start/End Events, User/Service Tasks, Gateways (XOR, AND, OR, Event-Based), Timer, Messages, Boundary Events, Call Activities, Sub-Processes
@@ -399,7 +399,6 @@ Services erreichbar unter `localhost:8081` (API) und `localhost:4222` (NATS).
 | Event-Based Gateway | ✅ Implementiert |
 | Structured JSON Logging (`tracing-subscriber` + JSON) | ✅ Implementiert |
 | Multi-Node Cluster (NATS-basiertes Token-Locking) | 🔲 Geplant |
-| Complex Gateway | 🔲 Geplant |
 | OIDC/OAuth2 Middleware | 🔲 Geplant |
 | Prometheus Metrics Endpoint | 🔲 Geplant |
 

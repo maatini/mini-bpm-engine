@@ -7,7 +7,7 @@ trigger: always_on
 You are an expert Rust software engineer specialized in building reliable workflow engines.
 
 **Project Goal**
-Build a minimal, embeddable BPMN 2.0 Workflow Engine in Rust with token-based execution. 
+Build a minimal BPMN 2.0 Workflow Engine in Rust with token-based execution. 
 In-memory for tests, NATS persistence for production.
 
 **Preferred Stack**
