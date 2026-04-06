@@ -29,7 +29,7 @@ fn parse_simple_bpmn() {
     assert_eq!(def.next_node("ut1"), Some("end1"));
 
     match def.nodes.get("svc1").unwrap() {
-        BpmnElement::ServiceTask { topic } => assert_eq!(topic, "my_handler"),
+        BpmnElement::ServiceTask { topic, .. } => assert_eq!(topic, "my_handler"),
         _ => panic!("Expected ServiceTask"),
     }
 
@@ -601,13 +601,14 @@ fn parse_event_subprocess_accepted() {
 }
 
 #[test]
-fn parse_regular_subprocess_rejected() {
+fn parse_regular_subprocess_accepted() {
     let xml = r#"
         <definitions id="def1" xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL">
             <process id="proc1">
                 <startEvent id="s1" />
                 <endEvent id="e1" />
-                <sequenceFlow id="f1" sourceRef="s1" targetRef="e1" />
+                <sequenceFlow id="f1" sourceRef="s1" targetRef="sub1" />
+                <sequenceFlow id="f2" sourceRef="sub1" targetRef="e1" />
                 <subProcess id="sub1">
                     <startEvent id="sub_s1" />
                     <endEvent id="sub_e1" />
@@ -617,9 +618,9 @@ fn parse_regular_subprocess_rejected() {
         </definitions>
     "#;
 
-    // Regular embedded sub-processes must still be rejected
+    // Regular embedded sub-processes are now fully supported.
     let result = parse_bpmn_xml(xml);
-    assert!(result.is_err(), "Regular sub-process should be rejected");
+    assert!(result.is_ok(), "Regular embedded sub-process should be parsed");
 }
 
 #[test]
@@ -697,4 +698,83 @@ fn parse_time_cycle_repeating_interval() {
         }
         _ => panic!("Expected TimerStartEvent with RepeatingInterval"),
     }
+}
+#[test]
+fn parse_script_task() {
+    let xml = r#"
+        <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL">
+          <bpmn:process id="Process_1" isExecutable="true">
+            <bpmn:startEvent id="StartEvent_1"/>
+            <bpmn:scriptTask id="ScriptTask_1" bpmn:scriptFormat="rhai">
+              <bpmn:script>let x = 1;</bpmn:script>
+            </bpmn:scriptTask>
+            <bpmn:endEvent id="EndEvent_1"/>
+            <bpmn:sequenceFlow id="f1" sourceRef="StartEvent_1" targetRef="ScriptTask_1"/>
+            <bpmn:sequenceFlow id="f2" sourceRef="ScriptTask_1" targetRef="EndEvent_1"/>
+          </bpmn:process>
+        </bpmn:definitions>
+    "#;
+    let def = parse_bpmn_xml(xml).unwrap();
+    let node = def.get_node("ScriptTask_1").unwrap();
+    assert!(matches!(node, BpmnElement::ScriptTask { script, .. } if script == "let x = 1;"));
+}
+
+#[test]
+fn parse_terminate_end_event() {
+    let xml = r#"
+        <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL">
+          <bpmn:process id="Process_1" isExecutable="true">
+            <bpmn:startEvent id="StartEvent_1"/>
+            <bpmn:endEvent id="EndEvent_1">
+              <bpmn:terminateEventDefinition />
+            </bpmn:endEvent>
+            <bpmn:sequenceFlow id="f1" sourceRef="StartEvent_1" targetRef="EndEvent_1"/>
+          </bpmn:process>
+        </bpmn:definitions>
+    "#;
+    let def = parse_bpmn_xml(xml).unwrap();
+    let node = def.get_node("EndEvent_1").unwrap();
+    assert!(matches!(node, BpmnElement::TerminateEndEvent));
+}
+
+#[test]
+fn parse_send_task() {
+    let xml = r#"
+        <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL">
+          <bpmn:message id="Message_1" name="OrderShipped" />
+          <bpmn:process id="Process_1" isExecutable="true">
+            <bpmn:startEvent id="StartEvent_1"/>
+            <bpmn:sendTask id="SendTask_1">
+                <bpmn:messageEventDefinition bpmn:messageRef="Message_1" />
+            </bpmn:sendTask>
+            <bpmn:endEvent id="EndEvent_1"/>
+            <bpmn:sequenceFlow id="f1" sourceRef="StartEvent_1" targetRef="SendTask_1"/>
+            <bpmn:sequenceFlow id="f2" sourceRef="SendTask_1" targetRef="EndEvent_1"/>
+          </bpmn:process>
+        </bpmn:definitions>
+    "#;
+    let def = parse_bpmn_xml(xml).unwrap();
+    let node = def.get_node("SendTask_1").unwrap();
+    assert!(matches!(node, BpmnElement::SendTask { message_name, .. } if message_name == "OrderShipped"));
+}
+
+#[test]
+fn parse_intermediate_message_throw() {
+    let xml = r#"
+        <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL">
+          <bpmn:message id="Message_1" name="OrderShipped" />
+          <bpmn:process id="Process_1" isExecutable="true">
+            <bpmn:startEvent id="StartEvent_1"/>
+            <bpmn:intermediateThrowEvent id="Throw_1">
+              <bpmn:messageEventDefinition bpmn:messageRef="Message_1" />
+            </bpmn:intermediateThrowEvent>
+            <bpmn:endEvent id="EndEvent_1"/>
+            <bpmn:sequenceFlow id="f1" sourceRef="StartEvent_1" targetRef="Throw_1"/>
+            <bpmn:sequenceFlow id="f2" sourceRef="Throw_1" targetRef="EndEvent_1"/>
+          </bpmn:process>
+        </bpmn:definitions>
+    "#;
+    let def = parse_bpmn_xml(xml).unwrap();
+    let node = def.get_node("Throw_1").unwrap();
+    assert!(matches!(node, BpmnElement::SendTask { message_name, .. } if message_name == "OrderShipped"));
 }

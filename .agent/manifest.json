@@ -1,11 +1,35 @@
 {
-  "project": "mini-bpm",
+  "project": "bpmninja",
+  "version": "0.2.0",
   "agents": {
-    "engine": { "path": "engine-core", "rules": "rules/RUST_ENGINE_AGENT.md" },
-    "parser": { "path": "bpmn-parser", "rules": "rules/BPMN_PARSER_AGENT.md" },
-    "persistence": { "path": "persistence-nats", "rules": "rules/NATS_PERSISTENCE_AGENT.md" },
-    "ui": { "path": "desktop-tauri", "rules": "rules/TAURI_REACT_UI_AGENT.md" },
-    "orchestrator": { "path": "agent-orchestrator", "rules": "rules/ORCHESTRATOR_AGENT.md" },
-    "server": { "path": "engine-server", "rules": "rules/ENGINE_SERVER_AGENT.md" }
+    "engine": {
+      "path": "engine-core",
+      "rules": ["rules/RUST_ENGINE_AGENT.md", "rules/BPMN_WORKFLOW_ENGINE.md"],
+      "skills": ["skills/engine-core/SKILL.md"]
+    },
+    "parser": {
+      "path": "bpmn-parser",
+      "rules": ["rules/BPMN_PARSER_AGENT.md"],
+      "skills": ["skills/bpmn-modeling/SKILL.md"]
+    },
+    "persistence": {
+      "path": "persistence-nats",
+      "rules": ["rules/NATS_PERSISTENCE_AGENT.md", "rules/NATS_MESSAGE_BROKER.md"],
+      "skills": ["skills/nats-persistence/SKILL.md"]
+    },
+    "server": {
+      "path": "engine-server",
+      "rules": ["rules/ENGINE_SERVER_AGENT.md"],
+      "skills": ["skills/engine-server/SKILL.md"]
+    },
+    "ui": {
+      "path": "desktop-tauri",
+      "rules": ["rules/TAURI_REACT_UI_AGENT.md", "rules/TAURI_BACKEND_AGENT.md"],
+      "skills": ["skills/tauri-frontend/SKILL.md"]
+    },
+    "orchestrator": {
+      "path": "agent-orchestrator",
+      "rules": ["rules/ORCHESTRATOR_AGENT.md"]
+    }
   }
 }

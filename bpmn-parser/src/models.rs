@@ -1,4 +1,22 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub(crate) struct BpmnMultiInstanceLoopCharacteristics {
+    #[serde(rename = "@isSequential", default)]
+    pub is_sequential: Option<bool>,
+    #[serde(rename = "loopCardinality", default)]
+    pub loop_cardinality: Option<BpmnLoopCardinality>,
+    #[serde(rename = "@collection", default)]
+    pub collection: Option<String>,
+    #[serde(rename = "@elementVariable", default)]
+    pub element_variable: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub(crate) struct BpmnLoopCardinality {
+    #[serde(rename = "$value", default)]
+    pub value: Option<String>,
+}
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct BpmnExtensionElements {
@@ -126,11 +144,10 @@ pub(crate) struct BpmnProcess {
     #[serde(rename = "task", default)]
     pub generic_tasks: Vec<BpmnGenericTask>,
 
-    /// Script, send, receive, manual, businessRule tasks — all map to ServiceTask.
     #[serde(rename = "scriptTask", default)]
-    pub script_tasks: Vec<BpmnGenericTask>,
+    pub script_tasks: Vec<BpmnScriptTask>,
     #[serde(rename = "sendTask", default)]
-    pub send_tasks: Vec<BpmnGenericTask>,
+    pub send_tasks: Vec<BpmnSendTask>,
     #[serde(rename = "receiveTask", default)]
     pub receive_tasks: Vec<BpmnGenericTask>,
     #[serde(rename = "manualTask", default)]
@@ -152,7 +169,7 @@ pub(crate) struct BpmnProcess {
 
     /// Intermediate events — treated as pass-through nodes.
     #[serde(rename = "intermediateThrowEvent", default)]
-    pub intermediate_throw_events: Vec<BpmnGenericTask>,
+    pub intermediate_throw_events: Vec<BpmnIntermediateThrowEvent>,
     #[serde(rename = "intermediateCatchEvent", default)]
     pub intermediate_catch_events: Vec<BpmnIntermediateCatchEvent>,
 }
@@ -199,6 +216,57 @@ pub(crate) struct BpmnEndEvent {
     pub extension_elements: Option<BpmnExtensionElements>,
     #[serde(rename = "errorEventDefinition")]
     pub error_event_definition: Option<BpmnErrorEventDefinition>,
+    #[serde(rename = "terminateEventDefinition")]
+    pub terminate_event_definition: Option<IgnoredElement>,
+}
+
+#[allow(dead_code)]
+#[derive(Debug, Deserialize)]
+pub(crate) struct BpmnScriptTask {
+    #[serde(rename = "@id")]
+    pub id: String,
+    #[serde(rename = "extensionElements")]
+    pub extension_elements: Option<BpmnExtensionElements>,
+    #[serde(rename = "@name", default)]
+    pub name: Option<String>,
+    #[serde(rename = "@scriptFormat", default)]
+    pub script_format: Option<String>,
+    #[serde(rename = "@data-script", default)]
+    pub data_script: Option<String>,
+    #[serde(rename = "script", default)]
+    pub script: Option<BpmnScriptContent>,
+    #[serde(rename = "multiInstanceLoopCharacteristics")]
+    pub multi_instance: Option<BpmnMultiInstanceLoopCharacteristics>,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct BpmnScriptContent {
+    #[serde(rename = "$value", default)]
+    pub content: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct BpmnSendTask {
+    #[serde(rename = "@id")]
+    pub id: String,
+    #[serde(rename = "extensionElements")]
+    pub extension_elements: Option<BpmnExtensionElements>,
+    #[serde(rename = "@name", default)]
+    pub name: Option<String>,
+    #[serde(rename = "messageEventDefinition")]
+    pub message_event_definition: Option<BpmnMessageEventDefinition>,
+    #[serde(rename = "multiInstanceLoopCharacteristics")]
+    pub multi_instance: Option<BpmnMultiInstanceLoopCharacteristics>,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct BpmnIntermediateThrowEvent {
+    #[serde(rename = "@id")]
+    pub id: String,
+    #[serde(rename = "extensionElements")]
+    pub extension_elements: Option<BpmnExtensionElements>,
+    #[serde(rename = "messageEventDefinition")]
+    pub message_event_definition: Option<BpmnMessageEventDefinition>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -211,6 +279,8 @@ pub(crate) struct BpmnServiceTask {
     pub handler: Option<String>,
     #[serde(rename = "@data-topic")]
     pub topic: Option<String>,
+    #[serde(rename = "multiInstanceLoopCharacteristics")]
+    pub multi_instance: Option<BpmnMultiInstanceLoopCharacteristics>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -249,6 +319,8 @@ pub(crate) struct BpmnGenericTask {
     pub extension_elements: Option<BpmnExtensionElements>,
     #[serde(rename = "@name", default)]
     pub name: Option<String>,
+    #[serde(rename = "multiInstanceLoopCharacteristics")]
+    pub multi_instance: Option<BpmnMultiInstanceLoopCharacteristics>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -329,9 +401,9 @@ pub(crate) struct BpmnSubProcess {
     pub generic_tasks: Vec<BpmnGenericTask>,
 
     #[serde(rename = "scriptTask", default)]
-    pub script_tasks: Vec<BpmnGenericTask>,
+    pub script_tasks: Vec<BpmnScriptTask>,
     #[serde(rename = "sendTask", default)]
-    pub send_tasks: Vec<BpmnGenericTask>,
+    pub send_tasks: Vec<BpmnSendTask>,
     #[serde(rename = "receiveTask", default)]
     pub receive_tasks: Vec<BpmnGenericTask>,
     #[serde(rename = "manualTask", default)]
@@ -351,7 +423,7 @@ pub(crate) struct BpmnSubProcess {
     pub event_based_gateways: Vec<BpmnGateway>,
 
     #[serde(rename = "intermediateThrowEvent", default)]
-    pub intermediate_throw_events: Vec<BpmnGenericTask>,
+    pub intermediate_throw_events: Vec<BpmnIntermediateThrowEvent>,
     #[serde(rename = "intermediateCatchEvent", default)]
     pub intermediate_catch_events: Vec<BpmnIntermediateCatchEvent>,
 

@@ -121,16 +121,31 @@ pub enum NextAction {
     Complete,
     /// Ends the current process instance with an error code (for error propagation).
     ErrorEnd { error_code: String },
+    /// Terminate End Event: kill all active tokens and complete the instance immediately.
+    Terminate,
     /// The engine must pause — a call activity (sub-process) is pending.
     WaitForCallActivity {
         called_element: String,
         token: Token,
     },
+    /// Multi-instance parallel: spawn N tokens that each execute the same task.
+    MultiInstanceFork { node_id: String, tokens: Vec<Token> },
+    /// Multi-instance sequential: re-execute the same task node.
+    MultiInstanceNext { node_id: String, token: Token },
 }
 
 // ---------------------------------------------------------------------------
 // Instance state
 // ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct MultiInstanceProgress {
+    pub node_id: String,
+    pub total: usize,
+    pub completed: usize,
+    /// For sequential MI: the token that will re-execute the task
+    pub sequential_token: Option<Token>,
+}
 
 /// The state of a process instance.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -214,6 +229,9 @@ pub struct ProcessInstance {
     /// Join barriers waiting for tokens at converging gateways.
     #[serde(default)]
     pub join_barriers: HashMap<String, JoinBarrier>,
+    /// Progress tracking for Multi-Instance tasks.
+    #[serde(default)]
+    pub multi_instance_state: HashMap<String, MultiInstanceProgress>,
 }
 
 impl ProcessInstance {

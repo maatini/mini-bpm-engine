@@ -43,7 +43,7 @@ async fn setup_linear_engine() -> (WorkflowEngine, Uuid) {
             "svc",
             BpmnElement::ServiceTask {
                 topic: "validate".into(),
-            },
+             multi_instance: None },
         )
         .node("ut", BpmnElement::UserTask("alice".into()))
         .node("end", BpmnElement::EndEvent)
@@ -67,7 +67,7 @@ async fn conditional_routing_on_service_task() {
             "svc",
             BpmnElement::ServiceTask {
                 topic: "noop".into(),
-            },
+             multi_instance: None },
         )
         .node("end_a", BpmnElement::EndEvent)
         .node("end_b", BpmnElement::EndEvent)
@@ -348,13 +348,13 @@ async fn exclusive_gateway_takes_matching_path() {
             "high",
             BpmnElement::ServiceTask {
                 topic: "noop".into(),
-            },
+             multi_instance: None },
         )
         .node(
             "low",
             BpmnElement::ServiceTask {
                 topic: "noop".into(),
-            },
+             multi_instance: None },
         )
         .node("end", BpmnElement::EndEvent)
         .flow("start", "gw")
@@ -405,13 +405,13 @@ async fn exclusive_gateway_uses_default_when_no_match() {
             "high",
             BpmnElement::ServiceTask {
                 topic: "noop".into(),
-            },
+             multi_instance: None },
         )
         .node(
             "low",
             BpmnElement::ServiceTask {
                 topic: "noop".into(),
-            },
+             multi_instance: None },
         )
         .node("end", BpmnElement::EndEvent)
         .flow("start", "gw")
@@ -490,13 +490,13 @@ async fn inclusive_gateway_forks_multiple_paths() {
             "svc_a",
             BpmnElement::ServiceTask {
                 topic: "track_a".into(),
-            },
+             multi_instance: None },
         )
         .node(
             "svc_b",
             BpmnElement::ServiceTask {
                 topic: "track_b".into(),
-            },
+             multi_instance: None },
         )
         .node("end", BpmnElement::EndEvent)
         .flow("start", "gw")
@@ -546,13 +546,13 @@ async fn inclusive_gateway_single_match_no_fork() {
             "a",
             BpmnElement::ServiceTask {
                 topic: "noop".into(),
-            },
+             multi_instance: None },
         )
         .node(
             "b",
             BpmnElement::ServiceTask {
                 topic: "noop".into(),
-            },
+             multi_instance: None },
         )
         .node("end", BpmnElement::EndEvent)
         .flow("start", "gw")
@@ -800,7 +800,7 @@ fn build_script_test_definition() -> ProcessDefinition {
             "svc",
             BpmnElement::ServiceTask {
                 topic: "calculate".into(),
-            },
+             multi_instance: None },
         )
         .node("end", BpmnElement::EndEvent)
         .flow("start", "svc")
@@ -916,13 +916,13 @@ async fn parallel_gateway_forks_and_joins() {
             "task_a",
             BpmnElement::ServiceTask {
                 topic: "task_a".into(),
-            },
+             multi_instance: None },
         )
         .node(
             "task_b",
             BpmnElement::ServiceTask {
                 topic: "task_b".into(),
-            },
+             multi_instance: None },
         )
         .node("join", BpmnElement::ParallelGateway)
         .node("end", BpmnElement::EndEvent)
@@ -1039,7 +1039,7 @@ async fn service_task_fail_and_retries() {
             "svc",
             BpmnElement::ServiceTask {
                 topic: "fail_test".into(),
-            },
+             multi_instance: None },
         )
         .node("end", BpmnElement::EndEvent)
         .flow("start", "svc")
@@ -1094,7 +1094,7 @@ async fn service_task_extend_lock() {
             "svc",
             BpmnElement::ServiceTask {
                 topic: "ext".into(),
-            },
+             multi_instance: None },
         )
         .node("end", BpmnElement::EndEvent)
         .flow("start", "svc")
@@ -1138,7 +1138,7 @@ async fn service_task_handle_bpmn_error() {
             "svc",
             BpmnElement::ServiceTask {
                 topic: "err".into(),
-            },
+             multi_instance: None },
         )
         .node("end", BpmnElement::EndEvent)
         .flow("start", "svc")
@@ -1193,6 +1193,7 @@ async fn restore_instance_loads_from_persistence() {
         tokens: std::collections::HashMap::new(),
         active_tokens: vec![],
         join_barriers: std::collections::HashMap::new(),
+        multi_instance_state: std::collections::HashMap::new(),
     };
 
     engine.restore_instance(inst.clone()).await;
@@ -1268,7 +1269,7 @@ async fn mutation_fetch_service_task_boundary() {
             "t1",
             BpmnElement::ServiceTask {
                 topic: "bound".into(),
-            },
+             multi_instance: None },
         )
         .node("end", BpmnElement::EndEvent)
         .flow("start", "t1")
@@ -1312,7 +1313,7 @@ async fn mutation_find_downstream_join() {
             "dummy",
             BpmnElement::ServiceTask {
                 topic: "dummy".to_string(),
-            },
+             multi_instance: None },
         )
         .node("end", BpmnElement::EndEvent)
         .flow("start", "gw_split")
@@ -1461,7 +1462,7 @@ async fn boundary_error_event_catches_error() {
             "task",
             BpmnElement::ServiceTask {
                 topic: "err_topic".into(),
-            },
+             multi_instance: None },
         )
         .node(
             "bound_err",
@@ -1841,10 +1842,10 @@ async fn test_nested_parallel_gateways() {
     let def = ProcessDefinitionBuilder::new("nested")
         .node("start", BpmnElement::StartEvent)
         .node("s1", BpmnElement::ParallelGateway)
-        .node("t1", BpmnElement::ServiceTask { topic: "t".into() })
+        .node("t1", BpmnElement::ServiceTask { topic: "t".into(), multi_instance: None })
         .node("s2", BpmnElement::ParallelGateway)
-        .node("t2", BpmnElement::ServiceTask { topic: "t".into() })
-        .node("t3", BpmnElement::ServiceTask { topic: "t".into() })
+        .node("t2", BpmnElement::ServiceTask { topic: "t".into(), multi_instance: None })
+        .node("t3", BpmnElement::ServiceTask { topic: "t".into(), multi_instance: None })
         .node("j2", BpmnElement::ParallelGateway)
         .node("j1", BpmnElement::ParallelGateway)
         .node("end", BpmnElement::EndEvent)

@@ -102,6 +102,7 @@ impl WorkflowEngine {
             tokens: HashMap::new(),
             active_tokens: Vec::new(),
             join_barriers: std::collections::HashMap::new(),
+            multi_instance_state: std::collections::HashMap::new(),
         };
 
         tracing::info!(
@@ -401,6 +402,7 @@ impl WorkflowEngine {
             tokens: HashMap::new(),
             active_tokens: Vec::new(),
             join_barriers: std::collections::HashMap::new(),
+            multi_instance_state: std::collections::HashMap::new(),
         };
 
         tracing::info!(

@@ -26,15 +26,31 @@ pub fn parse_bpmn_xml(xml: &str) -> EngineResult<ProcessDefinition>
 | XML Element | Maps to `BpmnElement` |
 |---|---|
 | `<startEvent>` | `StartEvent` |
-| `<startEvent>` + `<timerEventDefinition>` | `TimerStartEvent(Duration)` |
+| `<startEvent>` + `<timerEventDefinition>` | `TimerStartEvent(TimerDefinition)` |
+| `<startEvent>` + `<messageEventDefinition>` | `MessageStartEvent { message_name }` |
 | `<endEvent>` | `EndEvent` |
+| `<endEvent>` + `<terminateEventDefinition>` | `TerminateEndEvent` |
+| `<endEvent>` + `<errorEventDefinition>` | `ErrorEndEvent { error_code }` |
 | `<serviceTask>` with `data-topic` | `ServiceTask { topic }` |
 | `<userTask>` with `data-assignee` | `UserTask(assignee)` |
+| `<scriptTask>` with inline `<script>` | `ScriptTask { script }` |
+| `<sendTask>` with `data-message-name` | `SendTask { message_name }` |
 | `<exclusiveGateway>` with optional `default` | `ExclusiveGateway { default }` |
 | `<inclusiveGateway>` | `InclusiveGateway` |
-| `<parallelGateway>` | `InclusiveGateway` (temporary mapping) |
-| `<task>`, `<scriptTask>`, `<sendTask>`, etc. | `ServiceTask { topic: name }` (generic fallback) |
-| `<intermediateThrowEvent>`, `<intermediateCatchEvent>` | `ServiceTask { topic: "event_passthrough" }` |
+| `<parallelGateway>` | `ParallelGateway` |
+| `<eventBasedGateway>` | `EventBasedGateway` |
+| `<intermediateCatchEvent>` + `<timerEventDefinition>` | `TimerCatchEvent(TimerDefinition)` |
+| `<intermediateCatchEvent>` + `<messageEventDefinition>` | `MessageCatchEvent { message_name }` |
+| `<intermediateThrowEvent>` + `<messageEventDefinition>` | `SendTask { message_name }` |
+| `<boundaryEvent>` + `<timerEventDefinition>` | `BoundaryTimerEvent { attached_to, timer, cancel_activity }` |
+| `<boundaryEvent>` + `<errorEventDefinition>` | `BoundaryErrorEvent { attached_to, error_code }` |
+| `<task>` (generic) | `ServiceTask { topic: name }` (fallback) |
+
+## Timer Definition Support
+Parses `<timerEventDefinition>` children:
+- `<timeDuration>` → `TimerDefinition::Duration` (ISO 8601, e.g. `PT30S`, `PT5M`, `P1DT2H`)
+- `<timeDate>` → `TimerDefinition::AbsoluteDate` (ISO 8601 datetime)
+- `<timeCycle>` → `TimerDefinition::CronCycle` or `TimerDefinition::RepeatingInterval` (R-notation)
 
 ## Execution Listeners
 Parsed from `<extensionElements>`:
@@ -57,6 +73,7 @@ The parser resolves the BPMN `default` attribute (which is a **flow ID**) to the
 
 ## Key Design Decisions
 - Uses `quick-xml` with `overlapped-lists` feature for bpmn-js interleaved output
-- All unknown task types map to `ServiceTask` as fallback
+- Unknown task types fall back to `ServiceTask` (with name as topic)
 - Assignee defaults to `"unassigned"` if not specified
-- Timer duration parsed from `PT{n}S` format (basic implementation)
+- Full ISO 8601 duration parsing via internal `parse_iso8601_duration()`
+- Event sub-processes are detected and logged but handled separately

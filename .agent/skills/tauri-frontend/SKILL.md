@@ -68,7 +68,7 @@ desktop-tauri/
 | `complete_service_task(id, worker, vars)` | Complete a service task |
 
 ## State Management
-- `AppState` with `Arc<Mutex<WorkflowEngine>>` for embedded mode
+- `AppState` with `Arc<WorkflowEngine>` — engine uses internal DashMap-based concurrency (no external Mutex)
 - BPMN XML cached in-memory + NATS Object Store
 - NATS auto-connect on startup (graceful fallback to in-memory)
 - Full state restore from NATS on startup

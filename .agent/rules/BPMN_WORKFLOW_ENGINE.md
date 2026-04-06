@@ -5,36 +5,45 @@ file_patterns: ["engine-core/**"]
 
 # BPMN_WORKFLOW_ENGINE.md - Project Specification
 
-## Supported BPMN Elements
+## Supported BPMN Elements (19 variants)
 - **StartEvent** — plain start, process begins immediately
-- **TimerStartEvent(Duration)** — timer-triggered, fires after configured duration
+- **TimerStartEvent(TimerDefinition)** — timer-triggered, fires after configured duration/date/cycle
 - **EndEvent** — terminal node, marks instance as completed
+- **TerminateEndEvent** — immediately kills all active tokens in the instance
 - **ErrorEndEvent { error_code }** — throws a BPMN error on completion
 - **ServiceTask { topic }** — Camunda-style external task; creates a `PendingServiceTask` that remote workers fetch-and-lock, then complete or fail
 - **UserTask(assignee)** — creates a `PendingUserTask` assigned to a user/role, waits for external `complete_user_task()` call
+- **ScriptTask { script }** — executes a Rhai script inline and automatically advances the token
+- **SendTask { message_name }** — publishes a named message and automatically advances
 - **ExclusiveGateway { default }** — XOR split; first matching condition wins, optional default flow
 - **InclusiveGateway** — OR split; all matching conditions fire (token forking via `ContinueMultiple`)
 - **ParallelGateway** — AND split/join; all outgoing paths taken unconditionally, join waits for ALL incoming tokens
-- **TimerCatchEvent(Duration)** — intermediate timer catch; pauses token until duration elapses
-- **BoundaryTimerEvent { attached_to, duration, cancel_activity }** — boundary timer attached to an activity
+- **EventBasedGateway** — execution pauses until exactly one of the target catch events is triggered (only MessageCatchEvent/TimerCatchEvent targets)
+- **TimerCatchEvent(TimerDefinition)** — intermediate timer catch; pauses token until duration elapses
+- **BoundaryTimerEvent { attached_to, timer, cancel_activity }** — boundary timer attached to an activity
 - **MessageStartEvent { message_name }** — start event triggered by a named message
 - **MessageCatchEvent { message_name }** — intermediate catch event waiting for a message
 - **BoundaryErrorEvent { attached_to, error_code }** — boundary error event attached to an activity
 - **CallActivity { called_element }** — invokes another process definition as a sub-process
+- **SubProcess { called_element }** — embedded sub-process with inline definition
 
 ### Additional Concepts
 - **Conditional Sequence Flows** — edges carry optional condition expressions (e.g. `amount > 100`). Evaluated by `condition.rs`.
 - **Execution Listeners** — Rhai scripts attached to nodes (start/end events). Mutate token variables. Evaluated by `script_runner.rs`.
+- **Scope Event Listeners** — Timer/Message/Error event sub-process triggers (`ScopeEventListener` enum).
 
 ## Architecture (must follow)
 
 ### 1. Model Layer (`model.rs`)
-- `BpmnElement` enum — all 15 variants above
+- `BpmnElement` enum — all 19 variants above
 - `SequenceFlow { target, condition }` — directed edge with optional condition
-- `Token { id: Uuid, current_node, variables: HashMap<String, Value> }`
-- `ProcessDefinition { key, id, nodes, flows, listeners }` — validated at construction time
-- `ProcessDefinitionBuilder` — fluent builder with `.node()`, `.flow()`, `.conditional_flow()`, `.listener()`
+- `Token { id: Uuid, current_node, variables: HashMap<String, Value>, is_merged }`
+- `ProcessDefinition { key, id, version, nodes, flows, listeners, event_listeners, sub_processes }` — validated at construction time
+- `ProcessDefinitionBuilder` — fluent builder with `.node()`, `.flow()`, `.conditional_flow()`, `.listener()`, `.scope_event()`, `.sub_process()`
 - `ExecutionListener { event: ListenerEvent, script: String }`
+- `ScopeEventListener` — Timer/Message/Error variants for event sub-processes
+- `TimerDefinition` — Duration, AbsoluteDate, CronCycle, RepeatingInterval
+- `FileReference` — typed wrapper for file variable attachments
 
 ### 2. Engine Core (`engine/` submodule)
 - `engine/mod.rs` — `WorkflowEngine` public API, `deploy_definition()`, `start_instance()`, message correlation

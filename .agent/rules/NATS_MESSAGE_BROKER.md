@@ -3,7 +3,7 @@ trigger: file_match
 file_patterns: ["persistence-nats/**"]
 ---
 
-# NATS Message Broker Rules (mini-bpm Project)
+# NATS Message Broker Rules (BPMNinja Project)
 
 You are an expert in NATS + Rust persistence for workflow engines.
 Whenever the user requests NATS integration, persistence, or distributed state storage, follow these rules **exactly**.
@@ -15,7 +15,7 @@ Whenever the user requests NATS integration, persistence, or distributed state s
 - Error handling: extend `EngineError` with `PersistenceError` variant
 
 ## 2. NATS Feature Split (NEVER change this!)
-| Feature          | Bucket/Stream Name       | Usage in mini-bpm                                   | Why this choice? |
+| Feature          | Bucket/Stream Name       | Usage in BPMNinja                                   | Why this choice? |
 |------------------|--------------------------|-----------------------------------------------------|------------------|
 | **Object Store** | `bpmn_xml`              | Original BPMN 2.0 XML (immutable)                  | For large artifacts, chunking, versioning |
 | **Object Store** | `instance_files`        | File variable attachments (binary)                  | Binary blobs, separate from KV |

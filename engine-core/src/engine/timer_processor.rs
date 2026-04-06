@@ -139,10 +139,7 @@ impl WorkflowEngine {
             // Re-schedule recurring timers
             if let Some(ref def) = timer.timer_def {
                 if def.is_recurring() {
-                    let should_repeat = match timer.remaining_repetitions {
-                        Some(0) => false,
-                        _ => true,
-                    };
+                    let should_repeat = !matches!(timer.remaining_repetitions, Some(0));
                     if should_repeat {
                         let now = chrono::Utc::now();
                         if let Some(next_expiry) = def.next_expiry(now) {

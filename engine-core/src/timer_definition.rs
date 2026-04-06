@@ -52,7 +52,7 @@ impl TimerDefinition {
             TimerDefinition::CronCycle { expression, .. } => {
                 // Uses croner for next occurrence
                 let cron = croner::Cron::new(expression).parse().ok()?;
-                cron.find_next_occurrence(&now.into(), false).ok()
+                cron.find_next_occurrence(&now, false).ok()
             }
             TimerDefinition::RepeatingInterval { interval, .. } => {
                 let chrono_dur = chrono::Duration::from_std(*interval).ok()?;

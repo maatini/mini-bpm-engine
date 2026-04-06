@@ -1,3 +1,22 @@
-.gemini
+# Build artifacts
 target
 node_modules
+.devbox
+
+# Lock files (never manually edited, waste context tokens)
+Cargo.lock
+*.lock
+
+# Generated API specs (agent should use skills instead)
+docs/openapi.yaml
+openapi.yaml
+
+# Assets (images/logos, not code-relevant)
+readme-assets/
+
+# shadcn/ui components (DO NOT MODIFY per rules)
+desktop-tauri/src/components/ui/
+
+# System files
+.DS_Store
+.gemini

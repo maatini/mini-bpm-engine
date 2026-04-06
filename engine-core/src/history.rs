@@ -308,7 +308,7 @@ mod tests {
             variables: HashMap::new(),
             tokens: HashMap::new(),
             active_tokens: vec![],
-            join_barriers: HashMap::new(),
+            join_barriers: HashMap::new(), multi_instance_state: HashMap::new(),
         };
         old.variables.insert("a".into(), json!(1));
         old.variables.insert("b".into(), json!(2));
@@ -352,7 +352,7 @@ mod tests {
             variables: HashMap::new(),
             tokens: HashMap::new(),
             active_tokens: vec![],
-            join_barriers: HashMap::new(),
+            join_barriers: HashMap::new(), multi_instance_state: HashMap::new(),
         };
 
         let mut new = old.clone();
@@ -456,7 +456,7 @@ mod tests {
             variables: HashMap::new(),
             tokens: HashMap::new(),
             active_tokens: vec![],
-            join_barriers: HashMap::new(),
+            join_barriers: HashMap::new(), multi_instance_state: HashMap::new(),
         };
 
         let new = old.clone();

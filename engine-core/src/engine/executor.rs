@@ -116,9 +116,21 @@ impl WorkflowEngine {
                     crate::history::HistoryEventType::BranchCompleted,
                     format!("Execution path completed with error '{}'", error_code),
                 ),
+                NextAction::Terminate => (
+                    crate::history::HistoryEventType::BranchCompleted,
+                    "Process terminated".to_string(),
+                ),
                 NextAction::WaitForEventGroup(_) => (
                     crate::history::HistoryEventType::TokenAdvanced,
                     "Waiting for multiple alternative events".to_string(),
+                ),
+                NextAction::MultiInstanceFork { .. } => (
+                    crate::history::HistoryEventType::TokenForked,
+                    "Spawned Multi-Instance parallel tokens".to_string(),
+                ),
+                NextAction::MultiInstanceNext { .. } => (
+                    crate::history::HistoryEventType::TokenAdvanced,
+                    "Advanced to next Multi-Instance sequential iteration".to_string(),
                 ),
             };
 
@@ -373,6 +385,77 @@ impl WorkflowEngine {
                         }
                     }
                 }
+                NextAction::Terminate => {
+                    // Cancel ALL pending items for this instance
+                    self.pending_user_tasks.retain(|_, t| t.instance_id != instance_id);
+                    self.pending_service_tasks.retain(|_, t| t.instance_id != instance_id);
+                    self.pending_timers.retain(|_, t| t.instance_id != instance_id);
+                    self.pending_message_catches.retain(|_, t| t.instance_id != instance_id);
+
+                    // Mark all active tokens as completed
+                    if let Some(inst_arc) = self.instances.get(&instance_id).await {
+                        let mut inst = inst_arc.write().await;
+                        for at in inst.active_tokens.iter_mut() {
+                            at.completed = true;
+                        }
+                        inst.state = InstanceState::Completed;
+                        inst.audit_log.push(
+                            "⛔ Process terminated. All tokens killed.".to_string(),
+                        );
+                    }
+
+                    // Clear the execution queue — no more tokens should be processed
+                    queue.clear();
+
+                    self.record_history_event(
+                        instance_id,
+                        crate::history::HistoryEventType::InstanceCompleted,
+                        "Process terminated via TerminateEndEvent",
+                        crate::history::ActorType::Engine,
+                        None,
+                        None,
+                    )
+                    .await;
+                }
+                NextAction::MultiInstanceFork { node_id, tokens } => {
+                    let branch_count = tokens.len();
+                    let join_id = format!("MI_JOIN_{node_id}");
+                    let inst_arc = self.instances.get(&instance_id).await.unwrap();
+                    {
+                        let mut inst = inst_arc.write().await;
+                        inst.join_barriers.insert(
+                            join_id.clone(),
+                            JoinBarrier {
+                                gateway_node_id: join_id.clone(),
+                                expected_count: branch_count,
+                                arrived_tokens: Vec::new(),
+                            },
+                        );
+                        if let Some(active) = inst
+                            .active_tokens
+                            .iter_mut()
+                            .find(|at| at.token.id == token.id)
+                        {
+                            active.completed = true;
+                        }
+                        inst.state = InstanceState::ParallelExecution {
+                            active_token_count: inst.active_tokens.len() + branch_count,
+                        };
+                    }
+                    for (idx, fork_token) in tokens.into_iter().enumerate() {
+                        self.register_active_token(
+                            instance_id,
+                            &node_id,
+                            idx,
+                            &fork_token,
+                        )
+                        .await?;
+                        queue.push_back(fork_token);
+                    }
+                }
+                NextAction::MultiInstanceNext { token, .. } => {
+                    queue.push_back(token);
+                }
             }
         } // end while
 
@@ -483,6 +566,23 @@ impl WorkflowEngine {
                 Ok(NextAction::Complete)
             }
 
+            BpmnElement::TerminateEndEvent => {
+                self.run_end_scripts(instance_id, token, &def_clone, &current_id)
+                    .await?;
+                let inst_arc = self
+                    .instances
+                    .get(&instance_id)
+                    .await
+                    .ok_or(EngineError::NoSuchInstance(instance_id))?;
+                let mut inst = inst_arc.write().await;
+                inst.current_node = current_id.clone();
+                inst.audit_log.push(format!(
+                    "⛔ Terminate end event '{current_id}' — killing all active tokens"
+                ));
+                tracing::info!("Instance {instance_id}: terminate end event '{current_id}'");
+                Ok(NextAction::Terminate)
+            }
+
             BpmnElement::UserTask(assignee) => {
                 let pending_timers =
                     setup_boundary_events(&def_clone, &current_id, instance_id, token);
@@ -518,7 +618,59 @@ impl WorkflowEngine {
                 Ok(NextAction::WaitForUser(pending))
             }
 
-            BpmnElement::ServiceTask { topic } => {
+            BpmnElement::ScriptTask { script, multi_instance: _ } => {
+                // Execute the Rhai script with the token's variables as scope
+                let script_engine = crate::engine::create_script_engine();
+                let mut scope = rhai::Scope::new();
+                for (k, v) in &token.variables {
+                    scope.push_dynamic(k, rhai::serde::to_dynamic(v).unwrap_or(rhai::Dynamic::UNIT));
+                }
+
+                script_engine
+                    .eval_with_scope::<()>(&mut scope, script)
+                    .map_err(|e| EngineError::ScriptError(e.to_string()))?;
+
+                // Write back modified variables from scope to token
+                for (k, _, v) in scope.iter_raw() {
+                    if let Ok(json_val) = rhai::serde::from_dynamic(v) {
+                        token.variables.insert(k.to_string(), json_val);
+                    }
+                }
+
+                self.run_end_scripts(instance_id, token, &def_clone, &current_id).await?;
+
+                let next = resolve_next_target(&def_clone, &current_id, &token.variables)?;
+                token.current_node = next.clone();
+
+                let inst_arc = self.instances.get(&instance_id).await
+                    .ok_or(EngineError::NoSuchInstance(instance_id))?;
+                let mut inst = inst_arc.write().await;
+                inst.current_node = next;
+                inst.variables = token.variables.clone();
+                inst.audit_log.push(format!("📜 Script task '{current_id}' executed"));
+
+                Ok(NextAction::Continue(token.clone()))
+            }
+            BpmnElement::SendTask { message_name, multi_instance: _ } => {
+                tracing::info!(
+                    "Instance {instance_id}: send task '{current_id}' publishing message '{message_name}'"
+                );
+                self.run_end_scripts(instance_id, token, &def_clone, &current_id).await?;
+
+                let next = resolve_next_target(&def_clone, &current_id, &token.variables)?;
+                token.current_node = next.clone();
+
+                let inst_arc = self.instances.get(&instance_id).await
+                    .ok_or(EngineError::NoSuchInstance(instance_id))?;
+                let mut inst = inst_arc.write().await;
+                inst.current_node = next;
+                inst.audit_log.push(format!(
+                    "📤 Send task '{current_id}' published message '{message_name}'"
+                ));
+
+                Ok(NextAction::Continue(token.clone()))
+            }
+            BpmnElement::ServiceTask { topic, multi_instance: _ } => {
                 let pending_timers =
                     setup_boundary_events(&def_clone, &current_id, instance_id, token);
                 for t in pending_timers {
@@ -722,8 +874,7 @@ impl WorkflowEngine {
                 Ok(NextAction::WaitForMessage(pending))
             }
 
-            BpmnElement::CallActivity { called_element }
-            | BpmnElement::SubProcess { called_element } => {
+            BpmnElement::CallActivity { called_element } => {
                 let pending_timers =
                     setup_boundary_events(&def_clone, &current_id, instance_id, token);
                 for t in pending_timers {
@@ -738,7 +889,7 @@ impl WorkflowEngine {
                 let mut inst = inst_arc.write().await;
                 inst.current_node = current_id.clone();
                 inst.audit_log.push(format!(
-                    "🔗 Call Activity/Sub Process '{current_id}' invoking '{called_element}'"
+                    "🔗 Call Activity '{current_id}' invoking '{called_element}'"
                 ));
                 tracing::info!(
                     "Instance {instance_id}: '{current_id}' invoking '{called_element}'"
@@ -748,6 +899,18 @@ impl WorkflowEngine {
                     called_element: called_element.clone(),
                     token: token.clone(),
                 })
+            }
+
+            BpmnElement::EmbeddedSubProcess { start_node_id } => {
+                // Redirect the token into the embedded sub-process scope
+                token.current_node = start_node_id.clone();
+                Ok(NextAction::Continue(token.clone()))
+            }
+
+            BpmnElement::SubProcessEndEvent { sub_process_id } => {
+                let next = resolve_next_target(&def_clone, sub_process_id, &token.variables)?;
+                token.current_node = next.clone();
+                Ok(NextAction::Continue(token.clone()))
             }
 
             BpmnElement::ErrorEndEvent { error_code } => {

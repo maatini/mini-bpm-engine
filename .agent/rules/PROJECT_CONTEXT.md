@@ -11,7 +11,7 @@ Build a minimal BPMN 2.0 Workflow Engine in Rust with token-based execution.
 In-memory for tests, NATS persistence for production.
 
 **Preferred Stack**
-- Tokio, anyhow, thiserror, log, chrono
+- Tokio, anyhow, thiserror, tracing, tracing-subscriber, chrono
 - `quick-xml` + serde (`bpmn-parser`)
 - `rhai` (scripting)
 - `axum` (`engine-server`)

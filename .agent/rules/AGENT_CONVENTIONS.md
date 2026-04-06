@@ -2,7 +2,7 @@
 trigger: always_on
 ---
 
-# Global Agent Conventions for mini-bpm
+# Global Agent Conventions for BPMNinja
 
 1. **Single Responsibility:** Modify only your assigned crate. DO NOT touch other domains.
 2. **Traits over Types:** Cross-crate communication only via Rust Traits (e.g., `WorkflowPersistence`).

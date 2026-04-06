@@ -190,6 +190,17 @@ fn parse_repeating_interval(s: &str) -> EngineResult<TimerDefinition> {
     Ok(TimerDefinition::RepeatingInterval { repetitions, interval })
 }
 
+fn parse_multi_instance(
+    mi: Option<crate::models::BpmnMultiInstanceLoopCharacteristics>,
+) -> Option<engine_core::model::MultiInstanceDef> {
+    mi.map(|m| engine_core::model::MultiInstanceDef {
+        is_sequential: m.is_sequential.unwrap_or(false),
+        loop_cardinality: m.loop_cardinality.and_then(|c| c.value).map(|v| v.trim().to_string()),
+        collection: m.collection.map(|c| c.trim().to_string()),
+        element_variable: m.element_variable.map(|e| e.trim().to_string()),
+    })
+}
+
 /// Parses a subset of BPMN 2.0 XML and builds a `ProcessDefinition`.
 ///
 /// Note: Since `quick-xml` expects exact structure, the parsed XML must match
@@ -219,26 +230,6 @@ pub fn parse_bpmn_xml(xml: &str) -> EngineResult<ProcessDefinition> {
     let process_id = process.id.clone();
     let mut builder = ProcessDefinitionBuilder::new(process_id.clone());
 
-    // Separate event sub-processes from regular embedded sub-processes.
-    // Event sub-processes (triggeredByEvent="true") are scope-level handlers
-    // that will be supported in a future release — skip them gracefully.
-    // Regular embedded sub-processes are not yet supported and cause an error.
-    let has_regular_subprocess = process
-        .sub_processes
-        .iter()
-        .any(|sp| sp.triggered_by_event != Some(true));
-    if has_regular_subprocess {
-        return Err(EngineError::InvalidDefinition(
-            "Embedded subprocesses are not yet supported. Please use flat processes or event sub-processes (triggeredByEvent=\"true\").".to_string(),
-        ));
-    }
-    if !process.sub_processes.is_empty() {
-        tracing::info!(
-            "Process '{}': skipping {} event sub-process(es) (not yet executed, but parsing succeeds)",
-            process_id,
-            process.sub_processes.len()
-        );
-    }
 
     // Lookup maps for messages and errors
     let message_lookup: HashMap<String, String> = defs
@@ -284,7 +275,9 @@ pub fn parse_bpmn_xml(xml: &str) -> EngineResult<ProcessDefinition> {
     // 2. Process End Events
     for end in process.end_events {
         let node_id = end.id.clone();
-        if let Some(err) = end.error_event_definition {
+        if end.terminate_event_definition.is_some() {
+            builder = builder.node(end.id, BpmnElement::TerminateEndEvent);
+        } else if let Some(err) = end.error_event_definition {
             let error_code = err
                 .error_ref
                 .and_then(|ref_id| error_lookup.get(&ref_id).cloned())
@@ -304,7 +297,8 @@ pub fn parse_bpmn_xml(xml: &str) -> EngineResult<ProcessDefinition> {
             .topic
             .or(task.handler)
             .unwrap_or_else(|| task.id.clone());
-        builder = builder.node(task.id, BpmnElement::ServiceTask { topic });
+        let multi_instance = parse_multi_instance(task.multi_instance);
+        builder = builder.node(task.id, BpmnElement::ServiceTask { topic, multi_instance });
         builder = add_listeners(builder, &node_id, task.extension_elements);
     }
 
@@ -316,14 +310,52 @@ pub fn parse_bpmn_xml(xml: &str) -> EngineResult<ProcessDefinition> {
         builder = add_listeners(builder, &node_id, task.extension_elements);
     }
 
-    // 5. Generic tasks (bpmn-js default task element)
-    //    Also covers scriptTask, sendTask, receiveTask, manualTask,
-    //    businessRuleTask, and callActivity — all map to ServiceTask.
+    // 5a. Script Tasks — execute inline Rhai script
+    for task in process.script_tasks {
+        let node_id = task.id.clone();
+        // Priority: inline <script> element > data-script attribute
+        let script_content = task
+            .script
+            .and_then(|s| s.content)
+            .or(task.data_script)
+            .unwrap_or_default();
+
+        let multi_instance = parse_multi_instance(task.multi_instance);
+
+        if script_content.trim().is_empty() {
+            // No script body → treat as pass-through service task
+            let topic = task.name.unwrap_or_else(|| task.id.clone());
+            builder = builder.node(task.id, BpmnElement::ServiceTask { topic, multi_instance });
+        } else {
+            builder = builder.node(
+                task.id,
+                BpmnElement::ScriptTask {
+                    script: script_content,
+                    multi_instance,
+                },
+            );
+        }
+        builder = add_listeners(builder, &node_id, task.extension_elements);
+    }
+
+    // 5b. Send Tasks — fire-and-forget message publishers
+    for task in process.send_tasks {
+        let node_id = task.id.clone();
+        let message_name = task
+            .message_event_definition
+            .and_then(|m| m.message_ref)
+            .and_then(|ref_id| message_lookup.get(&ref_id).cloned())
+            .or(task.name)
+            .unwrap_or_else(|| format!("send_{}", task.id));
+        let multi_instance = parse_multi_instance(task.multi_instance);
+        builder = builder.node(task.id, BpmnElement::SendTask { message_name, multi_instance });
+        builder = add_listeners(builder, &node_id, task.extension_elements);
+    }
+
+    // 5c. Generic tasks (remaining: receive, manual, businessRule, callActivity)
     let all_generic_tasks = process
         .generic_tasks
         .into_iter()
-        .chain(process.script_tasks)
-        .chain(process.send_tasks)
         .chain(process.receive_tasks)
         .chain(process.manual_tasks)
         .chain(process.business_rule_tasks)
@@ -332,7 +364,8 @@ pub fn parse_bpmn_xml(xml: &str) -> EngineResult<ProcessDefinition> {
     for task in all_generic_tasks {
         let node_id = task.id.clone();
         let topic = task.name.unwrap_or_else(|| task.id.clone());
-        builder = builder.node(task.id, BpmnElement::ServiceTask { topic });
+        let multi_instance = parse_multi_instance(task.multi_instance);
+        builder = builder.node(task.id, BpmnElement::ServiceTask { topic, multi_instance });
         builder = add_listeners(builder, &node_id, task.extension_elements);
     }
 
@@ -401,6 +434,7 @@ pub fn parse_bpmn_xml(xml: &str) -> EngineResult<ProcessDefinition> {
                 catch_evt.id,
                 BpmnElement::ServiceTask {
                     topic: "event_passthrough".into(),
+                    multi_instance: None,
                 },
             );
         }
@@ -410,12 +444,21 @@ pub fn parse_bpmn_xml(xml: &str) -> EngineResult<ProcessDefinition> {
     // 8. Intermediate throw events
     for evt in process.intermediate_throw_events {
         let node_id = evt.id.clone();
-        builder = builder.node(
-            evt.id,
-            BpmnElement::ServiceTask {
-                topic: "event_passthrough".into(),
-            },
-        );
+        if let Some(msg) = evt.message_event_definition {
+            let message_name = msg
+                .message_ref
+                .and_then(|ref_id| message_lookup.get(&ref_id).cloned())
+                .unwrap_or_else(|| "generic_throw".into());
+            builder = builder.node(evt.id, BpmnElement::SendTask { message_name, multi_instance: None });
+        } else {
+            builder = builder.node(
+                evt.id,
+                BpmnElement::ServiceTask {
+                    topic: "event_passthrough".into(),
+                    multi_instance: None,
+                },
+            );
+        }
         builder = add_listeners(builder, &node_id, evt.extension_elements);
     }
 
@@ -453,6 +496,7 @@ pub fn parse_bpmn_xml(xml: &str) -> EngineResult<ProcessDefinition> {
                 bd.id,
                 BpmnElement::ServiceTask {
                     topic: "noop".into(),
+                    multi_instance: None,
                 },
             );
         }
@@ -468,5 +512,83 @@ pub fn parse_bpmn_xml(xml: &str) -> EngineResult<ProcessDefinition> {
         }
     }
 
+    // 11. Flatten nested sub-processes (embedded scopes)
+    for sp in process.sub_processes {
+        builder = flatten_subprocess(sp, &process_id, builder, &message_lookup, &error_lookup);
+    }
+
     builder.build()
+}
+
+#[allow(clippy::only_used_in_recursion)]
+fn flatten_subprocess(
+    sp: crate::models::BpmnSubProcess,
+    _parent_id: &str,
+    mut builder: ProcessDefinitionBuilder,
+    message_lookup: &HashMap<String, String>,
+    error_lookup: &HashMap<String, String>,
+) -> ProcessDefinitionBuilder {
+    let sub_process_id = sp.id.clone();
+    
+    let start_node_id = sp.start_events.first().map(|s| s.id.clone()).unwrap_or_else(|| format!("{}_start", sub_process_id));
+    builder = builder.node(sub_process_id.clone(), engine_core::model::BpmnElement::EmbeddedSubProcess { start_node_id });
+
+    for start in sp.start_events {
+        // Internal start events are just pass-throughs, execution jumps here from the EmbeddedSubProcess node
+        builder = builder.node(start.id, engine_core::model::BpmnElement::ServiceTask { topic: "noop".into(), multi_instance: None });
+    }
+
+    for end in sp.end_events {
+        builder = builder.node(end.id, engine_core::model::BpmnElement::SubProcessEndEvent {
+            sub_process_id: sub_process_id.clone()
+        });
+    }
+
+    for task in sp.service_tasks {
+        let topic = task.topic.or(task.handler).unwrap_or_else(|| task.id.clone());
+        let multi_instance = parse_multi_instance(task.multi_instance);
+        builder = builder.node(task.id, engine_core::model::BpmnElement::ServiceTask { topic, multi_instance });
+    }
+
+    for task in sp.script_tasks {
+        let script = task.script.and_then(|s| s.content).or(task.data_script).unwrap_or_default();
+        let multi_instance = parse_multi_instance(task.multi_instance);
+        builder = builder.node(task.id, engine_core::model::BpmnElement::ScriptTask { script, multi_instance });
+    }
+
+    for task in sp.user_tasks {
+        let assignee = task.assignee.unwrap_or_else(|| "unassigned".into());
+        builder = builder.node(task.id, engine_core::model::BpmnElement::UserTask(assignee));
+    }
+    
+    let all_generic_tasks = sp.generic_tasks.into_iter()
+        .chain(sp.receive_tasks).chain(sp.manual_tasks)
+        .chain(sp.business_rule_tasks).chain(sp.call_activities);
+    for task in all_generic_tasks {
+        let topic = task.name.unwrap_or_else(|| task.id.clone());
+        let multi_instance = parse_multi_instance(task.multi_instance);
+        builder = builder.node(task.id, engine_core::model::BpmnElement::ServiceTask { topic, multi_instance });
+    }
+
+    for gw in sp.exclusive_gateways {
+        let default_target = gw.default.clone();
+        builder = builder.node(gw.id, engine_core::model::BpmnElement::ExclusiveGateway { default: default_target });
+    }
+    for gw in sp.parallel_gateways {
+        builder = builder.node(gw.id, engine_core::model::BpmnElement::ParallelGateway);
+    }
+    
+    for flow in sp.sequence_flows {
+        if let Some(cond) = flow.condition_expression {
+            builder = builder.conditional_flow(flow.source_ref, flow.target_ref, cond.value.trim().to_string());
+        } else {
+            builder = builder.flow(flow.source_ref, flow.target_ref);
+        }
+    }
+
+    for nested_sp in sp.sub_processes {
+        builder = flatten_subprocess(nested_sp, &sub_process_id, builder, message_lookup, error_lookup);
+    }
+
+    builder
 }

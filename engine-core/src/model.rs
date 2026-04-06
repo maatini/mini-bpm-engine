@@ -8,7 +8,17 @@ use uuid::Uuid;
 use crate::error::{EngineError, EngineResult};
 
 // ---------------------------------------------------------------------------
-// Execution Listeners (Scripts)
+// Execution Listeners and Multi-Instance
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct MultiInstanceDef {
+    pub is_sequential: bool,
+    pub loop_cardinality: Option<String>,
+    pub collection: Option<String>,
+    pub element_variable: Option<String>,
+}
+
 // ---------------------------------------------------------------------------
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -39,10 +49,25 @@ pub enum BpmnElement {
     TimerStartEvent(TimerDefinition),
     /// An end event — the process terminates here.
     EndEvent,
+    /// A terminate end event that immediately kills all active tokens.
+    TerminateEndEvent,
     /// A service task that pauses the workflow and must be fetched and completed by remote workers.
-    ServiceTask { topic: String },
+    ServiceTask {
+        topic: String,
+        multi_instance: Option<MultiInstanceDef>,
+    },
     /// A user task assigned to a specific role or user.
     UserTask(String),
+    /// A script task that executes a Rhai script inline and automatically advances.
+    ScriptTask {
+        script: String,
+        multi_instance: Option<MultiInstanceDef>,
+    },
+    /// A send task / intermediate message throw that publishes a message and auto-advances.
+    SendTask {
+        message_name: String,
+        multi_instance: Option<MultiInstanceDef>,
+    },
     /// An exclusive gateway (XOR) — exactly one outgoing path is taken based
     /// on condition evaluation. An optional `default` flow is followed when
     /// no condition matches.
@@ -74,10 +99,12 @@ pub enum BpmnElement {
     },
     /// An end event that throws a specific BPMN error.
     ErrorEndEvent { error_code: String },
-    /// A Call Activity that invokes another process definition.
+    /// A Call Activity that invokes another globally deployed process definition.
     CallActivity { called_element: String },
-    /// An Embedded Sub-Process that references a child process definition.
-    SubProcess { called_element: String },
+    /// An Embedded Sub-Process acting as a nested scope within the same instance.
+    EmbeddedSubProcess { start_node_id: String },
+    /// Internal end event of a Sub-Process, signaling completion to the parent scope.
+    SubProcessEndEvent { sub_process_id: String },
 }
 
 // ---------------------------------------------------------------------------
@@ -307,7 +334,7 @@ impl ProcessDefinition {
         // --- at least one end event ---
         let end_count = nodes
             .values()
-            .filter(|e| matches!(e, BpmnElement::EndEvent | BpmnElement::ErrorEndEvent { .. }))
+            .filter(|e| matches!(e, BpmnElement::EndEvent | BpmnElement::ErrorEndEvent { .. } | BpmnElement::TerminateEndEvent | BpmnElement::SubProcessEndEvent { .. }))
             .count();
         if end_count == 0 {
             return Err(EngineError::InvalidDefinition(
@@ -344,12 +371,13 @@ impl ProcessDefinition {
         for (node_id, element) in &nodes {
             if matches!(
                 element,
-                BpmnElement::EndEvent | BpmnElement::ErrorEndEvent { .. }
+                BpmnElement::EndEvent | BpmnElement::ErrorEndEvent { .. } | BpmnElement::TerminateEndEvent | BpmnElement::SubProcessEndEvent { .. } | BpmnElement::EmbeddedSubProcess { .. }
             ) {
                 continue;
             }
             let outgoing = flows.get(node_id).map_or(0, |v| v.len());
             if outgoing == 0 {
+                // SubProcess boundaries themselves need outgoing flows, but internal nodes act normally.
                 return Err(EngineError::InvalidDefinition(format!(
                     "Node '{node_id}' has no outgoing sequence flow"
                 )));
@@ -615,7 +643,7 @@ mod tests {
                 "svc",
                 BpmnElement::ServiceTask {
                     topic: "do_it".into(),
-                },
+                 multi_instance: None },
             )
             .node("end", BpmnElement::EndEvent)
             .flow("start", "svc")
@@ -663,7 +691,7 @@ mod tests {
                 "orphan",
                 BpmnElement::ServiceTask {
                     topic: "noop".into(),
-                },
+                 multi_instance: None },
             )
             .node("end", BpmnElement::EndEvent)
             .flow("start", "end")
@@ -682,7 +710,7 @@ mod tests {
                 "svc",
                 BpmnElement::ServiceTask {
                     topic: "action".into(),
-                },
+                 multi_instance: None },
             )
             .node("end", BpmnElement::EndEvent)
             .flow("start", "svc")
@@ -694,7 +722,7 @@ mod tests {
             def.get_node("svc"),
             Some(&BpmnElement::ServiceTask {
                 topic: "action".into()
-            })
+             , multi_instance: None })
         );
         assert_eq!(def.next_node("start"), Some("svc"));
         assert_eq!(def.next_node("end"), None);
@@ -785,7 +813,7 @@ mod tests {
                 "task",
                 BpmnElement::ServiceTask {
                     topic: "noop".into(),
-                },
+                 multi_instance: None },
             )
             .node(
                 "catch",

@@ -13,9 +13,10 @@ Contains all `#[tauri::command]` handlers and the `AppState` struct.
 ## AppState
 ```rust
 struct AppState {
-    engine: Arc<Mutex<WorkflowEngine>>,
+    engine: Arc<WorkflowEngine>,
 }
 ```
+- Engine uses internal DashMap-based concurrency — no external Mutex needed
 - Engine is initialized on startup with optional NATS auto-connect
 - Graceful fallback to in-memory if NATS is unavailable
 - Full state restore from NATS KV/Object Store on successful connection
@@ -42,7 +43,7 @@ struct AppState {
 | `complete_service_task` | `complete_service_task()` |
 
 ## Rules
-- All commands must lock the engine mutex: `state.engine.lock().await`
+- All commands use `&WorkflowEngine` directly (internal DashMap-based concurrency, no mutex locking)
 - Error handling: Return `Result<T, String>` — Tauri serializes the error string to the frontend
 - Keep logic minimal — delegate to `engine-core` methods
 - When adding a new command, also add a wrapper in `src/lib/tauri.ts`
