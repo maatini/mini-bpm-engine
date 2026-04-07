@@ -63,6 +63,10 @@ pub enum EngineError {
     /// A script execution failed.
     #[error("Script error: {0}")]
     ScriptError(String),
+
+    /// The execution step limit was exceeded (possible infinite loop).
+    #[error("Execution limit exceeded: {0}")]
+    ExecutionLimitExceeded(String),
 }
 
 /// Convenience alias used throughout the engine.

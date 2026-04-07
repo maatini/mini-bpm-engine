@@ -1,6 +1,6 @@
+use dashmap::DashMap;
 use std::collections::HashMap;
 use std::sync::Arc;
-use dashmap::DashMap;
 use uuid::Uuid;
 
 use crate::model::ProcessDefinition;
@@ -44,7 +44,14 @@ impl DefinitionRegistry {
     pub fn list(&self) -> Vec<(Uuid, String, i32, usize)> {
         self.inner
             .iter()
-            .map(|r| (*r.key(), r.value().id.clone(), r.value().version, r.value().nodes.len()))
+            .map(|r| {
+                (
+                    *r.key(),
+                    r.value().id.clone(),
+                    r.value().version,
+                    r.value().nodes.len(),
+                )
+            })
             .collect()
     }
 
@@ -65,10 +72,7 @@ impl DefinitionRegistry {
     }
 
     /// Returns the definition with the highest version for a given BPMN process ID.
-    pub fn find_latest_by_bpmn_id(
-        &self,
-        bpmn_id: &str,
-    ) -> Option<(Uuid, Arc<ProcessDefinition>)> {
+    pub fn find_latest_by_bpmn_id(&self, bpmn_id: &str) -> Option<(Uuid, Arc<ProcessDefinition>)> {
         self.inner
             .iter()
             .filter(|r| r.value().id == bpmn_id)

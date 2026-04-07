@@ -49,6 +49,7 @@ pub struct WorkflowEngine {
     pub(crate) persistence: Option<Arc<dyn WorkflowPersistence>>,
     pub(crate) persistence_error_count: Arc<std::sync::atomic::AtomicU64>,
     pub(crate) retry_tx: Option<retry_queue::RetryQueueTx>,
+    pub(crate) retry_worker_handle: tokio::sync::Mutex<Option<tokio::task::JoinHandle<()>>>,
 }
 
 /// Creates a configured Rhai script engine.
@@ -74,6 +75,7 @@ impl WorkflowEngine {
             persistence: None,
             persistence_error_count: Arc::new(std::sync::atomic::AtomicU64::new(0)),
             retry_tx: None,
+            retry_worker_handle: tokio::sync::Mutex::new(None),
         }
     }
 
@@ -87,7 +89,7 @@ impl WorkflowEngine {
     pub fn with_persistence(mut self, persistence: Arc<dyn WorkflowPersistence>) -> Self {
         let (tx, rx) = retry_queue::create_retry_queue();
 
-        retry_queue::spawn_retry_worker(
+        let handle = retry_queue::spawn_retry_worker(
             rx,
             Arc::clone(&persistence),
             self.instances.clone(),
@@ -101,6 +103,7 @@ impl WorkflowEngine {
 
         self.persistence = Some(persistence);
         self.retry_tx = Some(tx);
+        self.retry_worker_handle = tokio::sync::Mutex::new(Some(handle));
         self
     }
 
@@ -108,7 +111,7 @@ impl WorkflowEngine {
     pub fn set_persistence(&mut self, persistence: Arc<dyn WorkflowPersistence>) {
         let (tx, rx) = retry_queue::create_retry_queue();
 
-        retry_queue::spawn_retry_worker(
+        let handle = retry_queue::spawn_retry_worker(
             rx,
             Arc::clone(&persistence),
             self.instances.clone(),
@@ -122,6 +125,23 @@ impl WorkflowEngine {
 
         self.persistence = Some(persistence);
         self.retry_tx = Some(tx);
+        // Note: this takes &mut self, so it's safe to directly assign.
+        *self.retry_worker_handle.get_mut() = Some(handle);
+    }
+
+    /// Shuts down the engine gracefully.
+    /// This signals the background persistence retry worker to flush and exit,
+    /// and waits for it to complete.
+    pub async fn shutdown(&self) {
+        if let Some(tx) = &self.retry_tx {
+            let _ = tx.send(retry_queue::PersistJob::Shutdown);
+        }
+
+        let mut handle_opt = self.retry_worker_handle.lock().await;
+        if let Some(handle) = handle_opt.take() {
+            tracing::info!("Waiting for persistence retry worker to finish...");
+            let _ = handle.await;
+        }
     }
 
     /// Restores a process instance from persistence (e.g. on server startup).
@@ -227,7 +247,11 @@ impl WorkflowEngine {
     }
 
     /// Helper to cancel any pending boundary message catches attached to a task node that is being completed/aborted.
-    pub(crate) async fn cancel_boundary_message_catches(&self, instance_id: Uuid, task_node_id: &str) {
+    pub(crate) async fn cancel_boundary_message_catches(
+        &self,
+        instance_id: Uuid,
+        task_node_id: &str,
+    ) {
         let def_key = if let Some(inst_arc) = self.instances.get(&instance_id).await {
             let inst = inst_arc.read().await;
             inst.definition_key
@@ -239,7 +263,8 @@ impl WorkflowEngine {
             def.nodes
                 .iter()
                 .filter_map(|(id, node)| {
-                    if let crate::model::BpmnElement::BoundaryMessageEvent { attached_to, .. } = node
+                    if let crate::model::BpmnElement::BoundaryMessageEvent { attached_to, .. } =
+                        node
                     {
                         if attached_to == task_node_id {
                             Some(id.clone())
@@ -270,7 +295,10 @@ impl WorkflowEngine {
         if let Some(persistence) = &self.persistence {
             for msg_id in msg_ids_to_delete {
                 if let Err(e) = persistence.delete_message_catch(msg_id).await {
-                    self.log_persistence_error(&format!("delete_boundary_message_catch({})", msg_id), e);
+                    self.log_persistence_error(
+                        &format!("delete_boundary_message_catch({})", msg_id),
+                        e,
+                    );
                 }
             }
         }

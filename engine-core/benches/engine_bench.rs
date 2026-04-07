@@ -1,4 +1,4 @@
-use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
+use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 use engine_core::engine::WorkflowEngine;
 use engine_core::model::{BpmnElement, ProcessDefinitionBuilder};
 
@@ -62,23 +62,27 @@ pub fn bench_execution_throughput(c: &mut Criterion) {
         .unwrap();
 
     let mut group = c.benchmark_group("Engine Throughput");
-    
+
     for size in [10, 50, 100].iter() {
-        group.bench_with_input(BenchmarkId::new("Linear Process Execution", size), size, |b, &s| {
-            b.to_async(&rt).iter(|| async {
-                let engine = WorkflowEngine::new();
-                let def = linear_definition("bench_linear", s);
-                let (def_key, _) = engine.deploy_definition(def).await;
-                
-                let inst_id = engine.start_instance(def_key).await.unwrap();
-                drain_service_tasks(&engine, "bench_worker").await;
-                
-                assert_eq!(
-                    engine.get_instance_state(inst_id).await.unwrap(),
-                    engine_core::engine::InstanceState::Completed
-                );
-            });
-        });
+        group.bench_with_input(
+            BenchmarkId::new("Linear Process Execution", size),
+            size,
+            |b, &s| {
+                b.to_async(&rt).iter(|| async {
+                    let engine = WorkflowEngine::new();
+                    let def = linear_definition("bench_linear", s);
+                    let (def_key, _) = engine.deploy_definition(def).await;
+
+                    let inst_id = engine.start_instance(def_key).await.unwrap();
+                    drain_service_tasks(&engine, "bench_worker").await;
+
+                    assert_eq!(
+                        engine.get_instance_state(inst_id).await.unwrap(),
+                        engine_core::engine::InstanceState::Completed
+                    );
+                });
+            },
+        );
     }
 
     group.finish();

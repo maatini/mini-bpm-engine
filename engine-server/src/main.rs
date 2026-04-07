@@ -95,6 +95,30 @@ async fn restore_from_nats(
     }
 }
 
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        tokio::signal::ctrl_c()
+            .await
+            .expect("failed to install Ctrl+C handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+            .expect("failed to install signal handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => {},
+        _ = terminate => {},
+    }
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     // Setup tracing
@@ -144,20 +168,28 @@ async fn main() -> anyhow::Result<()> {
         .ok()
         .and_then(|v| v.parse().ok())
         .unwrap_or(1000);
+    let (shutdown_tx, mut shutdown_rx) = tokio::sync::watch::channel(false);
     let timer_engine = engine_arc.clone();
-    tokio::spawn(async move {
+    let timer_task = tokio::spawn(async move {
         let interval = tokio::time::Duration::from_millis(timer_interval_ms);
         tracing::info!(
             "Timer scheduler started (interval: {}ms)",
             timer_interval_ms
         );
         loop {
-            tokio::time::sleep(interval).await;
-            let engine = &timer_engine;
-            match engine.process_timers().await {
-                Ok(0) => {} // No expired timers — silent
-                Ok(n) => tracing::info!("Timer scheduler: processed {} expired timer(s)", n),
-                Err(e) => tracing::error!("Timer scheduler error: {}", e),
+            tokio::select! {
+                _ = tokio::time::sleep(interval) => {
+                    let engine = &timer_engine;
+                    match engine.process_timers().await {
+                        Ok(0) => {} // No expired timers — silent
+                        Ok(n) => tracing::info!("Timer scheduler: processed {} expired timer(s)", n),
+                        Err(e) => tracing::error!("Timer scheduler error: {}", e),
+                    }
+                }
+                _ = shutdown_rx.changed() => {
+                    tracing::info!("Timer scheduler shutting down");
+                    break;
+                }
             }
         }
     });
@@ -167,7 +199,21 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!("Server starting on http://{}", addr);
 
     let listener = tokio::net::TcpListener::bind(&addr).await?;
-    axum::serve(listener, app).await?;
+    
+    let axum_shutdown = shutdown_signal();
+    axum::serve(listener, app)
+        .with_graceful_shutdown(async move {
+            axum_shutdown.await;
+            tracing::info!("Received shutdown signal. Stopping API...");
+            let _ = shutdown_tx.send(true);
+        })
+        .await?;
+
+    tracing::info!("Flushing persistence queues...");
+    engine_arc.shutdown().await;
+
+    let _ = timer_task.await;
+    tracing::info!("Server shut down gracefully.");
 
     Ok(())
 }

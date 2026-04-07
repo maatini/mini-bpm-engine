@@ -18,15 +18,17 @@ impl WorkflowEngine {
 
         for catch in self.pending_message_catches.iter() {
             if catch.message_name == message_name
-                && let Some(inst_arc) = self.instances.get(&catch.instance_id).await {
-                    let inst = inst_arc.read().await;
-                    if let Some(ref bk) = business_key
-                        && &inst.business_key != bk {
-                            continue;
-                        }
-                    to_resume.push(catch.id);
-                    affected_instances.push(catch.instance_id);
+                && let Some(inst_arc) = self.instances.get(&catch.instance_id).await
+            {
+                let inst = inst_arc.read().await;
+                if let Some(ref bk) = business_key
+                    && &inst.business_key != bk
+                {
+                    continue;
                 }
+                to_resume.push(catch.id);
+                affected_instances.push(catch.instance_id);
+            }
         }
 
         for catch_id in to_resume {
@@ -256,9 +258,10 @@ impl WorkflowEngine {
                     message_name: ref_msg,
                 },
             )) = def.start_event()
-                && ref_msg == &message_name {
-                    defs_to_start.push(*def_key);
-                }
+                && ref_msg == &message_name
+            {
+                defs_to_start.push(*def_key);
+            }
         }
 
         for def_key in defs_to_start {

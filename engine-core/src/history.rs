@@ -195,8 +195,35 @@ fn truncate_value_for_diff(v: &serde_json::Value) -> serde_json::Value {
     }
 }
 
+/// Lightweight snapshot for diff calculation.
+/// Avoids cloning audit_log, tokens, active_tokens, join_barriers.
+#[derive(Debug, Clone)]
+pub struct DiffSnapshot {
+    pub state: crate::engine::InstanceState,
+    pub current_node: String,
+    pub variables: HashMap<String, serde_json::Value>,
+}
+
+impl DiffSnapshot {
+    /// Extracts only the diff-relevant fields from a ProcessInstance.
+    /// Cost: 1 enum clone + 1 string clone + N variable clones.
+    /// Does NOT clone audit_log, tokens, active_tokens, join_barriers.
+    pub fn from_instance(inst: &ProcessInstance) -> Self {
+        Self {
+            state: inst.state.clone(),
+            current_node: inst.current_node.clone(),
+            variables: inst.variables.clone(),
+        }
+    }
+}
+
 /// Calculates the difference between two process instance states.
 pub fn calculate_diff(old: &ProcessInstance, new: &ProcessInstance) -> HistoryDiff {
+    calculate_diff_from_snapshot(&DiffSnapshot::from_instance(old), new)
+}
+
+/// Calculates the difference between a lightweight snapshot and a new state.
+pub fn calculate_diff_from_snapshot(old: &DiffSnapshot, new: &ProcessInstance) -> HistoryDiff {
     let mut diff = HistoryDiff {
         variables: None,
         status: None,
@@ -470,5 +497,50 @@ mod tests {
         assert!(diff.status.is_none());
         assert!(diff.current_node.is_none());
         assert!(diff.human_readable.is_none());
+    }
+
+    #[test]
+    fn test_diff_snapshot_produces_same_result_as_full_clone() {
+        let mut old = ProcessInstance {
+            id: Uuid::new_v4(),
+            definition_key: Uuid::new_v4(),
+            business_key: "BK-1".into(),
+            parent_instance_id: None,
+            state: InstanceState::Running,
+            current_node: "start".into(),
+            audit_log: vec!["log1".into(), "log2".into()],
+            variables: HashMap::new(),
+            tokens: HashMap::new(),
+            active_tokens: vec![],
+            join_barriers: HashMap::new(),
+            multi_instance_state: HashMap::new(),
+        };
+        old.variables.insert("a".into(), json!(1));
+        old.variables.insert("b".into(), json!(2));
+
+        let snapshot = DiffSnapshot::from_instance(&old);
+
+        let mut new = old.clone();
+        new.current_node = "task1".into();
+        new.state = InstanceState::WaitingOnUserTask {
+            task_id: Uuid::new_v4(),
+        };
+        new.variables.insert("a".into(), json!(100)); // changed
+        new.variables.remove("b"); // removed
+        new.variables.insert("c".into(), json!(3)); // added
+
+        let diff_full = calculate_diff(&old, &new);
+        let diff_snap = calculate_diff_from_snapshot(&snapshot, &new);
+
+        assert_eq!(diff_full.status, diff_snap.status);
+        assert_eq!(diff_full.current_node, diff_snap.current_node);
+        assert_eq!(diff_full.human_readable, diff_snap.human_readable);
+
+        let var_diff_full = diff_full.variables.unwrap();
+        let var_diff_snap = diff_snap.variables.unwrap();
+
+        assert_eq!(var_diff_full.added, var_diff_snap.added);
+        assert_eq!(var_diff_full.removed, var_diff_snap.removed);
+        assert_eq!(var_diff_full.changed, var_diff_snap.changed);
     }
 }

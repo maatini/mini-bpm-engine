@@ -1065,3 +1065,88 @@ async fn history_query_limit_and_offset() {
     assert_eq!(hist_pag1[0].id, hist[0].id);
     assert_eq!(hist_pag2[0].id, hist[3].id);
 }
+
+/// An infinite BPMN loop (Script→XOR→Script with default flow looping back)
+/// must be aborted after MAX_EXECUTION_STEPS with a clear error state.
+#[tokio::test]
+async fn infinite_loop_is_aborted() {
+    // XOR with default flow pointing back to script1 = guaranteed infinite loop
+    let def = ProcessDefinitionBuilder::new("infinite_loop")
+        .node("start", BpmnElement::StartEvent)
+        .node(
+            "script1",
+            BpmnElement::ScriptTask {
+                script: "".to_string(),
+                multi_instance: None,
+            },
+        )
+        .node(
+            "xor",
+            BpmnElement::ExclusiveGateway {
+                default: Some("script1".to_string()),
+            },
+        )
+        .node("end", BpmnElement::EndEvent)
+        .flow("start", "script1")
+        .flow("script1", "xor")
+        .flow("xor", "script1") // default flow loops back
+        .conditional_flow("xor", "end", "never_true_var == 999") // unreachable
+        .build()
+        .unwrap();
+
+    let engine = WorkflowEngine::with_in_memory_persistence();
+    let (key, _) = engine.deploy_definition(def).await;
+    let result = engine.start_instance(key).await;
+
+    // The engine must return an error, not hang
+    assert!(result.is_err(), "Expected ExecutionLimitExceeded error");
+    let err = result.unwrap_err();
+    assert!(
+        matches!(err, crate::error::EngineError::ExecutionLimitExceeded(_)),
+        "Expected ExecutionLimitExceeded, got: {:?}",
+        err
+    );
+}
+
+/// An instance with variables exceeding MAX_INSTANCE_PAYLOAD_BYTES must
+/// not enter the retry queue. The error counter must increment instead.
+#[tokio::test]
+async fn oversized_instance_skips_persist() {
+    let def = ProcessDefinitionBuilder::new("oversized")
+        .node("start", BpmnElement::StartEvent)
+        .node("ut", BpmnElement::UserTask("admin".to_string()))
+        .node("end", BpmnElement::EndEvent)
+        .flow("start", "ut")
+        .flow("ut", "end")
+        .build()
+        .unwrap();
+
+    let engine = WorkflowEngine::with_in_memory_persistence();
+    let (key, _) = engine.deploy_definition(def).await;
+    let inst_id = engine.start_instance(key).await.unwrap();
+
+    // Inject an oversized variable (~1MB of data)
+    let big_value =
+        serde_json::Value::String("x".repeat(crate::engine::types::MAX_INSTANCE_PAYLOAD_BYTES));
+    let mut vars = std::collections::HashMap::new();
+    vars.insert("huge".to_string(), big_value);
+    engine
+        .update_instance_variables(inst_id, vars)
+        .await
+        .unwrap();
+
+    // Trigger persist — this should NOT panic or queue infinitely
+    let errors_before = engine
+        .persistence_error_count
+        .load(std::sync::atomic::Ordering::Relaxed);
+    engine.persist_instance(inst_id).await;
+    let errors_after = engine
+        .persistence_error_count
+        .load(std::sync::atomic::Ordering::Relaxed);
+
+    // The error counter must have incremented (size guard triggered)
+    assert!(
+        errors_after > errors_before,
+        "Expected persistence error counter to increment for oversized payload"
+    );
+}

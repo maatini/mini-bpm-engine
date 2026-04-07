@@ -54,6 +54,8 @@ pub(crate) enum PersistJob {
     DeleteMessageCatch(Uuid),
     /// Append a history entry to NATS.
     AppendHistoryEntry(Box<HistoryEntry>),
+    /// Instructs the worker to flush remaining jobs and exit.
+    Shutdown,
 }
 
 impl std::fmt::Display for PersistJob {
@@ -70,6 +72,7 @@ impl std::fmt::Display for PersistJob {
             Self::SaveMessageCatch(id) => write!(f, "SaveMessageCatch({})", id),
             Self::DeleteMessageCatch(id) => write!(f, "DeleteMessageCatch({})", id),
             Self::AppendHistoryEntry(e) => write!(f, "AppendHistoryEntry({})", e.instance_id),
+            Self::Shutdown => write!(f, "Shutdown"),
         }
     }
 }
@@ -105,11 +108,16 @@ pub(crate) fn spawn_retry_worker(
     pending_timers: Arc<DashMap<Uuid, PendingTimer>>,
     pending_message_catches: Arc<DashMap<Uuid, PendingMessageCatch>>,
     error_counter: Arc<std::sync::atomic::AtomicU64>,
-) {
+) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         tracing::info!("Persistence retry worker started");
 
         while let Some(job) = rx.recv().await {
+            if matches!(job, PersistJob::Shutdown) {
+                tracing::info!("Retry worker received shutdown signal, exiting.");
+                break;
+            }
+
             let mut attempt = 0u32;
             let mut backoff_ms = INITIAL_BACKOFF_MS;
 
@@ -159,7 +167,7 @@ pub(crate) fn spawn_retry_worker(
         }
 
         tracing::warn!("Persistence retry worker stopped (channel closed)");
-    });
+    })
 }
 
 /// Executes a single persist job against the persistence backend.
@@ -261,5 +269,6 @@ async fn execute_job(
             .append_history_entry(entry)
             .await
             .map_err(|e| e.to_string()),
+        PersistJob::Shutdown => Ok(()),
     }
 }

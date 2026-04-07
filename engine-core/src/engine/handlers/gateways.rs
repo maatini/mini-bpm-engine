@@ -1,12 +1,15 @@
-use std::sync::Arc;
-use uuid::Uuid;
-use chrono::Utc;
+use crate::engine::WorkflowEngine;
+use crate::engine::types::{NextAction, PendingMessageCatch, PendingTimer};
 use crate::error::{EngineError, EngineResult};
 use crate::model::{BpmnElement, ProcessDefinition, Token};
-use crate::engine::types::{NextAction, PendingTimer, PendingMessageCatch};
-use crate::engine::WorkflowEngine;
+use chrono::Utc;
+use std::sync::Arc;
+use uuid::Uuid;
 
-use crate::engine::gateway::{execute_parallel_gateway, execute_exclusive_gateway, execute_inclusive_gateway, execute_complex_gateway};
+use crate::engine::gateway::{
+    execute_complex_gateway, execute_exclusive_gateway, execute_inclusive_gateway,
+    execute_parallel_gateway,
+};
 
 impl WorkflowEngine {
     pub(crate) async fn handle_parallel_gateway(
@@ -16,13 +19,21 @@ impl WorkflowEngine {
         def_clone: &Arc<ProcessDefinition>,
         current_id: &str,
     ) -> EngineResult<NextAction> {
-        self.run_end_scripts(instance_id, token, def_clone, current_id).await?;
+        self.run_end_scripts(instance_id, token, def_clone, current_id)
+            .await?;
         let action = execute_parallel_gateway(def_clone, current_id, token)?;
         if let NextAction::ContinueMultiple(ref f) = action {
-            let inst_arc = self.instances.get(&instance_id).await.ok_or(EngineError::NoSuchInstance(instance_id))?;
+            let inst_arc = self
+                .instances
+                .get(&instance_id)
+                .await
+                .ok_or(EngineError::NoSuchInstance(instance_id))?;
             let mut inst = inst_arc.write().await;
             inst.current_node = current_id.to_string();
-            inst.push_audit_log(format!("■ Parallel gateway '{current_id}' → forked to {} path(s)", f.len()));
+            inst.push_audit_log(format!(
+                "■ Parallel gateway '{current_id}' → forked to {} path(s)",
+                f.len()
+            ));
         }
         Ok(action)
     }
@@ -35,11 +46,19 @@ impl WorkflowEngine {
         current_id: &str,
         default: &Option<String>,
     ) -> EngineResult<NextAction> {
-        self.run_end_scripts(instance_id, token, def_clone, current_id).await?;
+        self.run_end_scripts(instance_id, token, def_clone, current_id)
+            .await?;
         let action = execute_exclusive_gateway(def_clone, current_id, token, default)?;
-        let inst_arc = self.instances.get(&instance_id).await.ok_or(EngineError::NoSuchInstance(instance_id))?;
+        let inst_arc = self
+            .instances
+            .get(&instance_id)
+            .await
+            .ok_or(EngineError::NoSuchInstance(instance_id))?;
         let mut inst = inst_arc.write().await;
-        inst.push_audit_log(format!("◆ Exclusive gateway '{current_id}' → took path to '{}'", token.current_node));
+        inst.push_audit_log(format!(
+            "◆ Exclusive gateway '{current_id}' → took path to '{}'",
+            token.current_node
+        ));
         inst.current_node = token.current_node.clone();
         Ok(action)
     }
@@ -51,13 +70,21 @@ impl WorkflowEngine {
         def_clone: &Arc<ProcessDefinition>,
         current_id: &str,
     ) -> EngineResult<NextAction> {
-        self.run_end_scripts(instance_id, token, def_clone, current_id).await?;
+        self.run_end_scripts(instance_id, token, def_clone, current_id)
+            .await?;
         let action = execute_inclusive_gateway(def_clone, current_id, token)?;
         if let NextAction::ContinueMultiple(ref f) = action {
-            let inst_arc = self.instances.get(&instance_id).await.ok_or(EngineError::NoSuchInstance(instance_id))?;
+            let inst_arc = self
+                .instances
+                .get(&instance_id)
+                .await
+                .ok_or(EngineError::NoSuchInstance(instance_id))?;
             let mut inst = inst_arc.write().await;
             inst.current_node = current_id.to_string();
-            inst.push_audit_log(format!("◇ Inclusive gateway '{current_id}' → forked to {} path(s)", f.len()));
+            inst.push_audit_log(format!(
+                "◇ Inclusive gateway '{current_id}' → forked to {} path(s)",
+                f.len()
+            ));
         }
         Ok(action)
     }
@@ -70,17 +97,32 @@ impl WorkflowEngine {
         current_id: &str,
         default: &Option<String>,
     ) -> EngineResult<NextAction> {
-        self.run_end_scripts(instance_id, token, def_clone, current_id).await?;
+        self.run_end_scripts(instance_id, token, def_clone, current_id)
+            .await?;
         let action = execute_complex_gateway(def_clone, current_id, token, default)?;
         if let NextAction::ContinueMultiple(ref f) = action {
-            let inst_arc = self.instances.get(&instance_id).await.ok_or(EngineError::NoSuchInstance(instance_id))?;
+            let inst_arc = self
+                .instances
+                .get(&instance_id)
+                .await
+                .ok_or(EngineError::NoSuchInstance(instance_id))?;
             let mut inst = inst_arc.write().await;
             inst.current_node = current_id.to_string();
-            inst.push_audit_log(format!("⟡ Complex gateway '{current_id}' → forked to {} path(s)", f.len()));
+            inst.push_audit_log(format!(
+                "⟡ Complex gateway '{current_id}' → forked to {} path(s)",
+                f.len()
+            ));
         } else if let NextAction::Continue(ref next_token) = action {
-            let inst_arc = self.instances.get(&instance_id).await.ok_or(EngineError::NoSuchInstance(instance_id))?;
+            let inst_arc = self
+                .instances
+                .get(&instance_id)
+                .await
+                .ok_or(EngineError::NoSuchInstance(instance_id))?;
             let mut inst = inst_arc.write().await;
-            inst.push_audit_log(format!("⟡ Complex gateway '{current_id}' → took path to '{}'", next_token.current_node));
+            inst.push_audit_log(format!(
+                "⟡ Complex gateway '{current_id}' → took path to '{}'",
+                next_token.current_node
+            ));
             inst.current_node = next_token.current_node.clone();
         }
         Ok(action)
@@ -93,7 +135,8 @@ impl WorkflowEngine {
         def_clone: &Arc<ProcessDefinition>,
         current_id: &str,
     ) -> EngineResult<NextAction> {
-        self.run_end_scripts(instance_id, token, def_clone, current_id).await?;
+        self.run_end_scripts(instance_id, token, def_clone, current_id)
+            .await?;
         let mut actions = Vec::new();
         for sf in def_clone.next_nodes(current_id) {
             let target_node = sf.target.clone();
@@ -124,16 +167,26 @@ impl WorkflowEngine {
                         actions.push(NextAction::WaitForMessage(pending));
                     }
                     _ => {
-                        return Err(EngineError::InvalidDefinition(format!("EventBasedGateway target '{}' is not a catch event", target_node)));
+                        return Err(EngineError::InvalidDefinition(format!(
+                            "EventBasedGateway target '{}' is not a catch event",
+                            target_node
+                        )));
                     }
                 }
             }
         }
-        let inst_arc = self.instances.get(&instance_id).await.ok_or(EngineError::NoSuchInstance(instance_id))?;
+        let inst_arc = self
+            .instances
+            .get(&instance_id)
+            .await
+            .ok_or(EngineError::NoSuchInstance(instance_id))?;
         let mut inst = inst_arc.write().await;
         inst.current_node = current_id.to_string();
         inst.tokens.insert(token.id, token.clone());
-        inst.push_audit_log(format!("⭮ Event-based gateway '{current_id}' waiting for {} alternative events", actions.len()));
+        inst.push_audit_log(format!(
+            "⭮ Event-based gateway '{current_id}' waiting for {} alternative events",
+            actions.len()
+        ));
         Ok(NextAction::WaitForEventGroup(actions))
     }
 }

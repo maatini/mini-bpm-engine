@@ -378,11 +378,12 @@ impl ProcessDefinition {
             if let BpmnElement::BoundaryTimerEvent { attached_to, .. }
             | BpmnElement::BoundaryMessageEvent { attached_to, .. }
             | BpmnElement::BoundaryErrorEvent { attached_to, .. } = element
-                && !nodes.contains_key(attached_to) {
-                    return Err(EngineError::InvalidDefinition(format!(
-                        "Boundary event '{node_id}' attached to missing node '{attached_to}'"
-                    )));
-                }
+                && !nodes.contains_key(attached_to)
+            {
+                return Err(EngineError::InvalidDefinition(format!(
+                    "Boundary event '{node_id}' attached to missing node '{attached_to}'"
+                )));
+            }
         }
 
         // --- every non-end node must have an outgoing flow ---
@@ -431,21 +432,22 @@ impl ProcessDefinition {
 
             // --- EventBasedGateway constraints ---
             if matches!(element, BpmnElement::EventBasedGateway)
-                && let Some(outgoing_flows) = flows.get(node_id) {
-                    for sf in outgoing_flows {
-                        if let Some(target_element) = nodes.get(&sf.target)
-                            && !matches!(
-                                target_element,
-                                BpmnElement::MessageCatchEvent { .. }
-                                    | BpmnElement::TimerCatchEvent(_)
-                            ) {
-                                return Err(EngineError::InvalidDefinition(format!(
-                                    "EventBasedGateway '{node_id}' can only connect to MessageCatchEvent or TimerCatchEvent targets. Node '{}' is invalid.",
-                                    sf.target
-                                )));
-                            }
+                && let Some(outgoing_flows) = flows.get(node_id)
+            {
+                for sf in outgoing_flows {
+                    if let Some(target_element) = nodes.get(&sf.target)
+                        && !matches!(
+                            target_element,
+                            BpmnElement::MessageCatchEvent { .. } | BpmnElement::TimerCatchEvent(_)
+                        )
+                    {
+                        return Err(EngineError::InvalidDefinition(format!(
+                            "EventBasedGateway '{node_id}' can only connect to MessageCatchEvent or TimerCatchEvent targets. Node '{}' is invalid.",
+                            sf.target
+                        )));
                     }
                 }
+            }
         }
 
         Ok(Self {

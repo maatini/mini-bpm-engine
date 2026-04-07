@@ -1,12 +1,11 @@
-use std::sync::Arc;
-use uuid::Uuid;
-use chrono::Utc;
-use crate::error::{EngineError, EngineResult};
-use crate::model::{ProcessDefinition, Token};
-use crate::engine::types::{NextAction, PendingTimer, PendingMessageCatch};
 use crate::engine::WorkflowEngine;
 use crate::engine::executor::resolve_next_target;
-
+use crate::engine::types::{NextAction, PendingMessageCatch, PendingTimer};
+use crate::error::{EngineError, EngineResult};
+use crate::model::{ProcessDefinition, Token};
+use chrono::Utc;
+use std::sync::Arc;
+use uuid::Uuid;
 
 impl WorkflowEngine {
     pub(crate) async fn handle_start_event(
@@ -18,9 +17,14 @@ impl WorkflowEngine {
     ) -> EngineResult<NextAction> {
         tracing::debug!("Passing through start event '{current_id}'");
         let next = resolve_next_target(def_clone, current_id, &token.variables)?;
-        self.run_end_scripts(instance_id, token, def_clone, current_id).await?;
+        self.run_end_scripts(instance_id, token, def_clone, current_id)
+            .await?;
         token.current_node = next.clone();
-        let inst_arc = self.instances.get(&instance_id).await.ok_or(EngineError::NoSuchInstance(instance_id))?;
+        let inst_arc = self
+            .instances
+            .get(&instance_id)
+            .await
+            .ok_or(EngineError::NoSuchInstance(instance_id))?;
         let mut inst = inst_arc.write().await;
         inst.current_node = next;
         Ok(NextAction::Continue(token.clone()))
@@ -33,8 +37,13 @@ impl WorkflowEngine {
         def_clone: &Arc<ProcessDefinition>,
         current_id: &str,
     ) -> EngineResult<NextAction> {
-        self.run_end_scripts(instance_id, token, def_clone, current_id).await?;
-        let inst_arc = self.instances.get(&instance_id).await.ok_or(EngineError::NoSuchInstance(instance_id))?;
+        self.run_end_scripts(instance_id, token, def_clone, current_id)
+            .await?;
+        let inst_arc = self
+            .instances
+            .get(&instance_id)
+            .await
+            .ok_or(EngineError::NoSuchInstance(instance_id))?;
         let mut inst = inst_arc.write().await;
         inst.current_node = current_id.to_string();
         inst.push_audit_log(format!("⏹ Process completed at end event '{current_id}'"));
@@ -49,11 +58,18 @@ impl WorkflowEngine {
         def_clone: &Arc<ProcessDefinition>,
         current_id: &str,
     ) -> EngineResult<NextAction> {
-        self.run_end_scripts(instance_id, token, def_clone, current_id).await?;
-        let inst_arc = self.instances.get(&instance_id).await.ok_or(EngineError::NoSuchInstance(instance_id))?;
+        self.run_end_scripts(instance_id, token, def_clone, current_id)
+            .await?;
+        let inst_arc = self
+            .instances
+            .get(&instance_id)
+            .await
+            .ok_or(EngineError::NoSuchInstance(instance_id))?;
         let mut inst = inst_arc.write().await;
         inst.current_node = current_id.to_string();
-        inst.push_audit_log(format!("⛔ Terminate end event '{current_id}' — killing all active tokens"));
+        inst.push_audit_log(format!(
+            "⛔ Terminate end event '{current_id}' — killing all active tokens"
+        ));
         tracing::info!("Instance {instance_id}: terminate end event '{current_id}'");
         Ok(NextAction::Terminate)
     }
@@ -66,12 +82,22 @@ impl WorkflowEngine {
         current_id: &str,
         error_code: &String,
     ) -> EngineResult<NextAction> {
-        self.run_end_scripts(instance_id, token, def_clone, current_id).await?;
-        let inst_arc = self.instances.get(&instance_id).await.ok_or(EngineError::NoSuchInstance(instance_id))?;
+        self.run_end_scripts(instance_id, token, def_clone, current_id)
+            .await?;
+        let inst_arc = self
+            .instances
+            .get(&instance_id)
+            .await
+            .ok_or(EngineError::NoSuchInstance(instance_id))?;
         let mut inst = inst_arc.write().await;
         inst.current_node = current_id.to_string();
-        inst.push_audit_log(format!("💥 Process completed at error end '{current_id}' with error '{:?}'", error_code));
-        Ok(NextAction::ErrorEnd { error_code: error_code.clone() })
+        inst.push_audit_log(format!(
+            "💥 Process completed at error end '{current_id}' with error '{:?}'",
+            error_code
+        ));
+        Ok(NextAction::ErrorEnd {
+            error_code: error_code.clone(),
+        })
     }
 
     pub(crate) async fn handle_timer_catch_event(
@@ -92,7 +118,11 @@ impl WorkflowEngine {
             timer_def: Some(timer_def.clone()),
             remaining_repetitions: None,
         };
-        let inst_arc = self.instances.get(&instance_id).await.ok_or(EngineError::NoSuchInstance(instance_id))?;
+        let inst_arc = self
+            .instances
+            .get(&instance_id)
+            .await
+            .ok_or(EngineError::NoSuchInstance(instance_id))?;
         let mut inst = inst_arc.write().await;
         inst.current_node = current_id.to_string();
         inst.tokens.insert(token.id, token.clone());
@@ -114,11 +144,17 @@ impl WorkflowEngine {
             message_name: message_name.to_string(),
             token_id: token.id,
         };
-        let inst_arc = self.instances.get(&instance_id).await.ok_or(EngineError::NoSuchInstance(instance_id))?;
+        let inst_arc = self
+            .instances
+            .get(&instance_id)
+            .await
+            .ok_or(EngineError::NoSuchInstance(instance_id))?;
         let mut inst = inst_arc.write().await;
         inst.current_node = current_id.to_string();
         inst.tokens.insert(token.id, token.clone());
-        inst.push_audit_log(format!("✉️ Message catch event '{current_id}' waiting for '{message_name}'"));
+        inst.push_audit_log(format!(
+            "✉️ Message catch event '{current_id}' waiting for '{message_name}'"
+        ));
         Ok(NextAction::WaitForMessage(pending))
     }
 
@@ -130,9 +166,14 @@ impl WorkflowEngine {
         current_id: &str,
     ) -> EngineResult<NextAction> {
         let next = resolve_next_target(def_clone, current_id, &token.variables)?;
-        self.run_end_scripts(instance_id, token, def_clone, current_id).await?;
+        self.run_end_scripts(instance_id, token, def_clone, current_id)
+            .await?;
         token.current_node = next.clone();
-        let inst_arc = self.instances.get(&instance_id).await.ok_or(EngineError::NoSuchInstance(instance_id))?;
+        let inst_arc = self
+            .instances
+            .get(&instance_id)
+            .await
+            .ok_or(EngineError::NoSuchInstance(instance_id))?;
         let mut inst = inst_arc.write().await;
         inst.current_node = next;
         Ok(NextAction::Continue(token.clone()))

@@ -40,10 +40,10 @@ pub(crate) fn find_boundary_error_event(
             error_code: bound_err,
         } = node
             && attached_to == attached_to_node
-                && (bound_err.is_none() || bound_err.as_deref() == Some(error_code))
-            {
-                return Some(node_id.clone());
-            }
+            && (bound_err.is_none() || bound_err.as_deref() == Some(error_code))
+        {
+            return Some(node_id.clone());
+        }
         None
     })
 }
@@ -57,10 +57,45 @@ impl WorkflowEngine {
     ) -> EngineResult<()> {
         let mut queue = VecDeque::new();
         queue.push_back(initial_token);
+        let mut step_count: u32 = 0;
 
         while let Some(mut token) = queue.pop_front() {
-            let old_state = if let Some(lk) = self.instances.get(&instance_id).await {
-                Some(lk.read().await.clone())
+            step_count += 1;
+
+            // Cooperative scheduling: yield to Tokio every N steps
+            if step_count.is_multiple_of(crate::engine::types::YIELD_EVERY_N_STEPS) {
+                tokio::task::yield_now().await;
+            }
+
+            // Hard abort: prevent infinite BPMN loops
+            if step_count > crate::engine::types::MAX_EXECUTION_STEPS {
+                tracing::error!(
+                    "Instance {} exceeded {} execution steps — aborting (possible infinite loop)",
+                    instance_id,
+                    crate::engine::types::MAX_EXECUTION_STEPS
+                );
+                if let Some(inst_arc) = self.instances.get(&instance_id).await {
+                    let mut inst = inst_arc.write().await;
+                    inst.state = InstanceState::CompletedWithError {
+                        error_code: "EXECUTION_LIMIT_EXCEEDED".to_string(),
+                    };
+                    inst.push_audit_log(format!(
+                        "ABORTED: Exceeded {} execution steps",
+                        crate::engine::types::MAX_EXECUTION_STEPS
+                    ));
+                }
+                self.persist_instance(instance_id).await;
+                return Err(EngineError::ExecutionLimitExceeded(format!(
+                    "Instance {} exceeded execution step limit ({})",
+                    instance_id,
+                    crate::engine::types::MAX_EXECUTION_STEPS
+                )));
+            }
+
+            let old_snapshot = if let Some(lk) = self.instances.get(&instance_id).await {
+                Some(crate::history::DiffSnapshot::from_instance(
+                    &*lk.read().await,
+                ))
             } else {
                 None
             };
@@ -127,13 +162,13 @@ impl WorkflowEngine {
                 ),
             };
 
-            self.record_history_event(
+            self.record_history_event_from_snapshot(
                 instance_id,
                 event_type,
                 &description,
                 crate::history::ActorType::Engine,
                 None,
-                old_state.as_ref(),
+                old_snapshot.as_ref(),
             )
             .await;
 
@@ -205,6 +240,7 @@ impl WorkflowEngine {
                     }
                     self.pending_user_tasks.insert(task_id, pending);
                     self.persist_user_task(task_id).await;
+                    self.persist_instance(instance_id).await;
                 }
                 NextAction::WaitForServiceTask(svc_task) => {
                     let task_id = svc_task.id;
@@ -216,6 +252,7 @@ impl WorkflowEngine {
                     }
                     self.pending_service_tasks.insert(task_id, svc_task);
                     self.persist_service_task(task_id).await;
+                    self.persist_instance(instance_id).await;
                 }
                 NextAction::WaitForTimer(pending) => {
                     let timer_id = pending.id;
@@ -227,6 +264,7 @@ impl WorkflowEngine {
                     }
                     self.pending_timers.insert(timer_id, pending);
                     self.persist_timer(timer_id).await;
+                    self.persist_instance(instance_id).await;
                 }
                 NextAction::WaitForMessage(pending) => {
                     let message_id = pending.id;
@@ -238,6 +276,7 @@ impl WorkflowEngine {
                     }
                     self.pending_message_catches.insert(message_id, pending);
                     self.persist_message_catch(message_id).await;
+                    self.persist_instance(instance_id).await;
                 }
                 NextAction::WaitForEventGroup(actions) => {
                     if let Some(inst_arc) = self.instances.get(&instance_id).await {
@@ -261,6 +300,7 @@ impl WorkflowEngine {
                             _ => {} // EventBasedGateway validation ensures this won't happen
                         }
                     }
+                    self.persist_instance(instance_id).await;
                 }
                 NextAction::WaitForCallActivity {
                     called_element,
@@ -337,6 +377,7 @@ impl WorkflowEngine {
                             called_element
                         );
                     }
+                    self.persist_instance(instance_id).await;
                 }
                 NextAction::Complete => {
                     self.complete_branch_token(instance_id, token.id).await?;
@@ -366,6 +407,7 @@ impl WorkflowEngine {
 
                         // Parent resume happens after batch completes (see end of run_instance_batch)
                     }
+                    self.persist_instance(instance_id).await;
                 }
                 NextAction::ErrorEnd { error_code } => {
                     self.complete_branch_token(instance_id, token.id).await?;
@@ -376,15 +418,17 @@ impl WorkflowEngine {
                     }
 
                     if self.all_tokens_completed(instance_id).await?
-                        && let Some(inst_arc) = self.instances.get(&instance_id).await {
-                            let mut inst = inst_arc.write().await;
-                            inst.state = InstanceState::CompletedWithError {
-                                error_code: error_code.clone(),
-                            };
-                            inst.audit_log.push(format!(
-                                "💥 All tokens completed at Error End with code '{error_code}'"
-                            ));
-                        }
+                        && let Some(inst_arc) = self.instances.get(&instance_id).await
+                    {
+                        let mut inst = inst_arc.write().await;
+                        inst.state = InstanceState::CompletedWithError {
+                            error_code: error_code.clone(),
+                        };
+                        inst.audit_log.push(format!(
+                            "💥 All tokens completed at Error End with code '{error_code}'"
+                        ));
+                    }
+                    self.persist_instance(instance_id).await;
                 }
                 NextAction::Terminate => {
                     // Cancel ALL pending items for this instance
@@ -420,6 +464,7 @@ impl WorkflowEngine {
                         None,
                     )
                     .await;
+                    self.persist_instance(instance_id).await;
                 }
                 NextAction::MultiInstanceFork { node_id, tokens } => {
                     let branch_count = tokens.len();
@@ -534,62 +579,90 @@ impl WorkflowEngine {
         }
 
         match &element {
-            BpmnElement::StartEvent | BpmnElement::TimerStartEvent(_) | BpmnElement::MessageStartEvent { .. } => {
-                self.handle_start_event(instance_id, token, &def_clone, &current_id).await
+            BpmnElement::StartEvent
+            | BpmnElement::TimerStartEvent(_)
+            | BpmnElement::MessageStartEvent { .. } => {
+                self.handle_start_event(instance_id, token, &def_clone, &current_id)
+                    .await
             }
             BpmnElement::EndEvent => {
-                self.handle_end_event(instance_id, token, &def_clone, &current_id).await
+                self.handle_end_event(instance_id, token, &def_clone, &current_id)
+                    .await
             }
             BpmnElement::TerminateEndEvent => {
-                self.handle_terminate_end_event(instance_id, token, &def_clone, &current_id).await
+                self.handle_terminate_end_event(instance_id, token, &def_clone, &current_id)
+                    .await
             }
             BpmnElement::ErrorEndEvent { error_code } => {
-                self.handle_error_end_event(instance_id, token, &def_clone, &current_id, error_code).await
+                self.handle_error_end_event(instance_id, token, &def_clone, &current_id, error_code)
+                    .await
             }
             BpmnElement::UserTask(assignee) => {
-                self.handle_user_task(instance_id, token, &def_clone, &current_id, assignee).await
+                self.handle_user_task(instance_id, token, &def_clone, &current_id, assignee)
+                    .await
             }
             BpmnElement::ScriptTask { script, .. } => {
-                self.handle_script_task(instance_id, token, &def_clone, &current_id, script).await
+                self.handle_script_task(instance_id, token, &def_clone, &current_id, script)
+                    .await
             }
             BpmnElement::SendTask { message_name, .. } => {
-                self.handle_send_task(instance_id, token, &def_clone, &current_id, message_name).await
+                self.handle_send_task(instance_id, token, &def_clone, &current_id, message_name)
+                    .await
             }
             BpmnElement::ServiceTask { topic, .. } => {
-                self.handle_service_task(instance_id, token, &def_clone, &current_id, topic).await
+                self.handle_service_task(instance_id, token, &def_clone, &current_id, topic)
+                    .await
             }
             BpmnElement::ParallelGateway => {
-                self.handle_parallel_gateway(instance_id, token, &def_clone, &current_id).await
+                self.handle_parallel_gateway(instance_id, token, &def_clone, &current_id)
+                    .await
             }
             BpmnElement::ExclusiveGateway { default } => {
-                self.handle_exclusive_gateway(instance_id, token, &def_clone, &current_id, default).await
+                self.handle_exclusive_gateway(instance_id, token, &def_clone, &current_id, default)
+                    .await
             }
             BpmnElement::InclusiveGateway => {
-                self.handle_inclusive_gateway(instance_id, token, &def_clone, &current_id).await
+                self.handle_inclusive_gateway(instance_id, token, &def_clone, &current_id)
+                    .await
             }
             BpmnElement::ComplexGateway { default, .. } => {
-                self.handle_complex_gateway(instance_id, token, &def_clone, &current_id, default).await
+                self.handle_complex_gateway(instance_id, token, &def_clone, &current_id, default)
+                    .await
             }
             BpmnElement::EventBasedGateway => {
-                self.handle_event_based_gateway(instance_id, token, &def_clone, &current_id).await
+                self.handle_event_based_gateway(instance_id, token, &def_clone, &current_id)
+                    .await
             }
             BpmnElement::TimerCatchEvent(timer_def) => {
-                self.handle_timer_catch_event(instance_id, token, &current_id, timer_def).await
+                self.handle_timer_catch_event(instance_id, token, &current_id, timer_def)
+                    .await
             }
             BpmnElement::MessageCatchEvent { message_name } => {
-                self.handle_message_catch_event(instance_id, token, &current_id, message_name).await
+                self.handle_message_catch_event(instance_id, token, &current_id, message_name)
+                    .await
             }
             BpmnElement::CallActivity { called_element } => {
-                self.handle_call_activity(instance_id, token, &def_clone, &current_id, called_element).await
+                self.handle_call_activity(
+                    instance_id,
+                    token,
+                    &def_clone,
+                    &current_id,
+                    called_element,
+                )
+                .await
             }
             BpmnElement::EmbeddedSubProcess { start_node_id } => {
                 self.handle_embedded_sub_process(token, start_node_id).await
             }
             BpmnElement::SubProcessEndEvent { sub_process_id } => {
-                self.handle_sub_process_end_event(token, &def_clone, sub_process_id).await
+                self.handle_sub_process_end_event(token, &def_clone, sub_process_id)
+                    .await
             }
-            BpmnElement::BoundaryTimerEvent { .. } | BpmnElement::BoundaryMessageEvent { .. } | BpmnElement::BoundaryErrorEvent { .. } => {
-                self.handle_boundary_event(instance_id, token, &def_clone, &current_id).await
+            BpmnElement::BoundaryTimerEvent { .. }
+            | BpmnElement::BoundaryMessageEvent { .. }
+            | BpmnElement::BoundaryErrorEvent { .. } => {
+                self.handle_boundary_event(instance_id, token, &def_clone, &current_id)
+                    .await
             }
         }
     }
@@ -769,7 +842,11 @@ impl WorkflowEngine {
         ));
 
         let mut condition_met = false;
-        if let Some(BpmnElement::ComplexGateway { join_condition: Some(cond), .. }) = def.get_node(gateway_id) {
+        if let Some(BpmnElement::ComplexGateway {
+            join_condition: Some(cond),
+            ..
+        }) = def.get_node(gateway_id)
+        {
             let mut temp_vars = std::collections::HashMap::new();
             if let Some(barrier) = inst.join_barriers.get(gateway_id) {
                 for t in &barrier.arrived_tokens {
