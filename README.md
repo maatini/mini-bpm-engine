@@ -1,8 +1,8 @@
 # BPMNinja
 
 [![Rust](https://img.shields.io/badge/Rust-stable-brightgreen.svg?style=flat-square)](https://www.rust-lang.org/)
-[![Tests](https://img.shields.io/badge/Tests-167_passing-success?style=flat-square)]()
-[![Mutation Score](https://img.shields.io/badge/Mutation_Score-93%25-blue?style=flat-square)]()
+[![Tests](https://img.shields.io/badge/Tests-175_passing-success?style=flat-square)]()
+[![Mutation Score](https://img.shields.io/badge/Mutation_Score-~87%25-blue?style=flat-square)]()
 [![License](https://img.shields.io/badge/License-MIT%20OR%20Apache--2.0-blue.svg?style=flat-square)](#lizenz)
 
 <div align="center">
@@ -352,28 +352,30 @@ Services erreichbar unter `localhost:8081` (API) und `localhost:4222` (NATS).
 
 ## Test-Metriken
 
-> Ermittelt via `cargo test --workspace` am 07.04.2026 — **167 Tests, 0 Fehler**
+> Ermittelt via `cargo test --workspace` am 07.04.2026 — **175 Tests, 0 Fehler**
 
 ### Workspace-Übersicht
 
 | Crate | Unit | E2E | Gesamt |
 |-------|------|-----|--------|
-| **engine-core** | 102 | — | 102 |
+| **engine-core** | 105 | 5 | 110 |
 | **bpmn-parser** | 27 | — | 27 |
 | **persistence-nats** | 2 | — | 2 |
 | **engine-server** | — | 36 | 36 |
-| **Gesamt** | **131** | **36** | **167** ✅ |
+| **Gesamt** | **134** | **41** | **175** ✅ |
 
-### engine-core Breakdown (102 Tests)
+### engine-core Breakdown (110 Tests)
 
 | Modul | Tests | Abdeckung |
 |-------|-------|-----------|
-| `engine::tests` | 58 | State Machine, Gateways, User/Service Tasks, Boundary Events, Call Activities, EventBasedGateway, Timers, Messages, Error Propagation, Mutation-Checks |
-| `engine::stress_tests` | 23 | Throughput (1000 Instanzen), Gateway-Korrektheit, Crash Recovery, Concurrency, Race Conditions, Memory (10k Instanzen), History Completeness |
-| `model::tests` | 17 | ProcessDefinition Builder, Token-Serialisierung, SequenceFlow, Validation, FileReference, Gateway-Constraints, EventBasedGateway-Constraints |
-| `history::tests` | 4 | Diff-Berechnung, File-Upload-Erkennung, Human-Readable Text, Empty Diffs |
+| `engine::tests` | 56 | State Machine, Gateways, User/Service Tasks, Boundary Events, Call Activities, EventBasedGateway, Timers, Messages |
+| `engine::stress_tests` | 24 | Throughput, Gateway-Korrektheit, Crash Recovery, Concurrency, Race Conditions, Memory, Infinite Loops |
+| `model::tests` | 17 | ProcessDefinition Builder, Token-Serialisierung, Validation |
+| `history::tests` | 5 | Diff-Berechnung, Human-Readable Text |
+| `condition::tests` | 3 | Bedingungsevaluierung anhand von Token-Variablen |
+| Integration Tests | 5 | BPMN-Compliance, Complex Gateways |
 
-### bpmn-parser Tests (26 Tests)
+### bpmn-parser Tests (27 Tests)
 
 | Bereich | Tests | Abdeckung |
 |---------|-------|-----------|
@@ -407,16 +409,19 @@ Services erreichbar unter `localhost:8081` (API) und `localhost:4222` (NATS).
 
 | Bereich | Dateien | LoC |
 |---------|---------|-----|
-| engine-core (Lib) | 25 | 7.191 |
-| engine-core (Tests) | 2 | 3.545 |
-| bpmn-parser | 4 | 1.963 |
-| persistence-nats | 5 | 1.149 |
-| engine-server (Lib) | 12 | 1.280 |
+| engine-core (Lib) | 25 | 7.708 |
+| engine-core (Tests) | 2 | 3.628 |
+| bpmn-parser | 4 | 2.039 |
+| persistence-nats | 5 | 1.130 |
+| engine-server (Lib) | 12 | 1.548 |
 | engine-server (E2E Tests) | 12 | 1.934 |
 | desktop-tauri (TypeScript + CSS) | 38 | 5.186 |
 | desktop-tauri (Rust Backend) | 10 | 623 |
-| **Rust Workspace** | **60** | **~17.062** |
-| **Projekt Gesamt** | **~108** | **~22.871** |
+| **Rust Workspace** | **60** | **~18.610** |
+| **Projekt Gesamt** | **~108** | **~23.796** |
+
+### Mutation Score (Stichprobe)
+Eine Stichprobe via [`cargo-mutants`](https://mutants.rs) auf geschäftskritischen Komponenten (`condition.rs`, `script_runner.rs`, `history.rs`) ergab einen initialen **Mutation Score von ~87%** (41 von 47 Mutanten durch Tests erkannt). Eine vollständige Evaluierung aller 945 Mutanten (Laufzeit ~3.5h) ist für spätere CI/CD-Phasen vorgesehen.
 
 ---
 
