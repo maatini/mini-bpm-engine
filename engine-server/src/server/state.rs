@@ -1,5 +1,5 @@
 use axum::{Json, http::StatusCode, response::IntoResponse};
-use engine_core::engine::WorkflowEngine;
+use engine_core::WorkflowEngine;
 use engine_core::error::EngineError;
 use engine_core::persistence::WorkflowPersistence;
 use std::collections::HashMap;

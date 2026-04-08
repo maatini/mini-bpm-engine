@@ -14,7 +14,7 @@ use axum::{
     http::Method,
     routing::{delete, get, post, put},
 };
-use engine_core::engine::WorkflowEngine;
+use engine_core::WorkflowEngine;
 use engine_core::persistence::WorkflowPersistence;
 use state::AppState;
 use std::collections::HashMap;

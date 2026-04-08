@@ -3,7 +3,7 @@ use std::env;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use engine_core::engine::WorkflowEngine;
+use engine_core::WorkflowEngine;
 use engine_core::persistence::WorkflowPersistence;
 use engine_server::build_app_with_engine;
 use persistence_nats::NatsPersistence;

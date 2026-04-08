@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use futures::StreamExt;
 use std::collections::HashMap;
 
-use engine_core::engine::{PendingServiceTask, PendingUserTask, ProcessInstance};
+use engine_core::{PendingServiceTask, PendingUserTask, ProcessInstance};
 use engine_core::error::{EngineError, EngineResult};
 use engine_core::model::{ProcessDefinition, Token};
 use engine_core::persistence::WorkflowPersistence;
@@ -209,7 +209,7 @@ impl WorkflowPersistence for NatsPersistence {
         self.list_kv_entries("service_tasks", "service task").await
     }
 
-    async fn save_timer(&self, timer: &engine_core::engine::PendingTimer) -> EngineResult<()> {
+    async fn save_timer(&self, timer: &engine_core::PendingTimer) -> EngineResult<()> {
         let store = self.js.get_key_value("timers").await.map_err(|e| {
             EngineError::PersistenceError(format!("Failed to get timers KV: {}", e))
         })?;
@@ -240,13 +240,13 @@ impl WorkflowPersistence for NatsPersistence {
         Ok(())
     }
 
-    async fn list_timers(&self) -> EngineResult<Vec<engine_core::engine::PendingTimer>> {
+    async fn list_timers(&self) -> EngineResult<Vec<engine_core::PendingTimer>> {
         self.list_kv_entries("timers", "timer").await
     }
 
     async fn save_message_catch(
         &self,
-        catch: &engine_core::engine::PendingMessageCatch,
+        catch: &engine_core::PendingMessageCatch,
     ) -> EngineResult<()> {
         let store = self.js.get_key_value("messages").await.map_err(|e| {
             EngineError::PersistenceError(format!("Failed to get messages KV: {}", e))
@@ -280,7 +280,7 @@ impl WorkflowPersistence for NatsPersistence {
 
     async fn list_message_catches(
         &self,
-    ) -> EngineResult<Vec<engine_core::engine::PendingMessageCatch>> {
+    ) -> EngineResult<Vec<engine_core::PendingMessageCatch>> {
         self.list_kv_entries("messages", "message catch").await
     }
 
