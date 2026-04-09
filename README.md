@@ -1,7 +1,7 @@
 # BPMNinja
 
 [![Rust](https://img.shields.io/badge/Rust-stable-brightgreen.svg?style=flat-square)](https://www.rust-lang.org/)
-[![Tests](https://img.shields.io/badge/Tests-175_passing-success?style=flat-square)]()
+[![Tests](https://img.shields.io/badge/Tests-243_passing-success?style=flat-square)]()
 [![Mutation Score](https://img.shields.io/badge/Mutation_Score-~87%25-blue?style=flat-square)]()
 [![License](https://img.shields.io/badge/License-MIT%20OR%20Apache--2.0-blue.svg?style=flat-square)](#lizenz)
 
@@ -21,6 +21,7 @@
 - [Architektur](#architektur)
 - [Schnellstart](#schnellstart)
 - [REST API](#rest-api)
+- [External Task Client (TypeScript)](#external-task-client-typescript)
 - [Desktop-Anwendung (UI)](#desktop-anwendung-ui)
 - [Docker Compose](#docker-compose)
 - [Test-Metriken](#test-metriken)
@@ -56,6 +57,7 @@ bpmninja ist eine BPMN 2.0 Engine mit folgenden Kernfeatures:
 | **`engine-server`** | Axum HTTP REST-API mit typsicherem Error-Handling (`AppError` → HTTP-Statuscodes) |
 | **`desktop-tauri`** | Tauri Desktop-App (React + bpmn-js) mit Modeler, Instanzen-Dashboard und Event-Historie |
 | **`agent-orchestrator`** | Beispiel-Worker für externe Service-Task-Verarbeitung |
+| **`bpmn-ninja-external-task-client`** | TypeScript/Node Worker-Client (ESM) — Long-Polling, Retry, Lock-Extension, Graceful Shutdown |
 
 ---
 
@@ -318,6 +320,90 @@ Alle Fehler folgen einem einheitlichen JSON-Format:
 
 ---
 
+## External Task Client (TypeScript)
+
+Das Paket **[`@bpmninja/external-task-client`](bpmn-ninja-external-task-client/README.md)** ist ein produktionsreifer Worker-Client für die BPMNinja Service-Task-API. Er ist analog zum [Camunda External Task Client](https://github.com/camunda/camunda-external-task-client-js) aufgebaut, spricht jedoch direkt die BPMNinja REST-Endpunkte unter `/api/service-task/*` an.
+
+### Features
+
+- **Long-Polling** — effizientes Fetch-and-Lock mit konfigurierbarem `asyncResponseTimeout`
+- **Multi-Topic Subscriptions** — mehrere Topics parallel mit individuellen Handlern
+- **Globaler Retry mit Exponential Backoff** — automatische Wiederholung bei Handler-Fehlern (`1s → 2s → 4s → …`, gedeckelt bei 30s)
+- **Automatische Lock-Extension** — verhindert Lock-Ablauf bei lang laufenden Tasks
+- **Incident Creation** — nach erschöpften Retries wird ein Incident am Prozess erzeugt (`failure` mit `retries: 0`)
+- **BPMN Error Throwing** — löst Boundary Error Events direkt aus dem Worker aus
+- **Graceful Shutdown** — wartet auf in-flight Handler, bricht Fetches per `AbortController` ab
+- **Strict TypeScript** — `strict: true`, ESM, natives `fetch()` (Node ≥ 18), keine HTTP-Abhängigkeiten
+- **Pino Logging** — strukturiertes Logging, deaktivierbar via `logger: false`
+
+### Schnellstart
+
+```typescript
+import { ExternalTaskClient } from "@bpmninja/external-task-client";
+
+const client = new ExternalTaskClient({
+  baseUrl: "http://localhost:8081",
+  workerId: "demo-worker-01",
+  maxRetries: 3,
+  autoExtendLock: true,
+});
+
+client.subscribe("send-email", async (task, service) => {
+  const { recipient, subject } = task.variables_snapshot as {
+    recipient: string;
+    subject: string;
+  };
+
+  await sendEmail(recipient, subject);
+
+  await service.complete({
+    emailSent: true,
+    sentAt: new Date().toISOString(),
+  });
+});
+
+// BPMN Error aus dem Worker auslösen (Boundary Error Event)
+client.subscribe("validate-order", async (task, service) => {
+  const { amount } = task.variables_snapshot as { amount: number };
+  if (amount > 10_000) {
+    await service.bpmnError("ORDER_LIMIT_EXCEEDED");
+    return;
+  }
+  await service.complete({ orderValid: true });
+});
+
+client.start();
+
+// Graceful Shutdown
+process.on("SIGINT", async () => {
+  await client.stop();
+  process.exit(0);
+});
+```
+
+### TaskService (pro Handler)
+
+| Methode | Beschreibung |
+|---------|--------------|
+| `complete(variables?)` | Task erfolgreich abschließen, optional mit Ausgabe-Variablen |
+| `failure(msg, details?, retries?)` | Fehler melden; `retries: 0` erzeugt einen Incident |
+| `extendLock(ms)` | Lock verlängern (ms, intern nach Sekunden konvertiert) |
+| `bpmnError(errorCode)` | BPMN Error Event am zugehörigen Boundary auslösen |
+
+### Entwicklung & Tests
+
+```bash
+cd bpmn-ninja-external-task-client
+npm install
+npm run lint     # tsc --noEmit
+npm run test     # vitest run  (68 Tests)
+npm run example  # tsx example/simple-worker.ts
+```
+
+Das komplette Beispiel (`send-email`, `validate-order`, `flaky-task`, Shutdown) findet sich in [`bpmn-ninja-external-task-client/example/simple-worker.ts`](bpmn-ninja-external-task-client/example/simple-worker.ts). Eine vollständige API-Referenz steht in der [Paket-README](bpmn-ninja-external-task-client/README.md).
+
+---
+
 ## Desktop-Anwendung (UI)
 
 Die Tauri-App verbindet sich über HTTP mit dem `engine-server`.
@@ -393,17 +479,18 @@ Services erreichbar unter `localhost:8081` (API) und `localhost:4222` (NATS).
 
 ## Test-Metriken
 
-> Ermittelt via `cargo test --workspace` am 09.04.2026 — **175 Tests, 0 Fehler**
+> Ermittelt via `cargo test --workspace` (Rust) und `npm run test` (TypeScript) am 09.04.2026 — **243 Tests, 0 Fehler**
 
 ### Workspace-Übersicht
 
-| Crate | Unit | E2E | Gesamt |
+| Paket | Unit | E2E | Gesamt |
 |-------|------|-----|--------|
 | **engine-core** | 105 | 5 | 110 |
 | **bpmn-parser** | 27 | — | 27 |
 | **persistence-nats** | 2 | — | 2 |
 | **engine-server** | — | 36 | 36 |
-| **Gesamt** | **134** | **41** | **175** ✅ |
+| **bpmn-ninja-external-task-client** | 68 | — | 68 |
+| **Gesamt** | **202** | **41** | **243** ✅ |
 
 ### engine-core Breakdown (110 Tests)
 
@@ -446,6 +533,16 @@ Services erreichbar unter `localhost:8081` (API) und `localhost:4222` (NATS).
 | `e2e_variables.rs` | 1 | Variable-Updates mid-execution |
 | `e2e_versioning.rs` | 3 | Version-Inkrement, Start-Latest, Instance-Isolation |
 
+### bpmn-ninja-external-task-client Tests (68 Tests, 3 Dateien)
+
+| Testdatei | Tests | Abdeckung |
+|-----------|-------|-----------|
+| `retry.test.ts` | 13 | `sleep`, `calculateBackoff`, `withRetry` (Exponential Backoff, Retry-Erschöpfung) |
+| `TaskService.test.ts` | 20 | `complete`, `failure`, `extendLock`, `bpmnError` (HTTP-Kontrakt & Fehlerpfade) |
+| `ExternalTaskClient.test.ts` | 35 | Konstruktor, Lifecycle, Poll-Loop, Subscriptions, Handler-Dispatch, Retry, Lock-Extension, Graceful Shutdown |
+
+Tests verwenden `vi.useFakeTimers()` und `vi.stubGlobal('fetch', …)` — keine echten HTTP-Calls, keine realen Timer.
+
 ### Code-Statistiken
 
 | Bereich | Dateien | LoC |
@@ -458,8 +555,10 @@ Services erreichbar unter `localhost:8081` (API) und `localhost:4222` (NATS).
 | engine-server (E2E Tests) | 12 | 1.934 |
 | desktop-tauri (TypeScript + CSS) | 45 | 5.405 |
 | desktop-tauri (Rust Backend) | 10 | 624 |
+| external-task-client (Lib) | 5 | 1.031 |
+| external-task-client (Tests) | 6 | 966 |
 | **Rust Workspace** | **91** | **~18.818** |
-| **Projekt Gesamt** | **~136** | **~24.223** |
+| **Projekt Gesamt** | **~147** | **~26.220** |
 
 ### Mutation Score (Stichprobe)
 Eine Stichprobe via [`cargo-mutants`](https://mutants.rs) auf geschäftskritischen Komponenten (`condition.rs`, `script_runner.rs`, `history.rs`) ergab einen initialen **Mutation Score von ~87%** (41 von 47 Mutanten durch Tests erkannt). Eine vollständige Evaluierung aller 945 Mutanten (Laufzeit ~3.5h) ist für spätere CI/CD-Phasen vorgesehen.
