@@ -322,7 +322,48 @@ Alle Fehler folgen einem einheitlichen JSON-Format:
 
 Die Tauri-App verbindet sich über HTTP mit dem `engine-server`.
 
-> **Voraussetzung**: Engine-Server muss laufen. API-URL konfigurierbar via `ENGINE_API_URL` (Default: `http://localhost:8081`).
+> **Voraussetzung**: Ein laufendes Backend (NATS + Engine-Server). Standardmäßig erwartet die App das Backend auf `http://localhost:8081` (konfigurierbar via `ENGINE_API_URL`).
+
+### 1. Systemvoraussetzungen (Backend) ausführen
+
+Speichere folgende `docker-compose.yml` lokal auf deinem Rechner und starte sie via `docker compose up -d`. Das fertige Backend-Image wird dabei automatisch von der GitHub Container Registry bezogen:
+
+```yaml
+services:
+  nats:
+    image: nats:alpine
+    command: ["--js", "--sd", "/data"]
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    volumes:
+      - nats-data:/data
+
+  engine-server:
+    image: ghcr.io/maatini/bpmninja/engine-server:latest
+    ports:
+      - "8081:8081"
+    environment:
+      - PORT=8081
+      - NATS_URL=nats://nats:4222
+    depends_on:
+      - nats
+
+volumes:
+  nats-data:
+```
+
+### 2. Binary-Release der Desktop-App installieren
+
+Die fertigen Apps findest du auf der [GitHub Releases Seite](https://github.com/maatini/bpmninja/releases).
+
+*   **macOS (.dmg):** Öffne die Datei und ziehe das Icon in deinen `Applications`/`Programme`-Ordner. _Hinweis:_ Da Open-Source Apps meist nicht kostenpflichtig signiert sind, kann eine Gatekeeper-Warnung auftreten. Mache einen **Rechtsklick** auf die App und wähle **"Öffnen"**.
+*   **Windows (.exe / .msi):** Führe den Installer per Doppelklick aus. Falls eine Microsoft SmartScreen-Warnung erscheint, klicke auf "Weitere Informationen" und dann auf "Trotzdem ausführen".
+*   **Linux (.AppImage / .deb):** Installiere das `.deb` Paket via `sudo dpkg -i package.deb`. Nutzt du das `.AppImage`, muss dieses ggf. mit `chmod +x app.AppImage` vorher ausführbar gemacht werden.
+
+### 3. Ausführung aus dem Quellcode (Für Entwickler)
+
+Wer die UI direkt aus dem Source Repository ausführen möchte:
 
 ```bash
 # Devbox
