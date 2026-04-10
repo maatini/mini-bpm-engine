@@ -113,6 +113,8 @@ impl WorkflowEngine {
             inst.current_node = next;
         }
 
+        metrics::counter!("bpmn_tasks_completed_total", "type" => "user").increment(1);
+
         self.record_history_event(
             instance_id,
             crate::history::HistoryEventType::TaskCompleted,

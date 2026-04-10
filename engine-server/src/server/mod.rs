@@ -12,8 +12,10 @@ pub(crate) mod timers;
 use axum::{
     Router,
     http::Method,
+    middleware,
     routing::{delete, get, post, put},
 };
+use metrics_exporter_prometheus::PrometheusHandle;
 use engine_core::WorkflowEngine;
 use engine_core::persistence::WorkflowPersistence;
 use state::AppState;
@@ -26,13 +28,14 @@ use tower_http::cors::{Any, CorsLayer};
 /// Exposed as `pub` so integration tests can create the app without
 /// starting a full server binary.
 pub fn build_app() -> Router {
-    build_app_with_engine(Arc::new(WorkflowEngine::new()), None, HashMap::new())
+    build_app_with_engine(Arc::new(WorkflowEngine::new()), None, HashMap::new(), None)
 }
 
 pub fn build_app_with_engine(
     engine: Arc<WorkflowEngine>,
     persistence: Option<Arc<dyn WorkflowPersistence>>,
     xml_cache: HashMap<String, String>,
+    prometheus_handle: Option<PrometheusHandle>,
 ) -> Router {
     let nats_url =
         std::env::var("NATS_URL").unwrap_or_else(|_| "nats://localhost:4222".to_string());
@@ -49,7 +52,7 @@ pub fn build_app_with_engine(
         .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE])
         .allow_headers(Any);
 
-    Router::new()
+    let mut router = Router::new()
         .route("/api/deploy", post(deploy::deploy_definition))
         .route("/api/start", post(instances::start_instance))
         .route("/api/start/latest", post(instances::start_instance_latest))
@@ -134,7 +137,18 @@ pub fn build_app_with_engine(
         .route("/api/service-task/{id}/bpmnError", post(tasks::bpmn_error))
         .route("/api/health", get(|| async { axum::http::StatusCode::OK }))
         .route("/api/ready", get(monitoring::ready_endpoint))
+        .layer(middleware::from_fn(crate::observability::http_metrics_middleware))
         .layer(axum::extract::DefaultBodyLimit::max(5 * 1024 * 1024))
         .layer(cors)
-        .with_state(state)
+        .with_state(state);
+
+    // Mount /metrics endpoint (separate state: PrometheusHandle)
+    if let Some(handle) = prometheus_handle {
+        let metrics_router = Router::new()
+            .route("/metrics", get(crate::observability::metrics_handler))
+            .with_state(handle);
+        router = router.merge(metrics_router);
+    }
+
+    router
 }

@@ -21,6 +21,9 @@ impl WorkflowEngine {
         }
 
         let count = expired.len();
+        if count > 0 {
+            metrics::counter!("bpmn_timer_fired_total").increment(count as u64);
+        }
         for tid in expired {
             let timer = self
                 .pending_timers

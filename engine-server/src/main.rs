@@ -160,8 +160,17 @@ async fn main() -> anyhow::Result<()> {
         }
     };
 
+    // Install Prometheus metrics recorder (must happen before any metrics::* calls)
+    let prometheus_handle = engine_server::observability::install_prometheus_recorder();
+    tracing::info!("Prometheus metrics enabled at /metrics");
+
     let engine_arc = Arc::new(engine);
-    let app = build_app_with_engine(engine_arc.clone(), nats_persistence, xml_cache);
+    let app = build_app_with_engine(
+        engine_arc.clone(),
+        nats_persistence,
+        xml_cache,
+        Some(prometheus_handle),
+    );
 
     // Background timer scheduler — processes expired timers automatically
     let timer_interval_ms: u64 = env::var("TIMER_INTERVAL_MS")

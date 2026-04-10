@@ -109,6 +109,9 @@ impl WorkflowEngine {
             variables.len()
         );
 
+        metrics::counter!("bpmn_instance_started_total").increment(1);
+        metrics::gauge!("bpmn_active_instances").increment(1.0);
+
         self.instances.insert(instance_id, instance).await;
 
         // Record history for start

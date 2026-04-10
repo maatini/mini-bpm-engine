@@ -200,16 +200,16 @@ impl WorkflowEngine {
                 variables,
                 ..
             } = &mut *inst;
-            let script_engine = crate::engine::create_script_engine();
             crate::scripting::run_end_scripts(
-                &script_engine,
+                &self.script_config,
                 instance_id,
                 &mut token,
                 &def,
                 &task.node_id,
                 audit_log,
                 variables,
-            )?;
+            )
+            .await?;
         }
 
         let next =
@@ -228,6 +228,8 @@ impl WorkflowEngine {
         }
 
         self.remove_persisted_service_task(task_id).await;
+
+        metrics::counter!("bpmn_tasks_completed_total", "type" => "service").increment(1);
 
         self.record_history_event(
             instance_id,
@@ -276,6 +278,7 @@ impl WorkflowEngine {
             let node_id = task.node_id.clone();
 
             if new_retries <= 0 {
+                metrics::counter!("bpmn_errors_total", "type" => "incident").increment(1);
                 // Incident: log and record on the instance
                 if let Some(inst_arc) = self.instances.get(&instance_id).await {
                     let mut inst = inst_arc.write().await;

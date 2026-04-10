@@ -20,6 +20,15 @@ tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 chrono = { version = "0.4.44", features = ["serde"] }
 
+# Observability — Prometheus metrics
+# Note: opentelemetry-prometheus is officially discontinued (v0.31).
+# The `metrics` ecosystem is the idiomatic Rust choice for Prometheus export.
+metrics = "0.24"
+metrics-exporter-prometheus = { version = "0.16", default-features = false }
+metrics-process = "2.4"
+tower = "0.5"
+pin-project-lite = "0.2"
+
 [dev-dependencies]
 reqwest = { version = "0.13", features = ["json", "multipart"] }
 tokio = { workspace = true }

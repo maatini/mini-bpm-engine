@@ -49,20 +49,20 @@ pub struct WorkflowEngine {
     pub(crate) persistence_error_count: Arc<std::sync::atomic::AtomicU64>,
     pub(crate) retry_tx: Option<retry_queue::RetryQueueTx>,
     pub(crate) retry_worker_handle: tokio::sync::Mutex<Option<tokio::task::JoinHandle<()>>>,
+    /// Hardened Rhai script execution configuration.
+    pub(crate) script_config: crate::scripting::ScriptConfig,
 }
 
-/// Creates a configured Rhai script engine.
-/// Called per-evaluation to avoid Sync issues and lock contention.
-pub(crate) fn create_script_engine() -> rhai::Engine {
-    let mut engine = rhai::Engine::new();
-    engine.set_max_operations(10_000);
-    engine
-}
 
 impl WorkflowEngine {
-    /// Creates a new, empty engine.
+    /// Creates a new, empty engine with script config read from env.
     pub fn new() -> Self {
-        tracing::info!("WorkflowEngine initialized");
+        let script_config = crate::scripting::ScriptConfig::from_env();
+        tracing::info!(
+            "WorkflowEngine initialized (script limits: ops={}, timeout={}ms)",
+            script_config.max_operations,
+            script_config.timeout_ms
+        );
 
         Self {
             definitions: registry::DefinitionRegistry::new(),
@@ -75,6 +75,7 @@ impl WorkflowEngine {
             persistence_error_count: Arc::new(std::sync::atomic::AtomicU64::new(0)),
             retry_tx: None,
             retry_worker_handle: tokio::sync::Mutex::new(None),
+            script_config,
         }
     }
 

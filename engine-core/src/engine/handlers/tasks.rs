@@ -63,21 +63,10 @@ impl WorkflowEngine {
         current_id: &str,
         script: &str,
     ) -> EngineResult<NextAction> {
-        let script_engine = crate::engine::create_script_engine();
-        let mut scope = rhai::Scope::new();
-        for (k, v) in &token.variables {
-            scope.push_dynamic(k, rhai::serde::to_dynamic(v).unwrap_or(rhai::Dynamic::UNIT));
-        }
-
-        script_engine
-            .eval_with_scope::<()>(&mut scope, script)
-            .map_err(|e| EngineError::ScriptError(e.to_string()))?;
-
-        for (k, _, v) in scope.iter_raw() {
-            if let Ok(json_val) = rhai::serde::from_dynamic(v) {
-                token.variables.insert(k.to_string(), json_val);
-            }
-        }
+        let result =
+            crate::scripting::execute_script_safe(&self.script_config, script, &token.variables)
+                .await?;
+        token.variables = result;
 
         self.run_end_scripts(instance_id, token, def_clone, current_id)
             .await?;

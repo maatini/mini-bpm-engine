@@ -524,6 +524,8 @@ impl WorkflowEngine {
             }
         }
         if completed {
+            metrics::counter!("bpmn_instance_completed_total").increment(1);
+            metrics::gauge!("bpmn_active_instances").decrement(1.0);
             self.resume_parent_if_needed(instance_id, error_code_to_propagate)
                 .await?;
         }
@@ -560,16 +562,16 @@ impl WorkflowEngine {
         let def_clone = Arc::clone(&def);
 
         let mut start_audits = Vec::new();
-        let script_engine = crate::engine::create_script_engine();
         scripting::run_node_scripts(
-            &script_engine,
+            &self.script_config,
             instance_id,
             token,
             &def_clone,
             &current_id,
             ListenerEvent::Start,
             &mut start_audits,
-        )?;
+        )
+        .await?;
         if let Some(inst_arc) = self.instances.get(&instance_id).await {
             let mut inst = inst_arc.write().await;
             inst.audit_log.append(&mut start_audits);
@@ -967,9 +969,8 @@ impl WorkflowEngine {
             variables,
             ..
         } = &mut *inst;
-        let script_engine = crate::engine::create_script_engine();
         crate::scripting::run_end_scripts(
-            &script_engine,
+            &self.script_config,
             instance_id,
             token,
             def,
@@ -977,5 +978,6 @@ impl WorkflowEngine {
             audit_log,
             variables,
         )
+        .await
     }
 }
