@@ -311,6 +311,194 @@ impl WorkflowEngine {
         Ok(())
     }
 
+    /// Retries an incident (a service task with retries <= 0).
+    ///
+    /// Resets the retry counter and clears the error fields so that a worker
+    /// can pick up the task again via fetch-and-lock.
+    pub async fn retry_incident(
+        &self,
+        task_id: Uuid,
+        new_retries: Option<i32>,
+    ) -> EngineResult<()> {
+        let instance_id = {
+            let mut task = self
+                .pending_service_tasks
+                .get_mut(&task_id)
+                .ok_or(EngineError::ServiceTaskNotFound(task_id))?;
+
+            if task.retries > 0 {
+                return Err(EngineError::InvalidDefinition(
+                    "Task is not an incident (retries > 0)".into(),
+                ));
+            }
+
+            let retries = new_retries.unwrap_or(3);
+            task.retries = retries;
+            task.error_message = None;
+            task.error_details = None;
+            task.worker_id = None;
+            task.lock_expiration = None;
+
+            let instance_id = task.instance_id;
+            let node_id = task.node_id.clone();
+
+            tracing::info!(
+                "Service task {task_id}: incident retried with {retries} retries"
+            );
+
+            // Update audit log on the instance
+            if let Some(inst_arc) = self.instances.get(&instance_id).await {
+                let mut inst = inst_arc.write().await;
+                inst.push_audit_log(format!(
+                    "🔄 Incident on service task '{}' retried ({} retries)",
+                    node_id, retries
+                ));
+            }
+
+            instance_id
+        };
+
+        self.record_history_event(
+            instance_id,
+            crate::history::HistoryEventType::TaskCompleted,
+            &format!("Incident retried (task {})", task_id),
+            crate::history::ActorType::User,
+            None,
+            None,
+        )
+        .await;
+
+        self.persist_service_task(task_id).await;
+        self.persist_instance(instance_id).await;
+
+        Ok(())
+    }
+
+    /// Resolves an incident by manually completing the service task.
+    ///
+    /// Unlike `complete_service_task`, this does not require a worker lock.
+    /// The token is advanced to the next node as if a worker had completed it.
+    pub async fn resolve_incident(
+        &self,
+        task_id: Uuid,
+        variables: HashMap<String, Value>,
+    ) -> EngineResult<()> {
+        // Validate the task exists and is an incident
+        {
+            let task_ref = self
+                .pending_service_tasks
+                .get(&task_id)
+                .ok_or(EngineError::ServiceTaskNotFound(task_id))?;
+
+            if task_ref.retries > 0 {
+                return Err(EngineError::InvalidDefinition(
+                    "Task is not an incident (retries > 0)".into(),
+                ));
+            }
+        }
+
+        // Remove the task from pending
+        let task = self
+            .pending_service_tasks
+            .remove(&task_id)
+            .map(|(_, v)| v)
+            .ok_or(EngineError::ServiceTaskNotFound(task_id))?;
+        let instance_id = task.instance_id;
+
+        let old_state = if let Some(lk) = self.instances.get(&instance_id).await {
+            Some(lk.read().await.clone())
+        } else {
+            None
+        };
+
+        // Retrieve token from central store and merge variables
+        let mut token = {
+            let inst_arc = self
+                .instances
+                .get(&instance_id)
+                .await
+                .ok_or(EngineError::NoSuchInstance(instance_id))?;
+            let mut inst = inst_arc.write().await;
+            inst.tokens.remove(&task.token_id).ok_or_else(|| {
+                EngineError::InvalidDefinition(format!(
+                    "Token {} not found in instance",
+                    task.token_id
+                ))
+            })?
+        };
+        for (k, v) in variables {
+            token.variables.insert(k, v);
+        }
+
+        self.cancel_boundary_timers(instance_id, &task.node_id)
+            .await;
+        self.cancel_boundary_message_catches(instance_id, &task.node_id)
+            .await;
+
+        tracing::info!(
+            "Instance {}: incident on service task '{}' resolved manually (task_id: {task_id})",
+            instance_id,
+            task.node_id
+        );
+
+        let def_key = {
+            let inst_arc = self
+                .instances
+                .get(&instance_id)
+                .await
+                .ok_or(EngineError::NoSuchInstance(instance_id))?;
+            let mut inst = inst_arc.write().await;
+            inst.push_audit_log(format!(
+                "✅ Incident on service task '{}' resolved manually",
+                task.node_id
+            ));
+
+            if !matches!(inst.state, InstanceState::ParallelExecution { .. }) {
+                inst.state = InstanceState::Running;
+            }
+            inst.current_node = task.node_id.clone();
+            inst.definition_key
+        };
+
+        // Advance token to the next node
+        let def = self
+            .definitions
+            .get(&def_key)
+            .ok_or(EngineError::NoSuchDefinition(def_key))?;
+
+        self.run_end_scripts(instance_id, &mut token, &def, &task.node_id)
+            .await?;
+
+        let next =
+            crate::engine::executor::resolve_next_target(&def, &task.node_id, &token.variables)?;
+
+        token.current_node = next.clone();
+        {
+            let inst_arc = self
+                .instances
+                .get(&instance_id)
+                .await
+                .ok_or(EngineError::NoSuchInstance(instance_id))?;
+            let mut inst = inst_arc.write().await;
+            inst.current_node = next;
+        }
+
+        self.record_history_event(
+            instance_id,
+            crate::history::HistoryEventType::TaskCompleted,
+            &format!("Incident on service task '{}' resolved manually", task.node_id),
+            crate::history::ActorType::User,
+            None,
+            old_state.as_ref(),
+        )
+        .await;
+
+        self.remove_persisted_service_task(task_id).await;
+
+        // Continue running
+        self.run_instance_batch(instance_id, token).await
+    }
+
     /// Extends the lock on an service task.
     pub async fn extend_lock(
         &self,

@@ -33,6 +33,7 @@ export interface PendingServiceTask {
   error_message: string | null;
   error_details: string | null;
   created_at: string;
+  variables_snapshot: Record<string, unknown>;
 }
 
 export interface HistoryEntry {

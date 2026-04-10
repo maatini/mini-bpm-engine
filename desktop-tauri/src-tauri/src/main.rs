@@ -41,6 +41,8 @@ fn main() {
             commands::tasks::get_pending_service_tasks,
             commands::tasks::fetch_and_lock_service_tasks,
             commands::tasks::complete_service_task,
+            commands::tasks::retry_incident,
+            commands::tasks::resolve_incident,
             commands::files::upload_instance_file,
             commands::files::download_instance_file,
             commands::files::delete_instance_file,

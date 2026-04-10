@@ -50,6 +50,14 @@ export async function completeServiceTask(taskId: string, workerId: string, vari
   return invoke('complete_service_task', { taskId, workerId, variables: variables || null });
 }
 
+export async function retryIncident(taskId: string, retries?: number): Promise<void> {
+  return invoke('retry_incident', { taskId, retries: retries ?? null });
+}
+
+export async function resolveIncident(taskId: string, variables?: Record<string, unknown>): Promise<void> {
+  return invoke('resolve_incident', { taskId, variables: variables ?? null });
+}
+
 export async function listInstances(): Promise<ProcessInstance[]> {
   return invoke('list_instances');
 }

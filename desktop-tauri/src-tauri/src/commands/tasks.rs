@@ -67,3 +67,35 @@ pub async fn complete_service_task(
     )
     .await
 }
+
+#[tauri::command]
+pub async fn retry_incident(
+    state: tauri::State<'_, AppState>,
+    task_id: String,
+    retries: Option<i32>,
+) -> Result<(), String> {
+    let payload = serde_json::json!({ "retries": retries });
+    crate::api_helpers::api_post_no_body(
+        &state,
+        &format!("/api/service-task/{}/retry", task_id),
+        &payload,
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn resolve_incident(
+    state: tauri::State<'_, AppState>,
+    task_id: String,
+    variables: Option<HashMap<String, serde_json::Value>>,
+) -> Result<(), String> {
+    let payload = serde_json::json!({
+        "variables": variables.unwrap_or_default()
+    });
+    crate::api_helpers::api_post_no_body(
+        &state,
+        &format!("/api/service-task/{}/resolve", task_id),
+        &payload,
+    )
+    .await
+}

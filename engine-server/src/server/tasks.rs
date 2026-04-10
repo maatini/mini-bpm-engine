@@ -160,6 +160,44 @@ pub(crate) async fn fail_service_task(
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub(crate) struct RetryIncidentRequest {
+    pub retries: Option<i32>,
+}
+
+pub(crate) async fn retry_incident(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+    Json(payload): Json<RetryIncidentRequest>,
+) -> Result<impl IntoResponse, AppError> {
+    let engine = &state.engine;
+    let task_id = parse_uuid(&id)?;
+
+    engine.retry_incident(task_id, payload.retries).await?;
+
+    Ok(StatusCode::NO_CONTENT)
+}
+
+#[derive(Serialize, Deserialize)]
+pub(crate) struct ResolveIncidentRequest {
+    pub variables: Option<HashMap<String, Value>>,
+}
+
+pub(crate) async fn resolve_incident(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+    Json(payload): Json<ResolveIncidentRequest>,
+) -> Result<impl IntoResponse, AppError> {
+    let engine = &state.engine;
+    let task_id = parse_uuid(&id)?;
+    let vars = payload.variables.unwrap_or_default();
+
+    engine.resolve_incident(task_id, vars).await?;
+
+    Ok(StatusCode::NO_CONTENT)
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub(crate) struct ExtendLockRequest {
     pub worker_id: String,
     pub new_duration: i64,

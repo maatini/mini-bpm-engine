@@ -121,6 +121,11 @@ pub fn build_app_with_engine(
             "/api/service-task/{id}/failure",
             post(tasks::fail_service_task),
         )
+        .route("/api/service-task/{id}/retry", post(tasks::retry_incident))
+        .route(
+            "/api/service-task/{id}/resolve",
+            post(tasks::resolve_incident),
+        )
         .route("/api/service-task/{id}/extendLock", post(tasks::extend_lock))
         .route("/api/service-task/{id}/bpmnError", post(tasks::bpmn_error))
         .route("/api/health", get(|| async { axum::http::StatusCode::OK }))
