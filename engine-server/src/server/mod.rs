@@ -53,6 +53,7 @@ pub fn build_app_with_engine(
         .route("/api/deploy", post(deploy::deploy_definition))
         .route("/api/start", post(instances::start_instance))
         .route("/api/start/latest", post(instances::start_instance_latest))
+        .route("/api/start/timer", post(instances::start_timer_instance))
         .route("/api/tasks", get(tasks::get_tasks))
         .route("/api/complete/{id}", post(tasks::complete_task))
         .route("/api/instances", get(instances::list_instances))

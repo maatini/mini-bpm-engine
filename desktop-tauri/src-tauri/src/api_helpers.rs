@@ -29,7 +29,9 @@ pub async fn api_post(state: &AppState, path: &str, body: &Value) -> Result<Valu
         .await
         .map_err(|e| e.to_string())?;
     if !res.status().is_success() {
-        return Err(format!("Request failed: {} {}", res.status(), path));
+        let status = res.status();
+        let body_text = res.text().await.unwrap_or_default();
+        return Err(format!("Request failed: {} {}: {}", status, path, body_text));
     }
     res.json().await.map_err(|e| e.to_string())
 }

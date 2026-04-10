@@ -71,3 +71,17 @@ export default defineConfig([
   },
 ])
 ```
+
+## Flow Conditions – Camunda 7 Kompatibilität
+
+Der BPMN-Modeler unterstützt Flow Conditions analog zum Camunda Modeler für Camunda 7:
+
+- **Bedingte Gateways:** Die Condition-Gruppe im Properties Panel erscheint nur bei Sequence Flows, deren Quelle ein Exclusive Gateway oder Inclusive Gateway ist.
+- **Default Flows:** Flows, die als Default-Pfad markiert sind, zeigen keine Condition-Gruppe an.
+- **Condition Type:** Dropdown mit drei Optionen:
+  - **None** – keine Bedingung
+  - **Expression** – JUEL/FEEL-kompatible Expression (z.B. `${amount > 100}`)
+  - **Script** – Script mit Rhai als Script-Sprache
+- **XML-Format:**
+  - Expression: `<conditionExpression xsi:type="bpmn:tFormalExpression">${...}</conditionExpression>`
+  - Script: `<conditionExpression xsi:type="bpmn:tFormalExpression" language="groovy">...</conditionExpression>`

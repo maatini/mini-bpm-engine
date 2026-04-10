@@ -721,6 +721,38 @@ fn parse_time_cycle_repeating_interval() {
     }
 }
 #[test]
+fn parse_time_cycle_repeating_interval_compact() {
+    // Compact format without slash: R3PT30S (as produced by bpmn-js properties panel)
+    let xml = r#"
+        <definitions id="def1" xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL">
+            <process id="proc1">
+                <startEvent id="s1">
+                    <timerEventDefinition>
+                        <timeCycle>R3PT30S</timeCycle>
+                    </timerEventDefinition>
+                </startEvent>
+                <endEvent id="e1" />
+                <sequenceFlow id="f1" sourceRef="s1" targetRef="e1" />
+            </process>
+        </definitions>
+    "#;
+
+    let def = parse_bpmn_xml(xml).unwrap();
+    match def.nodes.get("s1").unwrap() {
+        BpmnElement::TimerStartEvent(
+            engine_core::timer_definition::TimerDefinition::RepeatingInterval {
+                repetitions,
+                interval,
+            },
+        ) => {
+            assert_eq!(*repetitions, Some(3));
+            assert_eq!(interval.as_secs(), 30);
+        }
+        _ => panic!("Expected TimerStartEvent with RepeatingInterval"),
+    }
+}
+
+#[test]
 fn parse_script_task() {
     let xml = r#"
         <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL">

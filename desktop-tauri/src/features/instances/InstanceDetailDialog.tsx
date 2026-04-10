@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Trash } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Trash, RefreshCw, Clock } from 'lucide-react';
 import { type ProcessInstance, type DefinitionInfo, type PendingUserTask, type PendingServiceTask } from '../../shared/types/engine';
 import { getInstanceDetails, getDefinitionXml, getPendingTasks, getPendingServiceTasks, updateInstanceVariables } from '../../shared/lib/tauri';
 import { ErrorBoundary } from '../../shared/components/ErrorBoundary';
@@ -47,12 +47,48 @@ export function InstanceDetailDialog({
       setShowNodeDetails(true);
       return;
     }
-    
+
     // If instance changed, reload details
     if (!selected || instance.id !== selected.id) {
       loadInstanceDetails(instance);
     }
   }, [instance]);
+
+  // Auto-refresh instance details every 3 seconds while dialog is open
+  const refreshDetails = useCallback(async () => {
+    if (!selected) return;
+    try {
+      const details = await getInstanceDetails(selected.id);
+      setSelected(details);
+      setVariables(parseVariables(details.variables));
+      if (typeof details.state === 'object') {
+        if ('WaitingOnUserTask' in details.state) {
+          const tasks = await getPendingTasks();
+          setPendingTasks(tasks.filter(t => t.instance_id === details.id));
+          setPendingServiceTasks([]);
+        } else if ('WaitingOnServiceTask' in details.state) {
+          const sTasks = await getPendingServiceTasks();
+          setPendingServiceTasks(sTasks.filter(t => t.instance_id === details.id));
+          setPendingTasks([]);
+        } else {
+          setPendingTasks([]);
+          setPendingServiceTasks([]);
+        }
+      } else {
+        setPendingTasks([]);
+        setPendingServiceTasks([]);
+      }
+      setHistoryRefreshTrigger(prev => prev + 1);
+    } catch {
+      // Silently ignore refresh errors
+    }
+  }, [selected?.id]);
+
+  useEffect(() => {
+    if (!selected) return;
+    const interval = setInterval(refreshDetails, 3000);
+    return () => clearInterval(interval);
+  }, [selected?.id, refreshDetails]);
 
   const loadInstanceDetails = async (inst: ProcessInstance) => {
     setDetailLoading(true);
@@ -128,6 +164,9 @@ export function InstanceDetailDialog({
         <DialogHeader className="px-6 py-4 border-b flex flex-row items-center justify-between sticky top-0 bg-background/95 backdrop-blur z-10 shrink-0">
           <DialogTitle className="text-xl">Instance Details: {selected?.id.substring(0, 8) || instance?.id.substring(0, 8)}…</DialogTitle>
           <div className="flex gap-2 items-center !m-0">
+            <Button variant="outline" size="sm" className="gap-2" onClick={refreshDetails}>
+              <RefreshCw className="h-4 w-4" /> Refresh
+            </Button>
             <Button variant="destructive" size="sm" className="gap-2" onClick={() => selected && onDeleteRequest(selected.id)}>
               <Trash className="h-4 w-4" /> Delete
             </Button>
@@ -169,13 +208,40 @@ export function InstanceDetailDialog({
                   <h3 className="text-lg font-semibold border-b pb-2">Process Workflow</h3>
                   <ErrorBoundary>
                     <div className="border rounded-md bg-card overflow-hidden h-[400px]">
-                      <InstanceViewer 
-                        xml={definitionXml} 
-                        activeNodeId={selected.current_node} 
-                        onNodeClick={() => setShowNodeDetails((prev) => !prev)} 
+                      <InstanceViewer
+                        xml={definitionXml}
+                        activeNodeId={selected.current_node}
+                        onNodeClick={() => setShowNodeDetails((prev) => !prev)}
+                        timerStartNodeId={
+                          selected.variables._timer_start_node &&
+                          typeof selected.variables._timer_iteration === 'number' &&
+                          typeof selected.variables._timer_total === 'number' &&
+                          selected.variables._timer_iteration < selected.variables._timer_total
+                            ? String(selected.variables._timer_start_node)
+                            : undefined
+                        } 
                       />
                     </div>
                   </ErrorBoundary>
+                  {typeof selected.variables._timer_iteration === 'number' && typeof selected.variables._timer_total === 'number' && selected.variables._timer_total > 1 && (
+                    <div className={cn(
+                      "flex items-center gap-2 text-sm px-3 py-2 rounded-md border",
+                      selected.variables._timer_iteration < selected.variables._timer_total
+                        ? "bg-amber-50 border-amber-300 text-amber-800 dark:bg-amber-950/30 dark:border-amber-800 dark:text-amber-300"
+                        : "bg-muted border-border text-muted-foreground"
+                    )}>
+                      <Clock className="h-4 w-4 shrink-0" />
+                      <span>
+                        Timer cycle: instance {selected.variables._timer_iteration} of {selected.variables._timer_total}
+                        {typeof selected.variables._timer_interval_secs === 'number' && (
+                          <> (every {selected.variables._timer_interval_secs}s)</>
+                        )}
+                        {selected.variables._timer_iteration < selected.variables._timer_total
+                          ? ' — cycle active'
+                          : ' — cycle complete'}
+                      </span>
+                    </div>
+                  )}
                   {!showNodeDetails && (
                     <p className="text-sm text-muted-foreground">
                       Click on the highlighted active node ({selected.current_node}) to view variables and state details.

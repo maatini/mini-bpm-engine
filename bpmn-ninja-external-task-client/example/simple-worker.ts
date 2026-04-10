@@ -17,7 +17,7 @@ import { ExternalTaskClient } from "../src/index.js";
 // ---------------------------------------------------------------------------
 
 const client = new ExternalTaskClient({
-  baseUrl: "http://localhost:8080",
+  baseUrl: "http://localhost:8081",
   workerId: "demo-worker-01",
   lockDuration: 30_000,           // 30 seconds
   maxTasks: 5,                    // Fetch up to 5 tasks per poll
@@ -32,6 +32,23 @@ const client = new ExternalTaskClient({
 // ---------------------------------------------------------------------------
 // 2. Subscribe to topics
 // ---------------------------------------------------------------------------
+
+// Topic: "send-email" — Simulates sending an email
+client.subscribe("worker", async (task, service) => {
+
+  console.log(`worker kontext: ${JSON.stringify(task.variables_snapshot)}`);
+
+  // Simulate some async work (e.g. calling an email API)
+  await new Promise((resolve) => setTimeout(resolve, 1_000));
+
+  // Complete the task with result variables
+  await service.complete({
+    worker: "worker-01",
+    emailSent: true,
+    sentAt: new Date().toISOString(),
+  });
+});
+
 
 // Topic: "send-email" — Simulates sending an email
 client.subscribe("send-email", async (task, service) => {

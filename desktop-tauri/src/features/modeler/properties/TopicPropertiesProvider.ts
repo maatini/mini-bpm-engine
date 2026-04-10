@@ -40,6 +40,7 @@ function CustomTopicGroup(element: any, translate: any) {
   return {
     id: 'ExternalTaskGroup',
     label: translate('External Task Configuration'),
+    shouldOpen: true,
     entries: [
       {
         id: 'externalTaskTopic',

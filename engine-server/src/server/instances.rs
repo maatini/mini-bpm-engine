@@ -74,6 +74,20 @@ pub(crate) async fn start_instance_latest(
     }))
 }
 
+pub(crate) async fn start_timer_instance(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<StartRequest>,
+) -> Result<Json<StartResponse>, AppError> {
+    let engine = Arc::clone(&state.engine);
+    let def_key = parse_uuid(&payload.definition_key)?;
+    let vars = payload.variables.unwrap_or_default();
+    let id = engine.start_timer_instance(def_key, vars).await?;
+
+    Ok(Json(StartResponse {
+        instance_id: id.to_string(),
+    }))
+}
+
 pub(crate) async fn list_instances(
     State(state): State<Arc<AppState>>,
 ) -> Json<Vec<ProcessInstance>> {

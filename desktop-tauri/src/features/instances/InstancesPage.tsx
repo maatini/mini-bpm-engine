@@ -32,6 +32,7 @@ export function InstancesPage({ selectedInstanceId, onClearSelection }: { select
     setError(null);
     try {
       const [instList, defList] = await Promise.all([listInstances(), listDefinitions()]);
+      instList.sort((a: ProcessInstance, b: ProcessInstance) => a.id.localeCompare(b.id));
       setInstances(instList);
       setDefinitions(defList);
     } catch (e: any) {

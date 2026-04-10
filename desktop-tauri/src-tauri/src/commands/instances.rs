@@ -22,6 +22,26 @@ pub async fn start_instance(
 }
 
 #[tauri::command]
+pub async fn start_timer_instance(
+    state: tauri::State<'_, AppState>,
+    def_id: String,
+    variables: Option<HashMap<String, serde_json::Value>>,
+) -> Result<String, String> {
+    let mut payload = serde_json::json!({
+        "definition_key": def_id
+    });
+    if let Some(vars) = variables {
+        if !vars.is_empty() {
+            payload["variables"] = serde_json::to_value(vars).unwrap_or_default();
+        }
+    }
+
+    let data = crate::api_helpers::api_post(&state, "/api/start/timer", &payload).await?;
+    let instance_id = data["instance_id"].as_str().unwrap_or("").to_string();
+    Ok(instance_id)
+}
+
+#[tauri::command]
 pub async fn list_instances(
     state: tauri::State<'_, AppState>,
 ) -> Result<serde_json::Value, String> {

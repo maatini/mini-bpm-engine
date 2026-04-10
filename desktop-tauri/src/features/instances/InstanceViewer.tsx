@@ -12,9 +12,10 @@ interface InstanceViewerProps {
   xml: string;
   activeNodeId: string;
   onNodeClick: () => void;
+  timerStartNodeId?: string;
 }
 
-export const InstanceViewer = memo(function InstanceViewer({ xml, activeNodeId, onNodeClick }: InstanceViewerProps) {
+export const InstanceViewer = memo(function InstanceViewer({ xml, activeNodeId, onNodeClick, timerStartNodeId }: InstanceViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<any>(null);
 
@@ -54,6 +55,11 @@ export const InstanceViewer = memo(function InstanceViewer({ xml, activeNodeId, 
           canvas.addMarker(activeNodeId, 'highlight-node');
         }
 
+        // Highlight timer start event if cycle is still active
+        if (timerStartNodeId && timerStartNodeId !== activeNodeId && elementRegistry.get(timerStartNodeId)) {
+          canvas.addMarker(timerStartNodeId, 'highlight-timer-active');
+        }
+
         // Add click listener
         eventBus.on('element.click', (e: any) => {
           if (e.element.id === activeNodeId) {
@@ -69,7 +75,7 @@ export const InstanceViewer = memo(function InstanceViewer({ xml, activeNodeId, 
     return () => {
       isMounted = false;
     };
-  }, [xml, activeNodeId, onNodeClick]);
+  }, [xml, activeNodeId, onNodeClick, timerStartNodeId]);
 
   const handleCenter = () => {
     if (viewerRef.current) {
@@ -85,6 +91,16 @@ export const InstanceViewer = memo(function InstanceViewer({ xml, activeNodeId, 
             stroke: #10b981 !important; /* Emerald green border */
             stroke-width: 4px !important;
             fill: rgba(16, 185, 129, 0.2) !important; /* Light emerald fill */
+          }
+          .highlight-timer-active:not(.djs-connection) .djs-visual > :nth-child(1) {
+            stroke: #f59e0b !important; /* Amber border – timer still firing */
+            stroke-width: 4px !important;
+            fill: rgba(245, 158, 11, 0.15) !important;
+            animation: timer-pulse 2s ease-in-out infinite;
+          }
+          @keyframes timer-pulse {
+            0%, 100% { fill-opacity: 0.15; }
+            50% { fill-opacity: 0.35; }
           }
         `}
       </style>

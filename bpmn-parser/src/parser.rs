@@ -178,17 +178,20 @@ fn parse_timer_definition(
     Ok(TimerDefinition::Duration(Duration::from_secs(0)))
 }
 
-/// Parse ISO 8601 repeating interval: R[n]/PT... or R/PT...
+/// Parse ISO 8601 repeating interval: R[n]/PT..., R/PT..., or compact R[n]PT...
 fn parse_repeating_interval(s: &str) -> EngineResult<TimerDefinition> {
-    let parts: Vec<&str> = s.splitn(2, '/').collect();
-    if parts.len() != 2 {
+    // Support both "R3/PT30S" (with slash) and "R3PT30S" (compact, no slash)
+    let (r_part, dur_part) = if let Some(slash_pos) = s.find('/') {
+        (&s[..slash_pos], &s[slash_pos + 1..])
+    } else if let Some(pt_pos) = s[1..].find("PT").map(|p| p + 1) {
+        // Compact form: "R3PT30S" → r_part="R3", dur_part="PT30S"
+        (&s[..pt_pos], &s[pt_pos..])
+    } else {
         return Err(EngineError::InvalidDefinition(format!(
-            "Invalid repeating interval '{}': expected R[n]/duration",
+            "Invalid repeating interval '{}': expected R[n]/duration or R[n]PTduration",
             s
         )));
-    }
-    let r_part = parts[0]; // "R" or "R3"
-    let dur_part = parts[1]; // "PT10M"
+    };
 
     let repetitions = if r_part == "R" {
         None // infinite

@@ -1,5 +1,6 @@
 use serde_json::Value;
 use std::collections::HashMap;
+use std::sync::Arc;
 use std::time::Duration;
 use uuid::Uuid;
 
@@ -79,7 +80,6 @@ impl WorkflowEngine {
                 "Use trigger_timer_start() for timer start events".into(),
             ));
         }
-
         let instance_id = Uuid::new_v4();
         let business_key = variables
             .remove("business_key")
@@ -424,6 +424,159 @@ impl WorkflowEngine {
 
         let token = Token::new(&start_id);
 
+        self.run_instance_batch(instance_id, token).await?;
+        self.persist_instance(instance_id).await;
+
+        Ok(instance_id)
+    }
+
+    /// Starts a timer-start-event process, respecting the timer definition.
+    ///
+    /// - Duration: starts one instance immediately
+    /// - RepeatingInterval (R3/PT30S): starts the first instance immediately,
+    ///   then spawns a background task for the remaining repetitions
+    /// - CronCycle: starts one instance immediately
+    ///
+    /// Returns the first instance ID.
+    pub async fn start_timer_instance(
+        self: &Arc<Self>,
+        definition_key: Uuid,
+        variables: HashMap<String, Value>,
+    ) -> EngineResult<Uuid> {
+        let def = self
+            .definitions
+            .get(&definition_key)
+            .ok_or(EngineError::NoSuchDefinition(definition_key))?;
+
+        let (start_id, start_element) = def
+            .start_event()
+            .ok_or_else(|| EngineError::InvalidDefinition("No start event".into()))?;
+
+        let timer_def = match start_element {
+            BpmnElement::TimerStartEvent(td) => td.clone(),
+            _ => {
+                return Err(EngineError::InvalidDefinition(
+                    "Start event is not a timer start event".into(),
+                ));
+            }
+        };
+
+        let start_id: String = start_id.to_string();
+
+        // Determine total repetitions for metadata
+        let (total, interval_secs) = match &timer_def {
+            crate::domain::TimerDefinition::RepeatingInterval { repetitions, interval } => {
+                (repetitions.unwrap_or(1), Some(interval.as_secs()))
+            }
+            _ => (1, None),
+        };
+
+        // Start the first instance immediately
+        let first_id = self
+            .spawn_timer_instance(definition_key, &start_id, &variables, 1, total, interval_secs)
+            .await?;
+
+        // For repeating intervals, schedule remaining repetitions in background
+        if let crate::domain::TimerDefinition::RepeatingInterval {
+            repetitions,
+            interval,
+        } = timer_def
+        {
+            let remaining = repetitions.map(|r| r.saturating_sub(1)).unwrap_or(u32::MAX);
+            if remaining > 0 {
+                let engine = Arc::clone(self);
+                let vars = variables;
+                let sid = start_id;
+                tokio::spawn(async move {
+                    for i in 0..remaining {
+                        tokio::time::sleep(interval).await;
+                        let iteration = i + 2; // first was #1
+                        if let Err(e) = engine
+                            .spawn_timer_instance(definition_key, &sid, &vars, iteration, total, interval_secs)
+                            .await
+                        {
+                            tracing::error!(
+                                "Timer repeat #{iteration} failed for def {definition_key}: {e:?}"
+                            );
+                            break;
+                        }
+                    }
+                    tracing::info!(
+                        "Timer cycle completed for def {definition_key} ({} total instances)",
+                        remaining + 1
+                    );
+                });
+            }
+        }
+
+        Ok(first_id)
+    }
+
+    /// Spawns a single instance for a timer start event.
+    async fn spawn_timer_instance(
+        &self,
+        definition_key: Uuid,
+        start_id: &str,
+        variables: &HashMap<String, Value>,
+        iteration: u32,
+        total: u32,
+        interval_secs: Option<u64>,
+    ) -> EngineResult<Uuid> {
+        let def = self
+            .definitions
+            .get(&definition_key)
+            .ok_or(EngineError::NoSuchDefinition(definition_key))?;
+
+        let instance_id = Uuid::new_v4();
+        let mut vars = variables.clone();
+        let business_key = vars
+            .remove("business_key")
+            .and_then(|v| v.as_str().map(String::from))
+            .unwrap_or_else(|| Uuid::new_v4().to_string());
+
+        // Timer cycle metadata for UI display
+        vars.insert("_timer_iteration".into(), Value::from(iteration));
+        vars.insert("_timer_total".into(), Value::from(total));
+        vars.insert("_timer_start_node".into(), Value::String(start_id.to_string()));
+        if let Some(secs) = interval_secs {
+            vars.insert("_timer_interval_secs".into(), Value::from(secs));
+        }
+
+        let instance = ProcessInstance {
+            id: instance_id,
+            definition_key,
+            business_key,
+            parent_instance_id: None,
+            state: InstanceState::Running,
+            current_node: start_id.to_string(),
+            audit_log: vec![format!(
+                "⏰ Timer instance #{iteration}/{total} started at node '{start_id}' with {} variable(s)",
+                vars.len()
+            )],
+            variables: vars,
+            tokens: HashMap::new(),
+            active_tokens: Vec::new(),
+            join_barriers: std::collections::HashMap::new(),
+            multi_instance_state: std::collections::HashMap::new(),
+        };
+
+        tracing::info!(
+            "Timer instance #{iteration} {instance_id} of def key {definition_key}"
+        );
+
+        self.instances.insert(instance_id, instance).await;
+
+        self.record_history_event(
+            instance_id,
+            crate::history::HistoryEventType::InstanceStarted,
+            &format!("Timer instance #{iteration} of process '{}'", def.id),
+            crate::history::ActorType::Timer,
+            None,
+            None,
+        )
+        .await;
+
+        let token = Token::new(start_id);
         self.run_instance_batch(instance_id, token).await?;
         self.persist_instance(instance_id).await;
 

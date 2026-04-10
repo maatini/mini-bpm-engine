@@ -1422,4 +1422,209 @@ test.describe('bpmninja Desktop App – E2E', () => {
     // Should navigate to Instances tab
     await expect(page.locator('.nav-item.active')).toHaveText('Instances', { timeout: 10_000 });
   });
+
+  // ---- Flow Condition – Camunda 7 compatibility --------------------------
+
+  // Camunda 7 Modeler Kompatibilität – test XML fixtures
+  const FLOW_CONDITION_XML_XOR = `<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="FlowCondTest" isExecutable="true">
+    <bpmn:startEvent id="Start_1" />
+    <bpmn:exclusiveGateway id="XOR_1" default="Flow_Default" />
+    <bpmn:endEvent id="End_1" />
+    <bpmn:endEvent id="End_2" />
+    <bpmn:sequenceFlow id="Flow_ToXOR" sourceRef="Start_1" targetRef="XOR_1" />
+    <bpmn:sequenceFlow id="Flow_Cond" sourceRef="XOR_1" targetRef="End_1" />
+    <bpmn:sequenceFlow id="Flow_Default" sourceRef="XOR_1" targetRef="End_2" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="FlowCondTest">
+      <bpmndi:BPMNShape id="Shape_Start" bpmnElement="Start_1">
+        <dc:Bounds x="150" y="200" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_XOR" bpmnElement="XOR_1" isMarkerVisible="true">
+        <dc:Bounds x="250" y="193" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_End1" bpmnElement="End_1">
+        <dc:Bounds x="400" y="140" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_End2" bpmnElement="End_2">
+        <dc:Bounds x="400" y="260" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Edge_ToXOR" bpmnElement="Flow_ToXOR">
+        <di:waypoint x="186" y="218" />
+        <di:waypoint x="250" y="218" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Cond" bpmnElement="Flow_Cond">
+        <di:waypoint x="275" y="193" />
+        <di:waypoint x="275" y="158" />
+        <di:waypoint x="400" y="158" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Default" bpmnElement="Flow_Default">
+        <di:waypoint x="275" y="243" />
+        <di:waypoint x="275" y="278" />
+        <di:waypoint x="400" y="278" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>`;
+
+  const FLOW_CONDITION_XML_PARALLEL = `<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+  id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="ParGwTest" isExecutable="true">
+    <bpmn:startEvent id="Start_1" />
+    <bpmn:parallelGateway id="PAR_1" />
+    <bpmn:endEvent id="End_1" />
+    <bpmn:sequenceFlow id="Flow_ToPar" sourceRef="Start_1" targetRef="PAR_1" />
+    <bpmn:sequenceFlow id="Flow_Out" sourceRef="PAR_1" targetRef="End_1" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="ParGwTest">
+      <bpmndi:BPMNShape id="Shape_Start" bpmnElement="Start_1">
+        <dc:Bounds x="150" y="200" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_PAR" bpmnElement="PAR_1">
+        <dc:Bounds x="250" y="193" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_End" bpmnElement="End_1">
+        <dc:Bounds x="400" y="200" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Edge_ToPar" bpmnElement="Flow_ToPar">
+        <di:waypoint x="186" y="218" />
+        <di:waypoint x="250" y="218" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Out" bpmnElement="Flow_Out">
+        <di:waypoint x="300" y="218" />
+        <di:waypoint x="400" y="218" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>`;
+
+  /**
+   * Helper: navigate to Modeler, load custom XML via localStorage,
+   * then click the given BPMN element on the canvas.
+   */
+  async function loadXmlAndClickElement(page: Page, xml: string, elementId: string) {
+    // Seed localStorage so modeler loads our XML
+    await page.addInitScript((xmlContent: string) => {
+      localStorage.setItem('minibpm_last_workflow', xmlContent);
+    }, xml);
+    await injectTauriMock(page);
+    await page.goto('/');
+    await page.locator('.nav-item', { hasText: 'BPMN Modeler' }).click();
+    await expect(page.locator('.bjs-container')).toBeVisible({ timeout: 10_000 });
+
+    // Click the element in the canvas via its data-element-id SVG group
+    const el = page.locator(`[data-element-id="${elementId}"]`);
+    await expect(el).toBeVisible({ timeout: 5_000 });
+    await el.click();
+  }
+
+  test('condition group visible for ExclusiveGateway outgoing flow', async ({ page }) => {
+    // Camunda 7 Modeler Kompatibilität – condition shown for XOR gateway flows
+    await loadXmlAndClickElement(page, FLOW_CONDITION_XML_XOR, 'Flow_Cond');
+
+    // The properties panel should show the Condition group with "Condition Type"
+    const propsPanel = page.locator('.properties-panel-parent');
+    await expect(propsPanel.getByText('Condition')).toBeVisible({ timeout: 5_000 });
+    await expect(propsPanel.locator('select')).toBeVisible({ timeout: 5_000 });
+  });
+
+  test('condition group hidden for ParallelGateway outgoing flow', async ({ page }) => {
+    // Camunda 7 Modeler Kompatibilität – no condition for parallel gateway flows
+    await loadXmlAndClickElement(page, FLOW_CONDITION_XML_PARALLEL, 'Flow_Out');
+
+    const propsPanel = page.locator('.properties-panel-parent');
+    // Wait for panel to render something
+    await expect(propsPanel).toBeVisible({ timeout: 5_000 });
+    // Give the panel a moment to render entries
+    await page.waitForTimeout(500);
+    // The "Condition" group must NOT appear
+    await expect(propsPanel.getByText('Condition Type')).not.toBeVisible();
+  });
+
+  test('condition group hidden for default flow on ExclusiveGateway', async ({ page }) => {
+    // Camunda 7 Modeler Kompatibilität – default flows cannot have conditions
+    await loadXmlAndClickElement(page, FLOW_CONDITION_XML_XOR, 'Flow_Default');
+
+    const propsPanel = page.locator('.properties-panel-parent');
+    await expect(propsPanel).toBeVisible({ timeout: 5_000 });
+    await page.waitForTimeout(500);
+    // Default flow must NOT show the Condition group
+    await expect(propsPanel.getByText('Condition Type')).not.toBeVisible();
+  });
+
+  test('expression mode sets conditionExpression body without language', async ({ page }) => {
+    // Camunda 7 Modeler Kompatibilität – expression produces FormalExpression without language
+    await loadXmlAndClickElement(page, FLOW_CONDITION_XML_XOR, 'Flow_Cond');
+
+    const propsPanel = page.locator('.properties-panel-parent');
+
+    // Open the Condition group (may be collapsed)
+    const conditionHeader = propsPanel.getByText('Condition');
+    await conditionHeader.click();
+    await page.waitForTimeout(300);
+
+    // Select "Expression" in the Condition Type dropdown
+    const condTypeSelect = propsPanel.locator('[data-entry-id="conditionType"] select');
+    await condTypeSelect.selectOption('expression');
+    await page.waitForTimeout(300);
+
+    // Type an expression
+    const exprInput = propsPanel.locator('[data-entry-id="conditionExpression"] input');
+    await exprInput.fill('${amount > 100}');
+    // Trigger blur for debounce
+    await exprInput.blur();
+    await page.waitForTimeout(500);
+
+    // Export XML and verify
+    const xml = await page.evaluate(() => localStorage.getItem('minibpm_last_workflow') || '');
+    expect(xml).toContain('conditionExpression');
+    expect(xml).toContain('${amount > 100}');
+    // Should NOT contain language attribute on this expression
+    expect(xml).not.toMatch(/conditionExpression[^>]*language/);
+  });
+
+  test('script mode sets conditionExpression with language attribute', async ({ page }) => {
+    // Camunda 7 Modeler Kompatibilität – script produces FormalExpression with language
+    await loadXmlAndClickElement(page, FLOW_CONDITION_XML_XOR, 'Flow_Cond');
+
+    const propsPanel = page.locator('.properties-panel-parent');
+
+    // Open the Condition group
+    const conditionHeader = propsPanel.getByText('Condition');
+    await conditionHeader.click();
+    await page.waitForTimeout(300);
+
+    // Select "Script" in the Condition Type dropdown
+    const condTypeSelect = propsPanel.locator('[data-entry-id="conditionType"] select');
+    await condTypeSelect.selectOption('script');
+    await page.waitForTimeout(300);
+
+    // Verify language is rhai (only option)
+    const langSelect = propsPanel.locator('[data-entry-id="conditionScriptLanguage"] select');
+    await expect(langSelect).toHaveValue('rhai');
+    await page.waitForTimeout(300);
+
+    // Type a script body
+    const scriptInput = propsPanel.locator('[data-entry-id="conditionScriptBody"] textarea');
+    await scriptInput.fill('amount > 100');
+    await scriptInput.blur();
+    await page.waitForTimeout(500);
+
+    // Export XML and verify
+    const xml = await page.evaluate(() => localStorage.getItem('minibpm_last_workflow') || '');
+    expect(xml).toContain('language="rhai"');
+    expect(xml).toContain('amount > 100');
+  });
 });

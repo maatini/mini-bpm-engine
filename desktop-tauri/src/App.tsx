@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { deployDefinition, startInstance } from './shared/lib/tauri'
+import { deployDefinition, startInstance, startTimerInstance } from './shared/lib/tauri'
 import { ModelerPage } from './features/modeler/ModelerPage'
 import { InstancesPage } from './features/instances/InstancesPage'
 import { DeployedProcessesPage } from './features/definitions/DeployedProcessesPage'
@@ -51,8 +51,11 @@ function App() {
     // Auto-deploy the current modeler state
     const newDefId = await deployDefinition(xml, 'modeler-process')
 
-    // Start instance with the freshly deployed definition
-    const id = await startInstance(newDefId, variables)
+    // Detect timer start events and use the appropriate start method
+    const isTimerStart = xml.includes('timerEventDefinition')
+    const id = isTimerStart
+      ? await startTimerInstance(newDefId, variables)
+      : await startInstance(newDefId, variables)
 
     // Navigate to the new instance
     setSelectedInstanceId(id)

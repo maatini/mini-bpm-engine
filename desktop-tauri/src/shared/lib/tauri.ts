@@ -26,6 +26,10 @@ export async function startInstance(defId: string, variables?: Record<string, un
   return invoke('start_instance', { defId, variables: variables || null });
 }
 
+export async function startTimerInstance(defId: string, variables?: Record<string, unknown>): Promise<string> {
+  return invoke('start_timer_instance', { defId, variables: variables || null });
+}
+
 export async function getPendingTasks(): Promise<PendingUserTask[]> {
   return invoke('get_pending_tasks');
 }

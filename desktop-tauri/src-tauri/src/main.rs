@@ -28,6 +28,7 @@ fn main() {
             commands::deploy::delete_definition,
             commands::deploy::delete_all_definitions,
             commands::instances::start_instance,
+            commands::instances::start_timer_instance,
             commands::instances::list_instances,
             commands::instances::get_instance_details,
             commands::instances::get_instance_history,
