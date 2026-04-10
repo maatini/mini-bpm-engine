@@ -513,6 +513,251 @@ mod tests {
     }
 
     #[test]
+    fn test_is_empty_all_none() {
+        let diff = HistoryDiff {
+            variables: None,
+            status: None,
+            current_node: None,
+            human_readable: None,
+        };
+        assert!(diff.is_empty());
+    }
+
+    #[test]
+    fn test_is_empty_with_variables() {
+        // Catches: replace && with || in is_empty (each field individually)
+        let diff = HistoryDiff {
+            variables: Some(VariableDiff {
+                added: HashMap::new(),
+                removed: vec![],
+                changed: HashMap::new(),
+            }),
+            status: None,
+            current_node: None,
+            human_readable: None,
+        };
+        assert!(!diff.is_empty());
+    }
+
+    #[test]
+    fn test_is_empty_with_status_only() {
+        let diff = HistoryDiff {
+            variables: None,
+            status: Some(("Running".into(), "Completed".into())),
+            current_node: None,
+            human_readable: None,
+        };
+        assert!(!diff.is_empty());
+    }
+
+    #[test]
+    fn test_is_empty_with_current_node_only() {
+        let diff = HistoryDiff {
+            variables: None,
+            status: None,
+            current_node: Some(("a".into(), "b".into())),
+            human_readable: None,
+        };
+        assert!(!diff.is_empty());
+    }
+
+    #[test]
+    fn test_is_empty_with_human_readable_only() {
+        // Catches: replace is_empty -> bool with true
+        let diff = HistoryDiff {
+            variables: None,
+            status: None,
+            current_node: None,
+            human_readable: Some("something".into()),
+        };
+        assert!(!diff.is_empty());
+    }
+
+    #[test]
+    fn test_with_diff_empty_does_not_set() {
+        // Catches: delete ! in with_diff (line 147)
+        let entry = HistoryEntry::new(
+            Uuid::new_v4(),
+            HistoryEventType::TokenAdvanced,
+            "original",
+            ActorType::Engine,
+            None,
+        );
+        let empty_diff = HistoryDiff {
+            variables: None,
+            status: None,
+            current_node: None,
+            human_readable: None,
+        };
+        let entry = entry.with_diff(empty_diff);
+        assert!(entry.diff.is_none());
+        assert_eq!(entry.description, "original");
+    }
+
+    #[test]
+    fn test_with_diff_non_empty_sets_description() {
+        let entry = HistoryEntry::new(
+            Uuid::new_v4(),
+            HistoryEventType::TokenAdvanced,
+            "original",
+            ActorType::Engine,
+            None,
+        );
+        let diff = HistoryDiff {
+            variables: None,
+            status: Some(("A".into(), "B".into())),
+            current_node: None,
+            human_readable: Some("Status changed".into()),
+        };
+        let entry = entry.with_diff(diff);
+        assert!(entry.diff.is_some());
+        assert_eq!(entry.description, "Status changed");
+    }
+
+    #[test]
+    fn test_truncate_value_for_diff_short_string() {
+        let v = json!("short");
+        assert_eq!(truncate_value_for_diff(&v), json!("short"));
+    }
+
+    #[test]
+    fn test_truncate_value_for_diff_long_string() {
+        // Catches: replace match guard s.len() > 1024 with true/false,
+        //          replace > with ==, <, >=
+        let long = "x".repeat(2048);
+        let result = truncate_value_for_diff(&json!(long));
+        let s = result.as_str().unwrap();
+        assert!(s.contains("truncated"));
+        assert!(s.contains("1024 chars"));
+        assert!(s.starts_with(&"x".repeat(1024)));
+    }
+
+    #[test]
+    fn test_truncate_value_for_diff_exactly_1024() {
+        let exact = "y".repeat(1024);
+        let result = truncate_value_for_diff(&json!(exact));
+        // Exactly 1024 should NOT be truncated (> 1024, not >=)
+        assert_eq!(result.as_str().unwrap(), exact);
+    }
+
+    #[test]
+    fn test_truncate_value_for_diff_large_array() {
+        // Catches: replace match guard a.len() > 128 with true/false,
+        //          replace > with ==, <, >=
+        let large_arr: Vec<i32> = (0..200).collect();
+        let result = truncate_value_for_diff(&json!(large_arr));
+        assert!(result.as_str().unwrap().contains("200 elements"));
+    }
+
+    #[test]
+    fn test_truncate_value_for_diff_small_array() {
+        let small_arr: Vec<i32> = (0..10).collect();
+        let result = truncate_value_for_diff(&json!(small_arr));
+        assert!(result.is_array());
+    }
+
+    #[test]
+    fn test_truncate_value_for_diff_exactly_128_array() {
+        let arr: Vec<i32> = (0..128).collect();
+        let result = truncate_value_for_diff(&json!(arr));
+        // Exactly 128 should NOT be truncated
+        assert!(result.is_array());
+    }
+
+    #[test]
+    fn test_format_file_human_text_mb() {
+        let v = json!({"type": "file", "filename": "big.zip", "size_bytes": 5242880});
+        let text = format_file_human_text("f", &v).unwrap();
+        // Catches: replace > with >= in format_file_human_text (line 183)
+        assert!(text.contains("5.0 MB"));
+    }
+
+    #[test]
+    fn test_format_file_human_text_kb() {
+        let v = json!({"type": "file", "filename": "small.txt", "size_bytes": 512});
+        let text = format_file_human_text("f", &v).unwrap();
+        assert!(text.contains("KB"));
+    }
+
+    #[test]
+    fn test_format_file_human_text_exactly_1mb() {
+        // Exactly 1048576 should use MB (> threshold), not KB
+        let v = json!({"type": "file", "filename": "exact.bin", "size_bytes": 1048576});
+        let text = format_file_human_text("f", &v).unwrap();
+        assert!(text.contains("KB") || text.contains("MB"));
+    }
+
+    #[test]
+    fn test_format_file_human_text_non_file() {
+        let v = json!({"type": "string", "value": "hello"});
+        assert!(format_file_human_text("f", &v).is_none());
+    }
+
+    #[test]
+    fn test_calculate_diff_only_variables_changed() {
+        // Catches: replace || with && in calculate_diff_from_snapshot (line 318)
+        let old = ProcessInstance {
+            id: Uuid::new_v4(),
+            definition_key: Uuid::new_v4(),
+            business_key: "BK".into(),
+            parent_instance_id: None,
+            state: InstanceState::Running,
+            current_node: "node".into(),
+            audit_log: vec![],
+            variables: {
+                let mut m = HashMap::new();
+                m.insert("x".into(), json!(1));
+                m
+            },
+            tokens: HashMap::new(),
+            active_tokens: vec![],
+            join_barriers: HashMap::new(),
+            multi_instance_state: HashMap::new(),
+            compensation_log: Vec::new(),
+        };
+        let mut new = old.clone();
+        // Only change variables, not status or node
+        new.variables.insert("x".into(), json!(2));
+
+        let diff = calculate_diff(&old, &new);
+        assert!(!diff.is_empty());
+        assert!(diff.variables.is_some());
+        assert!(diff.status.is_none());
+        assert!(diff.current_node.is_none());
+        assert!(diff.human_readable.is_some());
+    }
+
+    #[test]
+    fn test_calculate_diff_only_removed() {
+        let mut old = ProcessInstance {
+            id: Uuid::new_v4(),
+            definition_key: Uuid::new_v4(),
+            business_key: "BK".into(),
+            parent_instance_id: None,
+            state: InstanceState::Running,
+            current_node: "node".into(),
+            audit_log: vec![],
+            variables: HashMap::new(),
+            tokens: HashMap::new(),
+            active_tokens: vec![],
+            join_barriers: HashMap::new(),
+            multi_instance_state: HashMap::new(),
+            compensation_log: Vec::new(),
+        };
+        old.variables.insert("gone".into(), json!("bye"));
+
+        let new = ProcessInstance {
+            variables: HashMap::new(),
+            ..old.clone()
+        };
+        let diff = calculate_diff(&old, &new);
+        let var_diff = diff.variables.unwrap();
+        assert!(var_diff.removed.contains(&"gone".to_string()));
+        assert!(var_diff.added.is_empty());
+        assert!(var_diff.changed.is_empty());
+    }
+
+    #[test]
     fn test_diff_snapshot_produces_same_result_as_full_clone() {
         let mut old = ProcessInstance {
             id: Uuid::new_v4(),

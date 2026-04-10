@@ -274,6 +274,92 @@ use uuid::Uuid;
     }
 
     #[test]
+    fn test_is_join_gateway() {
+        // Catches: replace is_join_gateway -> bool with true
+        // Use a definition where the gateway has 2 outgoing but 1 incoming
+        let def = ProcessDefinitionBuilder::new("join")
+            .node("start", BpmnElement::StartEvent)
+            .node("gw", BpmnElement::ExclusiveGateway { default: None })
+            .node("end_a", BpmnElement::EndEvent)
+            .node("end_b", BpmnElement::EndEvent)
+            .flow("start", "gw")
+            .conditional_flow("gw", "end_a", "x == 1")
+            .conditional_flow("gw", "end_b", "x == 2")
+            .build()
+            .unwrap();
+        // gw has 1 incoming → not a join
+        assert!(!def.is_join_gateway("gw"));
+    }
+
+    #[test]
+    fn test_is_join_gateway_with_two_incoming() {
+        let def = ProcessDefinitionBuilder::new("join2")
+            .node("start", BpmnElement::StartEvent)
+            .node("a", BpmnElement::ScriptTask { script: "let x = 1;".into(), multi_instance: None })
+            .node("b", BpmnElement::ScriptTask { script: "let y = 1;".into(), multi_instance: None })
+            .node("split", BpmnElement::ParallelGateway)
+            .node("join", BpmnElement::ParallelGateway)
+            .node("end", BpmnElement::EndEvent)
+            .flow("start", "split")
+            .flow("split", "a")
+            .flow("split", "b")
+            .flow("a", "join")
+            .flow("b", "join")
+            .flow("join", "end")
+            .build()
+            .unwrap();
+        assert!(def.is_join_gateway("join"));
+        assert!(!def.is_join_gateway("split"));
+    }
+
+    #[test]
+    fn test_is_split_gateway() {
+        // Catches: replace is_split_gateway -> bool with true/false,
+        //          replace && with ||, replace >= with <
+        let def = ProcessDefinitionBuilder::new("split")
+            .node("start", BpmnElement::StartEvent)
+            .node("gw", BpmnElement::ExclusiveGateway { default: None })
+            .node("end_a", BpmnElement::EndEvent)
+            .node("end_b", BpmnElement::EndEvent)
+            .flow("start", "gw")
+            .conditional_flow("gw", "end_a", "x == 1")
+            .conditional_flow("gw", "end_b", "x == 2")
+            .build()
+            .unwrap();
+        // 2 outgoing + is gateway type → split
+        assert!(def.is_split_gateway("gw"));
+        // Non-gateway nodes are never split gateways
+        assert!(!def.is_split_gateway("start"));
+        // Non-existent node
+        assert!(!def.is_split_gateway("nonexistent"));
+    }
+
+    #[test]
+    fn test_is_split_gateway_single_outgoing() {
+        // Build a definition where a gateway acts as join-only (2 incoming, 1 outgoing)
+        // Use the join from test_is_join_gateway_with_two_incoming
+        let def = ProcessDefinitionBuilder::new("join_only")
+            .node("start", BpmnElement::StartEvent)
+            .node("a", BpmnElement::ScriptTask { script: "let x = 1;".into(), multi_instance: None })
+            .node("b", BpmnElement::ScriptTask { script: "let y = 1;".into(), multi_instance: None })
+            .node("split", BpmnElement::ParallelGateway)
+            .node("join", BpmnElement::ParallelGateway)
+            .node("end", BpmnElement::EndEvent)
+            .flow("start", "split")
+            .flow("split", "a")
+            .flow("split", "b")
+            .flow("a", "join")
+            .flow("b", "join")
+            .flow("join", "end")
+            .build()
+            .unwrap();
+        // join has 2 incoming, 1 outgoing → not a split
+        assert!(!def.is_split_gateway("join"));
+        // split has 1 incoming, 2 outgoing → is a split
+        assert!(def.is_split_gateway("split"));
+    }
+
+    #[test]
     fn test_get_file_reference_returns_none_for_non_file() {
         let not_a_file = serde_json::json!({
             "type": "string",

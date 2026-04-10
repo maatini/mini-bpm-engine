@@ -201,3 +201,117 @@ impl ProcessInstance {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+    use std::collections::HashMap;
+    use uuid::Uuid;
+
+    fn make_instance() -> ProcessInstance {
+        ProcessInstance {
+            id: Uuid::new_v4(),
+            definition_key: Uuid::new_v4(),
+            business_key: "test".into(),
+            parent_instance_id: None,
+            state: InstanceState::Running,
+            current_node: "start".into(),
+            audit_log: vec![],
+            variables: HashMap::new(),
+            tokens: HashMap::new(),
+            active_tokens: vec![],
+            join_barriers: HashMap::new(),
+            multi_instance_state: HashMap::new(),
+            compensation_log: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn push_audit_log_enforces_limit() {
+        // Catches: replace > with ==, >=; replace - with +, /
+        let mut inst = make_instance();
+        for i in 0..crate::runtime::MAX_AUDIT_LOG_ENTRIES + 50 {
+            inst.push_audit_log(format!("entry {i}"));
+        }
+        assert_eq!(inst.audit_log.len(), crate::runtime::MAX_AUDIT_LOG_ENTRIES);
+        // The latest entry should be the last one added
+        assert!(inst.audit_log.last().unwrap().contains("249"));
+    }
+
+    #[test]
+    fn push_audit_log_under_limit() {
+        let mut inst = make_instance();
+        inst.push_audit_log("one".into());
+        inst.push_audit_log("two".into());
+        assert_eq!(inst.audit_log.len(), 2);
+    }
+
+    #[test]
+    fn append_audit_log_enforces_limit() {
+        // Catches: replace append_audit_log with (); replace > with ==, <, >=; replace - with +, /
+        let mut inst = make_instance();
+        let mut entries: Vec<String> = (0..crate::runtime::MAX_AUDIT_LOG_ENTRIES + 10)
+            .map(|i| format!("batch {i}"))
+            .collect();
+        inst.append_audit_log(&mut entries);
+        assert_eq!(inst.audit_log.len(), crate::runtime::MAX_AUDIT_LOG_ENTRIES);
+    }
+
+    #[test]
+    fn append_audit_log_under_limit() {
+        let mut inst = make_instance();
+        let mut entries = vec!["a".into(), "b".into()];
+        inst.append_audit_log(&mut entries);
+        assert_eq!(inst.audit_log.len(), 2);
+    }
+
+    #[test]
+    fn get_file_reference_returns_some_for_file() {
+        // Catches: replace get_file_reference -> Option<FileReference> with None
+        let mut inst = make_instance();
+        inst.variables.insert(
+            "doc".into(),
+            json!({
+                "type": "file",
+                "object_key": "file:abc",
+                "filename": "doc.pdf",
+                "mime_type": "application/pdf",
+                "size_bytes": 1024,
+                "uploaded_at": "2026-01-01T00:00:00Z"
+            }),
+        );
+        let fr = inst.get_file_reference("doc");
+        assert!(fr.is_some());
+        assert_eq!(fr.unwrap().filename, "doc.pdf");
+    }
+
+    #[test]
+    fn get_file_reference_returns_none_for_non_file() {
+        let mut inst = make_instance();
+        inst.variables.insert("x".into(), json!(42));
+        assert!(inst.get_file_reference("x").is_none());
+        assert!(inst.get_file_reference("missing").is_none());
+    }
+
+    #[test]
+    fn file_variable_names_returns_correct_list() {
+        // Catches: replace file_variable_names -> Vec<String> with vec![], vec![String::new()], vec!["xyzzy".into()]
+        let mut inst = make_instance();
+        inst.variables.insert("x".into(), json!(42));
+        inst.variables.insert(
+            "file1".into(),
+            json!({"type": "file", "object_key": "k1", "filename": "a.txt", "mime_type": "text/plain", "size_bytes": 10, "uploaded_at": "2026-01-01T00:00:00Z"}),
+        );
+        let names = inst.file_variable_names();
+        assert_eq!(names.len(), 1);
+        assert!(names.contains(&"file1".to_string()));
+    }
+
+    #[test]
+    fn file_variable_names_returns_empty_when_no_files() {
+        let mut inst = make_instance();
+        inst.variables.insert("x".into(), json!(42));
+        assert!(inst.file_variable_names().is_empty());
+    }
+}

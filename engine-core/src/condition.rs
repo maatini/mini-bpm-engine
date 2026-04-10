@@ -158,6 +158,43 @@ mod tests {
     }
 
     #[test]
+    fn test_values_eq_numbers_vs_default() {
+        // Catches: delete match arm (Number, Number), replace < with <=
+        // Numbers use epsilon-based comparison, not default ==
+        let a = json!(1.0);
+        let b = json!(1);
+        assert!(values_eq(&a, &b));
+
+        let a = json!(0.1 + 0.2);
+        let b = json!(0.3);
+        // f64 epsilon comparison should catch near-equal floats
+        assert!(values_eq(&a, &b));
+
+        // Different numbers must not be equal
+        let a = json!(1.0);
+        let b = json!(2.0);
+        assert!(!values_eq(&a, &b));
+    }
+
+    #[test]
+    fn test_parse_rhs_quoted_strings() {
+        // Catches: replace && with || in parse_rhs (line 66)
+        // Both start AND end quote must match for stripping
+        let val = parse_rhs("\"hello\"");
+        assert_eq!(val, json!("hello"));
+
+        let val = parse_rhs("'world'");
+        assert_eq!(val, json!("world"));
+
+        // Mismatched quotes: should NOT strip
+        let val = parse_rhs("\"hello'");
+        assert_eq!(val, json!("\"hello'"));
+
+        let val = parse_rhs("'hello\"");
+        assert_eq!(val, json!("'hello\""));
+    }
+
+    #[test]
     fn test_truthy() {
         let mut vars = HashMap::new();
         vars.insert("is_valid".to_string(), json!(true));

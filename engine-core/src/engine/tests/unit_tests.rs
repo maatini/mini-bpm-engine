@@ -4,7 +4,6 @@
 //! logic.
 
 use super::super::*;
-use crate::condition::evaluate_condition;
 use crate::domain::ListenerEvent;
 use crate::domain::ProcessDefinitionBuilder;
 
@@ -295,52 +294,7 @@ async fn audit_log_captures_all_steps() {
 // Condition evaluator tests
 // -----------------------------------------------------------------------
 
-#[test]
-fn condition_eq_number() {
-    let mut vars = HashMap::new();
-    vars.insert("amount".into(), Value::Number(100.into()));
-    assert!(evaluate_condition("amount == 100", &vars));
-    assert!(!evaluate_condition("amount == 200", &vars));
-}
-
-#[test]
-fn condition_neq_string() {
-    let mut vars = HashMap::new();
-    vars.insert("status".into(), Value::String("approved".into()));
-    assert!(evaluate_condition("status == 'approved'", &vars));
-    assert!(evaluate_condition("status != 'rejected'", &vars));
-    assert!(!evaluate_condition("status == 'rejected'", &vars));
-}
-
-#[test]
-fn condition_gt_lt() {
-    let mut vars = HashMap::new();
-    vars.insert("score".into(), Value::Number(75.into()));
-    assert!(evaluate_condition("score > 50", &vars));
-    assert!(evaluate_condition("score >= 75", &vars));
-    assert!(evaluate_condition("score < 100", &vars));
-    assert!(evaluate_condition("score <= 75", &vars));
-    assert!(!evaluate_condition("score > 75", &vars));
-}
-
-#[test]
-fn condition_truthy_check() {
-    let mut vars = HashMap::new();
-    vars.insert("flag".into(), Value::Bool(true));
-    vars.insert("zero".into(), Value::Number(0.into()));
-    vars.insert("empty".into(), Value::String(String::new()));
-
-    assert!(evaluate_condition("flag", &vars));
-    assert!(!evaluate_condition("zero", &vars));
-    assert!(!evaluate_condition("empty", &vars));
-    assert!(!evaluate_condition("missing_var", &vars));
-}
-
-#[test]
-fn condition_missing_variable() {
-    let vars = HashMap::new();
-    assert!(!evaluate_condition("x == 5", &vars));
-}
+// Condition unit tests removed — covered by condition.rs::tests.
 
 // -----------------------------------------------------------------------
 // ExclusiveGateway (XOR) tests
@@ -2894,4 +2848,351 @@ async fn test_compensation_no_handlers_still_completes() {
         .audit_log
         .iter()
         .any(|l| l.contains("0 handler(s) to execute")));
+}
+
+// ============================================================================
+// Mutation-Score Improvement Tests
+// ============================================================================
+
+#[tokio::test]
+async fn test_get_stats_counts_correctly() {
+    // Catches: replace += with -=, *= in get_stats; delete match arms
+    let engine = WorkflowEngine::new();
+    let def = ProcessDefinitionBuilder::new("stats")
+        .node("start", BpmnElement::StartEvent)
+        .node("ut", BpmnElement::UserTask("alice".into()))
+        .node("end", BpmnElement::EndEvent)
+        .flow("start", "ut")
+        .flow("ut", "end")
+        .build()
+        .unwrap();
+    let (key, _) = engine.deploy_definition(def).await;
+
+    // Start 3 instances — all should be waiting on user task
+    let _id1 = engine.start_instance(key).await.unwrap();
+    let _id2 = engine.start_instance(key).await.unwrap();
+    let _id3 = engine.start_instance(key).await.unwrap();
+
+    let stats = engine.get_stats().await;
+    assert_eq!(stats.definitions_count, 1);
+    assert_eq!(stats.instances_waiting_user, 3);
+    assert_eq!(stats.instances_running, 0);
+    assert_eq!(stats.instances_completed, 0);
+    assert_eq!(stats.instances_total, 3);
+}
+
+#[tokio::test]
+async fn test_suspend_and_resume_instance() {
+    // Catches: delete match arms in suspend/resume_instance
+    let engine = WorkflowEngine::new();
+    let def = ProcessDefinitionBuilder::new("susp")
+        .node("start", BpmnElement::StartEvent)
+        .node("ut", BpmnElement::UserTask("alice".into()))
+        .node("end", BpmnElement::EndEvent)
+        .flow("start", "ut")
+        .flow("ut", "end")
+        .build()
+        .unwrap();
+    let (key, _) = engine.deploy_definition(def).await;
+    let inst_id = engine.start_instance(key).await.unwrap();
+
+    // Suspend
+    let result = engine.suspend_instance(inst_id).await;
+    assert!(result.is_ok());
+    let inst = engine.get_instance_details(inst_id).await.unwrap();
+    assert!(matches!(inst.state, InstanceState::Suspended { .. }));
+
+    // Double suspend should fail
+    let result = engine.suspend_instance(inst_id).await;
+    assert!(result.is_err());
+
+    // Resume
+    let result = engine.resume_instance(inst_id).await;
+    assert!(result.is_ok());
+    let inst = engine.get_instance_details(inst_id).await.unwrap();
+    assert!(matches!(inst.state, InstanceState::WaitingOnUserTask { .. }));
+
+    // Double resume should fail
+    let result = engine.resume_instance(inst_id).await;
+    assert!(result.is_err());
+}
+
+#[tokio::test]
+async fn test_suspend_completed_instance_fails() {
+    let engine = WorkflowEngine::new();
+    let def = ProcessDefinitionBuilder::new("done")
+        .node("start", BpmnElement::StartEvent)
+        .node("end", BpmnElement::EndEvent)
+        .flow("start", "end")
+        .build()
+        .unwrap();
+    let (key, _) = engine.deploy_definition(def).await;
+    let inst_id = engine.start_instance(key).await.unwrap();
+
+    // Instance is completed — suspend should fail
+    let result = engine.suspend_instance(inst_id).await;
+    assert!(result.is_err());
+}
+
+#[tokio::test]
+async fn test_list_instances_returns_all() {
+    // Catches: replace list_instances -> Vec<ProcessInstance> with vec![]
+    let engine = WorkflowEngine::new();
+    let def = ProcessDefinitionBuilder::new("list")
+        .node("start", BpmnElement::StartEvent)
+        .node("end", BpmnElement::EndEvent)
+        .flow("start", "end")
+        .build()
+        .unwrap();
+    let (key, _) = engine.deploy_definition(def).await;
+    engine.start_instance(key).await.unwrap();
+    engine.start_instance(key).await.unwrap();
+
+    let instances = engine.list_instances().await;
+    assert_eq!(instances.len(), 2);
+}
+
+#[tokio::test]
+async fn test_update_instance_variables() {
+    // Catches: replace += with -=, *= in update_instance_variables
+    let engine = WorkflowEngine::new();
+    let def = ProcessDefinitionBuilder::new("vars")
+        .node("start", BpmnElement::StartEvent)
+        .node("ut", BpmnElement::UserTask("alice".into()))
+        .node("end", BpmnElement::EndEvent)
+        .flow("start", "ut")
+        .flow("ut", "end")
+        .build()
+        .unwrap();
+    let (key, _) = engine.deploy_definition(def).await;
+    let inst_id = engine.start_instance(key).await.unwrap();
+
+    let mut new_vars = HashMap::new();
+    new_vars.insert("x".to_string(), serde_json::json!(42));
+    new_vars.insert("name".to_string(), serde_json::json!("test"));
+    let result = engine.update_instance_variables(inst_id, new_vars).await;
+    assert!(result.is_ok());
+
+    let inst = engine.get_instance_details(inst_id).await.unwrap();
+    assert_eq!(inst.variables.get("x"), Some(&serde_json::json!(42)));
+    assert_eq!(inst.variables.get("name"), Some(&serde_json::json!("test")));
+}
+
+#[tokio::test]
+async fn test_registry_find_by_bpmn_id() {
+    // Catches: replace find_by_bpmn_id -> Option with None; replace == with !=
+    let engine = WorkflowEngine::new();
+    let def = ProcessDefinitionBuilder::new("myproc")
+        .node("start", BpmnElement::StartEvent)
+        .node("end", BpmnElement::EndEvent)
+        .flow("start", "end")
+        .build()
+        .unwrap();
+    let (key, _) = engine.deploy_definition(def).await;
+
+    // find_by_bpmn_id should find it
+    let found = engine.definitions.find_by_bpmn_id("myproc");
+    assert!(found.is_some());
+    assert_eq!(found.unwrap().0, key);
+
+    // Non-existent should return None
+    let not_found = engine.definitions.find_by_bpmn_id("nope");
+    assert!(not_found.is_none());
+}
+
+#[tokio::test]
+async fn test_registry_find_latest_and_versions() {
+    // Catches: replace find_latest_by_bpmn_id -> Option with None;
+    //          replace all_versions_of -> Vec with vec![]
+    let engine = WorkflowEngine::new();
+    let def1 = ProcessDefinitionBuilder::new("versioned")
+        .node("start", BpmnElement::StartEvent)
+        .node("end", BpmnElement::EndEvent)
+        .flow("start", "end")
+        .build()
+        .unwrap();
+    let (key1, _) = engine.deploy_definition(def1).await;
+
+    let def2 = ProcessDefinitionBuilder::new("versioned")
+        .node("start", BpmnElement::StartEvent)
+        .node("end", BpmnElement::EndEvent)
+        .flow("start", "end")
+        .build()
+        .unwrap();
+    let (key2, _) = engine.deploy_definition(def2).await;
+
+    // Latest should be v2
+    let latest = engine.definitions.find_latest_by_bpmn_id("versioned");
+    assert!(latest.is_some());
+    assert_eq!(latest.unwrap().0, key2);
+    assert_ne!(key1, key2);
+
+    // All versions
+    let versions = engine.definitions.all_versions_of("versioned");
+    assert_eq!(versions.len(), 2);
+
+    // Registry stats
+    assert!(!engine.definitions.is_empty());
+    assert_eq!(engine.definitions.len(), 2);
+    assert!(engine.definitions.contains_key(&key1));
+}
+
+#[tokio::test]
+async fn test_move_token_to_valid_node() {
+    // Catches: delete ! in move_token; replace == with != for node existence checks
+    let engine = WorkflowEngine::new();
+    let def = ProcessDefinitionBuilder::new("move")
+        .node("start", BpmnElement::StartEvent)
+        .node("ut1", BpmnElement::UserTask("alice".into()))
+        .node("ut2", BpmnElement::UserTask("bob".into()))
+        .node("end", BpmnElement::EndEvent)
+        .flow("start", "ut1")
+        .flow("ut1", "ut2")
+        .flow("ut2", "end")
+        .build()
+        .unwrap();
+    let (key, _) = engine.deploy_definition(def).await;
+    let inst_id = engine.start_instance(key).await.unwrap();
+
+    // Should be at ut1
+    let inst = engine.get_instance_details(inst_id).await.unwrap();
+    assert_eq!(inst.current_node, "ut1");
+
+    // Move to ut2
+    let result = engine.move_token(inst_id, "ut2", HashMap::new(), false).await;
+    assert!(result.is_ok());
+
+    let inst = engine.get_instance_details(inst_id).await.unwrap();
+    assert_eq!(inst.current_node, "ut2");
+}
+
+#[tokio::test]
+async fn test_move_token_invalid_node_fails() {
+    let engine = WorkflowEngine::new();
+    let def = ProcessDefinitionBuilder::new("move_bad")
+        .node("start", BpmnElement::StartEvent)
+        .node("ut", BpmnElement::UserTask("alice".into()))
+        .node("end", BpmnElement::EndEvent)
+        .flow("start", "ut")
+        .flow("ut", "end")
+        .build()
+        .unwrap();
+    let (key, _) = engine.deploy_definition(def).await;
+    let inst_id = engine.start_instance(key).await.unwrap();
+
+    // Move to non-existent node
+    let result = engine.move_token(inst_id, "nonexistent", HashMap::new(), false).await;
+    assert!(result.is_err());
+}
+
+#[tokio::test]
+async fn test_delete_instance_cleans_all_queues() {
+    // Catches: replace == with != in delete_instance queue cleanup
+    let engine = WorkflowEngine::new();
+    let def = ProcessDefinitionBuilder::new("del_q")
+        .node("start", BpmnElement::StartEvent)
+        .node(
+            "svc",
+            BpmnElement::ServiceTask {
+                topic: "test_topic".into(),
+                multi_instance: None,
+            },
+        )
+        .node("end", BpmnElement::EndEvent)
+        .flow("start", "svc")
+        .flow("svc", "end")
+        .build()
+        .unwrap();
+    let (key, _) = engine.deploy_definition(def).await;
+    let inst_id = engine.start_instance(key).await.unwrap();
+
+    // Service task should be pending
+    assert!(!engine.pending_service_tasks.is_empty());
+
+    // Delete the instance
+    let result = engine.delete_instance(inst_id).await;
+    assert!(result.is_ok());
+
+    // Instance should be gone
+    assert!(engine.get_instance_details(inst_id).await.is_err());
+    // Pending service tasks for this instance should be cleaned
+    let remaining: Vec<_> = engine
+        .pending_service_tasks
+        .iter()
+        .filter(|t| t.instance_id == inst_id)
+        .collect();
+    assert!(remaining.is_empty());
+}
+
+#[tokio::test]
+async fn test_inclusive_gateway_multiple_paths() {
+    // Catches: replace && with || in execute_inclusive_gateway;
+    //          replace >= with <; delete !
+    let engine = WorkflowEngine::new();
+    let def = ProcessDefinitionBuilder::new("incl")
+        .node("start", BpmnElement::StartEvent)
+        .node("gw", BpmnElement::InclusiveGateway)
+        .node("a", BpmnElement::ScriptTask { script: "let r = 1;".into(), multi_instance: None })
+        .node("b", BpmnElement::ScriptTask { script: "let s = 2;".into(), multi_instance: None })
+        .node("join", BpmnElement::InclusiveGateway)
+        .node("end", BpmnElement::EndEvent)
+        .flow("start", "gw")
+        .conditional_flow("gw", "a", "x == 1")
+        .conditional_flow("gw", "b", "y == 1")
+        .flow("a", "join")
+        .flow("b", "join")
+        .flow("join", "end")
+        .build()
+        .unwrap();
+    let (key, _) = engine.deploy_definition(def).await;
+
+    // Both conditions true → both paths taken
+    let mut vars = HashMap::new();
+    vars.insert("x".to_string(), serde_json::json!(1));
+    vars.insert("y".to_string(), serde_json::json!(1));
+    let inst_id = engine
+        .start_instance_with_variables(key, vars)
+        .await
+        .unwrap();
+    let inst = engine.get_instance_details(inst_id).await.unwrap();
+    assert!(matches!(inst.state, InstanceState::Completed));
+    assert_eq!(inst.variables.get("r"), Some(&serde_json::json!(1)));
+    assert_eq!(inst.variables.get("s"), Some(&serde_json::json!(2)));
+}
+
+#[tokio::test]
+async fn test_compensation_specific_activity_only_targets_one() {
+    // Catches: replace != with == in handle_compensation_throw_event (events.rs:412)
+    // This is the same test as test_compensation_specific_activity but we
+    // explicitly verify that ONLY script1's handler runs, not script2's
+    let engine = WorkflowEngine::new();
+    let def = ProcessDefinitionBuilder::new("comp_filter")
+        .node("start", BpmnElement::StartEvent)
+        .node("script1", BpmnElement::ScriptTask { script: r#"let a = 10;"#.into(), multi_instance: None })
+        .node("boundary_comp1", BpmnElement::BoundaryCompensationEvent { attached_to: "script1".into() })
+        .node("comp_handler1", BpmnElement::ScriptTask { script: r#"a = 0;"#.into(), multi_instance: None })
+        .node("script2", BpmnElement::ScriptTask { script: r#"let b = 20;"#.into(), multi_instance: None })
+        .node("boundary_comp2", BpmnElement::BoundaryCompensationEvent { attached_to: "script2".into() })
+        .node("comp_handler2", BpmnElement::ScriptTask { script: r#"b = 0;"#.into(), multi_instance: None })
+        .node("comp_throw", BpmnElement::CompensationThrowEvent { activity_ref: Some("script2".into()) })
+        .node("end", BpmnElement::EndEvent)
+        .node("handler_end1", BpmnElement::EndEvent)
+        .node("handler_end2", BpmnElement::EndEvent)
+        .flow("start", "script1")
+        .flow("script1", "script2")
+        .flow("script2", "comp_throw")
+        .flow("comp_throw", "end")
+        .flow("boundary_comp1", "comp_handler1")
+        .flow("comp_handler1", "handler_end1")
+        .flow("boundary_comp2", "comp_handler2")
+        .flow("comp_handler2", "handler_end2")
+        .build()
+        .unwrap();
+    let (key, _) = engine.deploy_definition(def).await;
+    let inst_id = engine.start_instance(key).await.unwrap();
+    let inst = engine.get_instance_details(inst_id).await.unwrap();
+    assert!(matches!(inst.state, InstanceState::Completed));
+    // Only script2's handler ran (b → 0), script1's handler did NOT run (a stays 10)
+    assert_eq!(inst.variables.get("a").and_then(|v| v.as_i64()), Some(10));
+    assert_eq!(inst.variables.get("b").and_then(|v| v.as_i64()), Some(0));
 }

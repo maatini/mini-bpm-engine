@@ -73,3 +73,87 @@ impl TimerDefinition {
         )
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::TimeZone;
+
+    #[test]
+    fn next_expiry_duration_adds_to_now() {
+        let now = Utc::now();
+        let td = TimerDefinition::Duration(Duration::from_secs(60));
+        let expiry = td.next_expiry(now).unwrap();
+        // Must be now + 60s, not now - 60s (catches replace + with -)
+        assert!(expiry > now);
+        assert!((expiry - now).num_seconds() == 60);
+    }
+
+    #[test]
+    fn next_expiry_absolute_date_future_returns_some() {
+        let now = Utc::now();
+        let future = now + chrono::Duration::hours(1);
+        let td = TimerDefinition::AbsoluteDate(future);
+        assert_eq!(td.next_expiry(now), Some(future));
+    }
+
+    #[test]
+    fn next_expiry_absolute_date_past_returns_none() {
+        let now = Utc::now();
+        let past = now - chrono::Duration::hours(1);
+        let td = TimerDefinition::AbsoluteDate(past);
+        // Past dates must return None (catches replace > with <, >=, ==)
+        assert_eq!(td.next_expiry(now), None);
+    }
+
+    #[test]
+    fn next_expiry_absolute_date_exact_now_returns_none() {
+        let now = Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap();
+        let td = TimerDefinition::AbsoluteDate(now);
+        // dt == now → *dt > now is false → None (catches > with >=)
+        assert_eq!(td.next_expiry(now), None);
+    }
+
+    #[test]
+    fn next_expiry_repeating_interval() {
+        let now = Utc::now();
+        let td = TimerDefinition::RepeatingInterval {
+            repetitions: Some(3),
+            interval: Duration::from_secs(300),
+        };
+        let expiry = td.next_expiry(now).unwrap();
+        assert!(expiry > now);
+        assert!((expiry - now).num_seconds() == 300);
+    }
+
+    #[test]
+    fn is_recurring_duration_false() {
+        let td = TimerDefinition::Duration(Duration::from_secs(10));
+        assert!(!td.is_recurring());
+    }
+
+    #[test]
+    fn is_recurring_absolute_false() {
+        let td = TimerDefinition::AbsoluteDate(Utc::now());
+        assert!(!td.is_recurring());
+    }
+
+    #[test]
+    fn is_recurring_cron_true() {
+        let td = TimerDefinition::CronCycle {
+            expression: "0 9 * * *".into(),
+            max_repetitions: None,
+        };
+        // Catches: replace is_recurring -> bool with false
+        assert!(td.is_recurring());
+    }
+
+    #[test]
+    fn is_recurring_repeating_interval_true() {
+        let td = TimerDefinition::RepeatingInterval {
+            repetitions: Some(5),
+            interval: Duration::from_secs(60),
+        };
+        assert!(td.is_recurring());
+    }
+}
