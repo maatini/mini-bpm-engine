@@ -98,6 +98,10 @@ impl WorkflowEngine {
         self.run_end_scripts(instance_id, &mut token, &def, &pending.node_id)
             .await?;
 
+        // Register compensation handler if this activity has a BoundaryCompensationEvent
+        self.register_compensation_handler(instance_id, &pending.node_id, &def)
+            .await;
+
         let next =
             crate::engine::executor::resolve_next_target(&def, &pending.node_id, &token.variables)?;
 

@@ -33,6 +33,8 @@ pub enum HistoryEventType {
     InstanceSuspended,
     InstanceResumed,
     TokenMoved,
+    EscalationThrown,
+    CompensationTriggered,
 }
 
 impl HistoryEventType {
@@ -56,6 +58,8 @@ impl HistoryEventType {
             Self::InstanceSuspended => "Process instance was suspended".into(),
             Self::InstanceResumed => "Process instance was resumed".into(),
             Self::TokenMoved => "Token was manually moved to a different node".into(),
+            Self::EscalationThrown => "An escalation was thrown".into(),
+            Self::CompensationTriggered => "Compensation was triggered".into(),
         }
     }
 }
@@ -343,6 +347,7 @@ mod tests {
             active_tokens: vec![],
             join_barriers: HashMap::new(),
             multi_instance_state: HashMap::new(),
+            compensation_log: Vec::new(),
         };
         old.variables.insert("a".into(), json!(1));
         old.variables.insert("b".into(), json!(2));
@@ -388,6 +393,7 @@ mod tests {
             active_tokens: vec![],
             join_barriers: HashMap::new(),
             multi_instance_state: HashMap::new(),
+            compensation_log: Vec::new(),
         };
 
         let mut new = old.clone();
@@ -493,6 +499,7 @@ mod tests {
             active_tokens: vec![],
             join_barriers: HashMap::new(),
             multi_instance_state: HashMap::new(),
+            compensation_log: Vec::new(),
         };
 
         let new = old.clone();
@@ -520,6 +527,7 @@ mod tests {
             active_tokens: vec![],
             join_barriers: HashMap::new(),
             multi_instance_state: HashMap::new(),
+            compensation_log: Vec::new(),
         };
         old.variables.insert("a".into(), json!(1));
         old.variables.insert("b".into(), json!(2));

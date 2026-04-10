@@ -1223,6 +1223,7 @@ async fn restore_instance_loads_from_persistence() {
         active_tokens: vec![],
         join_barriers: std::collections::HashMap::new(),
         multi_instance_state: std::collections::HashMap::new(),
+        compensation_log: Vec::new(),
     };
 
     engine.restore_instance(inst.clone()).await;
@@ -2473,4 +2474,424 @@ async fn test_non_interrupting_message_boundary() {
         inst_lk.read().await.state,
         crate::runtime::InstanceState::Completed
     ));
+}
+
+// ============================================================================
+// Escalation Event Tests
+// ============================================================================
+
+#[tokio::test]
+async fn test_escalation_end_event_completes_instance() {
+    let engine = WorkflowEngine::new();
+    let def = ProcessDefinitionBuilder::new("esc_end")
+        .node("start", BpmnElement::StartEvent)
+        .node(
+            "esc_end",
+            BpmnElement::EscalationEndEvent {
+                escalation_code: "ESC_001".into(),
+            },
+        )
+        .flow("start", "esc_end")
+        .build()
+        .unwrap();
+
+    let (key, _) = engine.deploy_definition(def).await;
+    let inst_id = engine.start_instance(key).await.unwrap();
+
+    let inst = engine.get_instance_details(inst_id).await.unwrap();
+    // EscalationEnd at top level completes the instance (non-fatal)
+    assert!(matches!(inst.state, InstanceState::Completed));
+    assert!(inst.audit_log.iter().any(|l| l.contains("Escalation")));
+}
+
+#[tokio::test]
+async fn test_escalation_throw_no_handler_continues() {
+    // Intermediate escalation throw with no handler → token continues normally
+    let engine = WorkflowEngine::new();
+    let def = ProcessDefinitionBuilder::new("esc_throw_no_handler")
+        .node("start", BpmnElement::StartEvent)
+        .node(
+            "esc_throw",
+            BpmnElement::EscalationThrowEvent {
+                escalation_code: "ESC_002".into(),
+            },
+        )
+        .node("end", BpmnElement::EndEvent)
+        .flow("start", "esc_throw")
+        .flow("esc_throw", "end")
+        .build()
+        .unwrap();
+
+    let (key, _) = engine.deploy_definition(def).await;
+    let inst_id = engine.start_instance(key).await.unwrap();
+
+    let inst = engine.get_instance_details(inst_id).await.unwrap();
+    assert!(matches!(inst.state, InstanceState::Completed));
+    assert!(inst
+        .audit_log
+        .iter()
+        .any(|l| l.contains("no handler found")));
+}
+
+#[tokio::test]
+async fn test_escalation_throw_with_interrupting_boundary() {
+    // Escalation throw inside subprocess, caught by interrupting boundary on task
+    let engine = WorkflowEngine::new();
+    let def = ProcessDefinitionBuilder::new("esc_interrupt")
+        .node("start", BpmnElement::StartEvent)
+        .node(
+            "task1",
+            BpmnElement::ServiceTask {
+                topic: "noop".into(),
+                multi_instance: None,
+            },
+        )
+        .node(
+            "esc_throw",
+            BpmnElement::EscalationThrowEvent {
+                escalation_code: "REVIEW_NEEDED".into(),
+            },
+        )
+        .node(
+            "boundary_esc",
+            BpmnElement::BoundaryEscalationEvent {
+                attached_to: "task1".into(),
+                escalation_code: Some("REVIEW_NEEDED".into()),
+                cancel_activity: true,
+            },
+        )
+        .node("esc_handler_end", BpmnElement::EndEvent)
+        .node("normal_end", BpmnElement::EndEvent)
+        .flow("start", "esc_throw")
+        .flow("task1", "normal_end")
+        .flow("esc_throw", "normal_end")
+        .flow("boundary_esc", "esc_handler_end")
+        .build()
+        .unwrap();
+
+    let (key, _) = engine.deploy_definition(def).await;
+    let inst_id = engine.start_instance(key).await.unwrap();
+
+    let inst = engine.get_instance_details(inst_id).await.unwrap();
+    assert!(matches!(inst.state, InstanceState::Completed));
+    assert!(inst
+        .audit_log
+        .iter()
+        .any(|l| l.contains("interrupting")));
+}
+
+#[tokio::test]
+async fn test_escalation_throw_with_non_interrupting_boundary() {
+    // Non-interrupting boundary → spawns handler token, main token continues
+    let engine = WorkflowEngine::new();
+    let def = ProcessDefinitionBuilder::new("esc_non_interrupt")
+        .node("start", BpmnElement::StartEvent)
+        .node(
+            "task1",
+            BpmnElement::ServiceTask {
+                topic: "noop".into(),
+                multi_instance: None,
+            },
+        )
+        .node(
+            "esc_throw",
+            BpmnElement::EscalationThrowEvent {
+                escalation_code: "INFO".into(),
+            },
+        )
+        .node(
+            "boundary_esc",
+            BpmnElement::BoundaryEscalationEvent {
+                attached_to: "task1".into(),
+                escalation_code: Some("INFO".into()),
+                cancel_activity: false,
+            },
+        )
+        .node("handler_end", BpmnElement::EndEvent)
+        .node("normal_end", BpmnElement::EndEvent)
+        .flow("start", "esc_throw")
+        .flow("task1", "normal_end")
+        .flow("esc_throw", "normal_end")
+        .flow("boundary_esc", "handler_end")
+        .build()
+        .unwrap();
+
+    let (key, _) = engine.deploy_definition(def).await;
+    let inst_id = engine.start_instance(key).await.unwrap();
+
+    let inst = engine.get_instance_details(inst_id).await.unwrap();
+    assert!(matches!(inst.state, InstanceState::Completed));
+    assert!(inst
+        .audit_log
+        .iter()
+        .any(|l| l.contains("non-interrupting")));
+}
+
+#[tokio::test]
+async fn test_escalation_wildcard_boundary_catches_any() {
+    // Boundary with escalation_code: None catches any escalation code
+    let engine = WorkflowEngine::new();
+    let def = ProcessDefinitionBuilder::new("esc_wildcard")
+        .node("start", BpmnElement::StartEvent)
+        .node(
+            "task1",
+            BpmnElement::ServiceTask {
+                topic: "noop".into(),
+                multi_instance: None,
+            },
+        )
+        .node(
+            "esc_throw",
+            BpmnElement::EscalationThrowEvent {
+                escalation_code: "ANY_CODE".into(),
+            },
+        )
+        .node(
+            "boundary_esc",
+            BpmnElement::BoundaryEscalationEvent {
+                attached_to: "task1".into(),
+                escalation_code: None, // wildcard
+                cancel_activity: true,
+            },
+        )
+        .node("handler_end", BpmnElement::EndEvent)
+        .node("normal_end", BpmnElement::EndEvent)
+        .flow("start", "esc_throw")
+        .flow("task1", "normal_end")
+        .flow("esc_throw", "normal_end")
+        .flow("boundary_esc", "handler_end")
+        .build()
+        .unwrap();
+
+    let (key, _) = engine.deploy_definition(def).await;
+    let inst_id = engine.start_instance(key).await.unwrap();
+
+    let inst = engine.get_instance_details(inst_id).await.unwrap();
+    assert!(matches!(inst.state, InstanceState::Completed));
+    assert!(inst
+        .audit_log
+        .iter()
+        .any(|l| l.contains("caught") && l.contains("interrupting")));
+}
+
+// ============================================================================
+// Compensation Event Tests
+// ============================================================================
+
+#[tokio::test]
+async fn test_compensation_registers_and_executes_handler() {
+    // Script task with compensation boundary → compensation throw undoes it
+    let engine = WorkflowEngine::new();
+    let def = ProcessDefinitionBuilder::new("comp_basic")
+        .node("start", BpmnElement::StartEvent)
+        .node(
+            "script1",
+            BpmnElement::ScriptTask {
+                script: r#"let step1 = "done";"#.into(),
+                multi_instance: None,
+            },
+        )
+        .node(
+            "boundary_comp",
+            BpmnElement::BoundaryCompensationEvent {
+                attached_to: "script1".into(),
+            },
+        )
+        .node(
+            "comp_handler",
+            BpmnElement::ScriptTask {
+                script: r#"step1 = "undone";"#.into(),
+                multi_instance: None,
+            },
+        )
+        .node(
+            "comp_throw",
+            BpmnElement::CompensationThrowEvent { activity_ref: None },
+        )
+        .node("end", BpmnElement::EndEvent)
+        .flow("start", "script1")
+        .flow("script1", "comp_throw")
+        .flow("comp_throw", "end")
+        .flow("boundary_comp", "comp_handler")
+        .flow("comp_handler", "end")
+        .build()
+        .unwrap();
+
+    let (key, _) = engine.deploy_definition(def).await;
+    let inst_id = engine.start_instance(key).await.unwrap();
+
+    let inst = engine.get_instance_details(inst_id).await.unwrap();
+    assert!(matches!(inst.state, InstanceState::Completed));
+    // Compensation handler should have been registered and executed
+    assert!(inst
+        .audit_log
+        .iter()
+        .any(|l| l.contains("Registered compensation")));
+    assert!(inst
+        .audit_log
+        .iter()
+        .any(|l| l.contains("Compensation triggered")));
+    // After compensation, step1 should be "undone"
+    assert_eq!(
+        inst.variables.get("step1").and_then(|v| v.as_str()),
+        Some("undone")
+    );
+}
+
+#[tokio::test]
+async fn test_compensation_end_event() {
+    // CompensationEndEvent triggers compensation and then completes
+    let engine = WorkflowEngine::new();
+    let def = ProcessDefinitionBuilder::new("comp_end")
+        .node("start", BpmnElement::StartEvent)
+        .node(
+            "script1",
+            BpmnElement::ScriptTask {
+                script: r#"let x = 42;"#.into(),
+                multi_instance: None,
+            },
+        )
+        .node(
+            "boundary_comp",
+            BpmnElement::BoundaryCompensationEvent {
+                attached_to: "script1".into(),
+            },
+        )
+        .node(
+            "comp_handler",
+            BpmnElement::ScriptTask {
+                script: r#"x = 0;"#.into(),
+                multi_instance: None,
+            },
+        )
+        .node(
+            "comp_end",
+            BpmnElement::CompensationEndEvent { activity_ref: None },
+        )
+        .node("handler_end", BpmnElement::EndEvent)
+        .flow("start", "script1")
+        .flow("script1", "comp_end")
+        .flow("boundary_comp", "comp_handler")
+        .flow("comp_handler", "handler_end")
+        .build()
+        .unwrap();
+
+    let (key, _) = engine.deploy_definition(def).await;
+    let inst_id = engine.start_instance(key).await.unwrap();
+
+    let inst = engine.get_instance_details(inst_id).await.unwrap();
+    assert!(matches!(inst.state, InstanceState::Completed));
+    assert_eq!(
+        inst.variables.get("x").and_then(|v| v.as_i64()),
+        Some(0)
+    );
+}
+
+#[tokio::test]
+async fn test_compensation_specific_activity() {
+    // CompensationThrowEvent with activity_ref targets only one activity's handler
+    let engine = WorkflowEngine::new();
+    let def = ProcessDefinitionBuilder::new("comp_specific")
+        .node("start", BpmnElement::StartEvent)
+        .node(
+            "script1",
+            BpmnElement::ScriptTask {
+                script: r#"let a = 1;"#.into(),
+                multi_instance: None,
+            },
+        )
+        .node(
+            "boundary_comp1",
+            BpmnElement::BoundaryCompensationEvent {
+                attached_to: "script1".into(),
+            },
+        )
+        .node(
+            "comp_handler1",
+            BpmnElement::ScriptTask {
+                script: r#"a = -1;"#.into(),
+                multi_instance: None,
+            },
+        )
+        .node(
+            "script2",
+            BpmnElement::ScriptTask {
+                script: r#"let b = 2;"#.into(),
+                multi_instance: None,
+            },
+        )
+        .node(
+            "boundary_comp2",
+            BpmnElement::BoundaryCompensationEvent {
+                attached_to: "script2".into(),
+            },
+        )
+        .node(
+            "comp_handler2",
+            BpmnElement::ScriptTask {
+                script: r#"b = -2;"#.into(),
+                multi_instance: None,
+            },
+        )
+        .node(
+            "comp_throw",
+            BpmnElement::CompensationThrowEvent {
+                activity_ref: Some("script1".into()),
+            },
+        )
+        .node("end", BpmnElement::EndEvent)
+        .node("handler_end1", BpmnElement::EndEvent)
+        .node("handler_end2", BpmnElement::EndEvent)
+        .flow("start", "script1")
+        .flow("script1", "script2")
+        .flow("script2", "comp_throw")
+        .flow("comp_throw", "end")
+        .flow("boundary_comp1", "comp_handler1")
+        .flow("comp_handler1", "handler_end1")
+        .flow("boundary_comp2", "comp_handler2")
+        .flow("comp_handler2", "handler_end2")
+        .build()
+        .unwrap();
+
+    let (key, _) = engine.deploy_definition(def).await;
+    let inst_id = engine.start_instance(key).await.unwrap();
+
+    let inst = engine.get_instance_details(inst_id).await.unwrap();
+    assert!(matches!(inst.state, InstanceState::Completed));
+    // Only script1's handler ran, so a=-1, but b stays at 2
+    assert_eq!(
+        inst.variables.get("a").and_then(|v| v.as_i64()),
+        Some(-1)
+    );
+    assert_eq!(
+        inst.variables.get("b").and_then(|v| v.as_i64()),
+        Some(2)
+    );
+}
+
+#[tokio::test]
+async fn test_compensation_no_handlers_still_completes() {
+    // CompensationThrowEvent with no registered handlers → just continues
+    let engine = WorkflowEngine::new();
+    let def = ProcessDefinitionBuilder::new("comp_empty")
+        .node("start", BpmnElement::StartEvent)
+        .node(
+            "comp_throw",
+            BpmnElement::CompensationThrowEvent { activity_ref: None },
+        )
+        .node("end", BpmnElement::EndEvent)
+        .flow("start", "comp_throw")
+        .flow("comp_throw", "end")
+        .build()
+        .unwrap();
+
+    let (key, _) = engine.deploy_definition(def).await;
+    let inst_id = engine.start_instance(key).await.unwrap();
+
+    let inst = engine.get_instance_details(inst_id).await.unwrap();
+    assert!(matches!(inst.state, InstanceState::Completed));
+    assert!(inst
+        .audit_log
+        .iter()
+        .any(|l| l.contains("0 handler(s) to execute")));
 }

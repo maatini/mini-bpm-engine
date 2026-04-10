@@ -74,6 +74,8 @@ impl ProcessDefinition {
                     e,
                     BpmnElement::EndEvent
                         | BpmnElement::ErrorEndEvent { .. }
+                        | BpmnElement::EscalationEndEvent { .. }
+                        | BpmnElement::CompensationEndEvent { .. }
                         | BpmnElement::TerminateEndEvent
                         | BpmnElement::SubProcessEndEvent { .. }
                 )
@@ -101,7 +103,9 @@ impl ProcessDefinition {
         for (node_id, element) in &nodes {
             if let BpmnElement::BoundaryTimerEvent { attached_to, .. }
             | BpmnElement::BoundaryMessageEvent { attached_to, .. }
-            | BpmnElement::BoundaryErrorEvent { attached_to, .. } = element
+            | BpmnElement::BoundaryErrorEvent { attached_to, .. }
+            | BpmnElement::BoundaryEscalationEvent { attached_to, .. }
+            | BpmnElement::BoundaryCompensationEvent { attached_to, .. } = element
                 && !nodes.contains_key(attached_to)
             {
                 return Err(EngineError::InvalidDefinition(format!(
@@ -116,9 +120,12 @@ impl ProcessDefinition {
                 element,
                 BpmnElement::EndEvent
                     | BpmnElement::ErrorEndEvent { .. }
+                    | BpmnElement::EscalationEndEvent { .. }
+                    | BpmnElement::CompensationEndEvent { .. }
                     | BpmnElement::TerminateEndEvent
                     | BpmnElement::SubProcessEndEvent { .. }
                     | BpmnElement::EmbeddedSubProcess { .. }
+                    | BpmnElement::BoundaryCompensationEvent { .. }
             ) {
                 continue;
             }

@@ -70,6 +70,11 @@ impl WorkflowEngine {
 
         self.run_end_scripts(instance_id, token, def_clone, current_id)
             .await?;
+
+        // Register compensation handler if this activity has a BoundaryCompensationEvent
+        self.register_compensation_handler(instance_id, current_id, def_clone)
+            .await;
+
         let next = resolve_next_target(def_clone, current_id, &token.variables)?;
         token.current_node = next.clone();
 

@@ -28,6 +28,13 @@ pub enum NextAction {
     Complete,
     /// Ends the current process instance with an error code (for error propagation).
     ErrorEnd { error_code: String },
+    /// Ends the current path with an escalation code (non-fatal, propagates to parent).
+    EscalationEnd { escalation_code: String },
+    /// Spawns extra tokens (e.g. non-interrupting escalation handler) while the main token continues.
+    SpawnAndContinue {
+        main: Token,
+        spawned: Vec<Token>,
+    },
     /// Terminate End Event: kill all active tokens and complete the instance immediately.
     Terminate,
     /// The engine must pause — a call activity (sub-process) is pending.
@@ -119,6 +126,15 @@ pub struct JoinBarrier {
     pub arrived_tokens: Vec<Token>,
 }
 
+/// Tracks a successfully completed compensatable activity and its handler.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CompensationRecord {
+    /// The BPMN node ID of the activity that completed.
+    pub activity_id: String,
+    /// The BPMN node ID of the compensation handler (connected from BoundaryCompensationEvent).
+    pub handler_node_id: String,
+}
+
 /// A live process instance tracked by the engine.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProcessInstance {
@@ -145,6 +161,9 @@ pub struct ProcessInstance {
     /// Progress tracking for Multi-Instance tasks.
     #[serde(default)]
     pub multi_instance_state: HashMap<String, MultiInstanceProgress>,
+    /// LIFO log of completed compensatable activities and their handlers.
+    #[serde(default)]
+    pub compensation_log: Vec<CompensationRecord>,
 }
 
 impl ProcessInstance {

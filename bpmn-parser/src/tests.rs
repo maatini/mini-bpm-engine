@@ -866,3 +866,123 @@ fn test_parse_complex_gateway() {
         _ => panic!("Expected ComplexGateway"),
     }
 }
+
+#[test]
+fn parse_escalation_events() {
+    let xml = r#"
+        <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL">
+            <escalation id="Esc_1" name="ReviewNeeded" escalationCode="ESC_REVIEW" />
+            <process id="proc1">
+                <startEvent id="start" />
+                <intermediateThrowEvent id="esc_throw">
+                    <escalationEventDefinition escalationRef="Esc_1" />
+                </intermediateThrowEvent>
+                <endEvent id="esc_end">
+                    <escalationEventDefinition escalationRef="Esc_1" />
+                </endEvent>
+                <serviceTask id="task1" data-topic="work" />
+                <boundaryEvent id="boundary_esc" attachedToRef="task1" cancelActivity="false">
+                    <escalationEventDefinition escalationRef="Esc_1" />
+                </boundaryEvent>
+                <endEvent id="end" />
+                <endEvent id="handler_end" />
+                <sequenceFlow id="f1" sourceRef="start" targetRef="task1" />
+                <sequenceFlow id="f2" sourceRef="task1" targetRef="esc_throw" />
+                <sequenceFlow id="f3" sourceRef="esc_throw" targetRef="esc_end" />
+                <sequenceFlow id="f4" sourceRef="boundary_esc" targetRef="handler_end" />
+            </process>
+        </bpmn:definitions>
+    "#;
+
+    let def = parse_bpmn_xml(xml).unwrap();
+
+    // Check escalation throw event
+    let throw = def.nodes.get("esc_throw").expect("esc_throw should exist");
+    match throw {
+        BpmnElement::EscalationThrowEvent { escalation_code } => {
+            assert_eq!(escalation_code, "ESC_REVIEW");
+        }
+        _ => panic!("Expected EscalationThrowEvent, got {:?}", throw),
+    }
+
+    // Check escalation end event
+    let end = def.nodes.get("esc_end").expect("esc_end should exist");
+    match end {
+        BpmnElement::EscalationEndEvent { escalation_code } => {
+            assert_eq!(escalation_code, "ESC_REVIEW");
+        }
+        _ => panic!("Expected EscalationEndEvent, got {:?}", end),
+    }
+
+    // Check boundary escalation event
+    let boundary = def.nodes.get("boundary_esc").expect("boundary_esc should exist");
+    match boundary {
+        BpmnElement::BoundaryEscalationEvent {
+            attached_to,
+            escalation_code,
+            cancel_activity,
+        } => {
+            assert_eq!(attached_to, "task1");
+            assert_eq!(escalation_code.as_deref(), Some("ESC_REVIEW"));
+            assert!(!cancel_activity);
+        }
+        _ => panic!("Expected BoundaryEscalationEvent, got {:?}", boundary),
+    }
+}
+
+#[test]
+fn parse_compensation_events() {
+    let xml = r#"
+        <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL">
+            <process id="proc1">
+                <startEvent id="start" />
+                <serviceTask id="task1" data-topic="work" />
+                <boundaryEvent id="boundary_comp" attachedToRef="task1">
+                    <compensateEventDefinition />
+                </boundaryEvent>
+                <serviceTask id="comp_handler" data-topic="undo_work" />
+                <intermediateThrowEvent id="comp_throw">
+                    <compensateEventDefinition activityRef="task1" />
+                </intermediateThrowEvent>
+                <endEvent id="comp_end">
+                    <compensateEventDefinition />
+                </endEvent>
+                <endEvent id="end" />
+                <sequenceFlow id="f1" sourceRef="start" targetRef="task1" />
+                <sequenceFlow id="f2" sourceRef="task1" targetRef="comp_throw" />
+                <sequenceFlow id="f3" sourceRef="comp_throw" targetRef="comp_end" />
+                <sequenceFlow id="f4" sourceRef="boundary_comp" targetRef="comp_handler" />
+                <sequenceFlow id="f5" sourceRef="comp_handler" targetRef="end" />
+            </process>
+        </bpmn:definitions>
+    "#;
+
+    let def = parse_bpmn_xml(xml).unwrap();
+
+    // Check compensation boundary event
+    let boundary = def.nodes.get("boundary_comp").expect("boundary_comp should exist");
+    match boundary {
+        BpmnElement::BoundaryCompensationEvent { attached_to } => {
+            assert_eq!(attached_to, "task1");
+        }
+        _ => panic!("Expected BoundaryCompensationEvent, got {:?}", boundary),
+    }
+
+    // Check compensation throw event
+    let throw = def.nodes.get("comp_throw").expect("comp_throw should exist");
+    match throw {
+        BpmnElement::CompensationThrowEvent { activity_ref } => {
+            assert_eq!(activity_ref.as_deref(), Some("task1"));
+        }
+        _ => panic!("Expected CompensationThrowEvent, got {:?}", throw),
+    }
+
+    // Check compensation end event
+    let end = def.nodes.get("comp_end").expect("comp_end should exist");
+    match end {
+        BpmnElement::CompensationEndEvent { activity_ref } => {
+            assert!(activity_ref.is_none());
+        }
+        _ => panic!("Expected CompensationEndEvent, got {:?}", end),
+    }
+}

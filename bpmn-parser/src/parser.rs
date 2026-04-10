@@ -276,6 +276,19 @@ pub fn parse_bpmn_xml(xml: &str) -> EngineResult<ProcessDefinition> {
         })
         .collect();
 
+    let escalation_lookup: HashMap<String, String> = defs
+        .escalations
+        .iter()
+        .map(|e| {
+            let code = e
+                .escalation_code
+                .clone()
+                .or_else(|| e.name.clone())
+                .unwrap_or_else(|| e.id.clone());
+            (e.id.clone(), code)
+        })
+        .collect();
+
     // Process-level listeners
     builder = add_listeners(builder, &process_id, process.extension_elements);
 
@@ -308,6 +321,19 @@ pub fn parse_bpmn_xml(xml: &str) -> EngineResult<ProcessDefinition> {
                 .and_then(|ref_id| error_lookup.get(&ref_id).cloned())
                 .unwrap_or_else(|| "generic_error".into());
             builder = builder.node(end.id, BpmnElement::ErrorEndEvent { error_code });
+        } else if let Some(esc) = end.escalation_event_definition {
+            let escalation_code = esc
+                .escalation_ref
+                .and_then(|ref_id| escalation_lookup.get(&ref_id).cloned())
+                .unwrap_or_else(|| "generic_escalation".into());
+            builder = builder.node(end.id, BpmnElement::EscalationEndEvent { escalation_code });
+        } else if let Some(comp) = end.compensate_event_definition {
+            builder = builder.node(
+                end.id,
+                BpmnElement::CompensationEndEvent {
+                    activity_ref: comp.activity_ref,
+                },
+            );
         } else {
             builder = builder.node(end.id, BpmnElement::EndEvent);
         }
@@ -522,6 +548,22 @@ pub fn parse_bpmn_xml(xml: &str) -> EngineResult<ProcessDefinition> {
                     multi_instance: None,
                 },
             );
+        } else if let Some(esc) = evt.escalation_event_definition {
+            let escalation_code = esc
+                .escalation_ref
+                .and_then(|ref_id| escalation_lookup.get(&ref_id).cloned())
+                .unwrap_or_else(|| "generic_escalation".into());
+            builder = builder.node(
+                evt.id,
+                BpmnElement::EscalationThrowEvent { escalation_code },
+            );
+        } else if let Some(comp) = evt.compensate_event_definition {
+            builder = builder.node(
+                evt.id,
+                BpmnElement::CompensationThrowEvent {
+                    activity_ref: comp.activity_ref,
+                },
+            );
         } else {
             builder = builder.node(
                 evt.id,
@@ -575,6 +617,23 @@ pub fn parse_bpmn_xml(xml: &str) -> EngineResult<ProcessDefinition> {
                     error_code,
                 },
             );
+        } else if let Some(esc) = bd.escalation_event_definition {
+            let escalation_code = esc
+                .escalation_ref
+                .and_then(|ref_id| escalation_lookup.get(&ref_id).cloned());
+            builder = builder.node(
+                bd.id,
+                BpmnElement::BoundaryEscalationEvent {
+                    attached_to,
+                    escalation_code,
+                    cancel_activity,
+                },
+            );
+        } else if bd.compensate_event_definition.is_some() {
+            builder = builder.node(
+                bd.id,
+                BpmnElement::BoundaryCompensationEvent { attached_to },
+            );
         } else {
             // Unhandled boundary event, map to noop
             builder = builder.node(
@@ -599,7 +658,14 @@ pub fn parse_bpmn_xml(xml: &str) -> EngineResult<ProcessDefinition> {
 
     // 11. Flatten nested sub-processes (embedded scopes)
     for sp in process.sub_processes {
-        builder = flatten_subprocess(sp, &process_id, builder, &message_lookup, &error_lookup);
+        builder = flatten_subprocess(
+            sp,
+            &process_id,
+            builder,
+            &message_lookup,
+            &error_lookup,
+            &escalation_lookup,
+        );
     }
 
     builder.build()
@@ -612,6 +678,7 @@ fn flatten_subprocess(
     mut builder: ProcessDefinitionBuilder,
     message_lookup: &HashMap<String, String>,
     error_lookup: &HashMap<String, String>,
+    escalation_lookup: &HashMap<String, String>,
 ) -> ProcessDefinitionBuilder {
     let sub_process_id = sp.id.clone();
 
@@ -725,6 +792,66 @@ fn flatten_subprocess(
         );
     }
 
+    // Boundary events inside sub-processes
+    for bd in sp.boundary_events {
+        let attached_to = bd.attached_to_ref.clone();
+        let cancel_activity = bd.cancel_activity.unwrap_or(true);
+
+        if let Some(timer) = bd.timer_event_definition {
+            if let Ok(timer_def) = parse_timer_definition(&timer) {
+                builder = builder.node(
+                    bd.id,
+                    engine_core::model::BpmnElement::BoundaryTimerEvent {
+                        attached_to,
+                        timer: timer_def,
+                        cancel_activity,
+                    },
+                );
+            }
+        } else if let Some(msg) = bd.message_event_definition {
+            let message_name = msg
+                .message_ref
+                .map(|r| message_lookup.get(&r).cloned().unwrap_or(r))
+                .unwrap_or_else(|| "unknown".into());
+            builder = builder.node(
+                bd.id,
+                engine_core::model::BpmnElement::BoundaryMessageEvent {
+                    attached_to,
+                    message_name,
+                    cancel_activity,
+                },
+            );
+        } else if let Some(err) = bd.error_event_definition {
+            let error_code = err
+                .error_ref
+                .and_then(|ref_id| error_lookup.get(&ref_id).cloned());
+            builder = builder.node(
+                bd.id,
+                engine_core::model::BpmnElement::BoundaryErrorEvent {
+                    attached_to,
+                    error_code,
+                },
+            );
+        } else if let Some(esc) = bd.escalation_event_definition {
+            let escalation_code = esc
+                .escalation_ref
+                .and_then(|ref_id| escalation_lookup.get(&ref_id).cloned());
+            builder = builder.node(
+                bd.id,
+                engine_core::model::BpmnElement::BoundaryEscalationEvent {
+                    attached_to,
+                    escalation_code,
+                    cancel_activity,
+                },
+            );
+        } else if bd.compensate_event_definition.is_some() {
+            builder = builder.node(
+                bd.id,
+                engine_core::model::BpmnElement::BoundaryCompensationEvent { attached_to },
+            );
+        }
+    }
+
     for flow in sp.sequence_flows {
         if let Some(cond) = flow.condition_expression {
             builder = builder.conditional_flow(
@@ -744,6 +871,7 @@ fn flatten_subprocess(
             builder,
             message_lookup,
             error_lookup,
+            escalation_lookup,
         );
     }
 

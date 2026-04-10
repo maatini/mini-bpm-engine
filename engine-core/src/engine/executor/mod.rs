@@ -49,6 +49,69 @@ pub(crate) fn find_boundary_error_event(
     })
 }
 
+/// Finds a boundary escalation event attached to the given node matching the escalation code.
+/// Wildcard: `escalation_code: None` catches any escalation.
+#[allow(dead_code)]
+pub(crate) fn find_boundary_escalation_event(
+    def: &ProcessDefinition,
+    attached_to_node: &str,
+    escalation_code: &str,
+) -> Option<(String, bool)> {
+    def.nodes.iter().find_map(|(node_id, node)| {
+        if let BpmnElement::BoundaryEscalationEvent {
+            attached_to,
+            escalation_code: bound_esc,
+            cancel_activity,
+        } = node
+            && attached_to == attached_to_node
+            && (bound_esc.is_none() || bound_esc.as_deref() == Some(escalation_code))
+        {
+            return Some((node_id.clone(), *cancel_activity));
+        }
+        None
+    })
+}
+
+/// Scans all nodes for a BoundaryEscalationEvent matching the escalation code (any attachment).
+pub(crate) fn find_any_boundary_escalation_event(
+    def: &ProcessDefinition,
+    escalation_code: &str,
+) -> Option<(String, String, bool)> {
+    def.nodes.iter().find_map(|(node_id, node)| {
+        if let BpmnElement::BoundaryEscalationEvent {
+            attached_to,
+            escalation_code: bound_esc,
+            cancel_activity,
+        } = node
+            && (bound_esc.is_none() || bound_esc.as_deref() == Some(escalation_code))
+        {
+            return Some((node_id.clone(), attached_to.clone(), *cancel_activity));
+        }
+        None
+    })
+}
+
+/// Finds the compensation handler (outgoing node from BoundaryCompensationEvent) for an activity.
+pub(crate) fn find_compensation_handler(
+    def: &ProcessDefinition,
+    activity_id: &str,
+) -> Option<String> {
+    // Find the BoundaryCompensationEvent attached to this activity
+    let boundary_id = def.nodes.iter().find_map(|(node_id, node)| {
+        if let BpmnElement::BoundaryCompensationEvent { attached_to } = node
+            && attached_to == activity_id
+        {
+            Some(node_id.clone())
+        } else {
+            None
+        }
+    })?;
+    // Follow the outgoing flow from the boundary event to the handler
+    def.next_nodes(&boundary_id)
+        .first()
+        .map(|f| f.target.clone())
+}
+
 impl WorkflowEngine {
     /// Non-recursive batched execution loop.
     pub(crate) async fn run_instance_batch(
@@ -144,6 +207,14 @@ impl WorkflowEngine {
                 NextAction::ErrorEnd { error_code } => (
                     crate::history::HistoryEventType::BranchCompleted,
                     format!("Execution path completed with error '{}'", error_code),
+                ),
+                NextAction::EscalationEnd { escalation_code } => (
+                    crate::history::HistoryEventType::EscalationThrown,
+                    format!("Escalation '{}' thrown at end event", escalation_code),
+                ),
+                NextAction::SpawnAndContinue { .. } => (
+                    crate::history::HistoryEventType::TokenForked,
+                    "Escalation handler spawned (non-interrupting)".to_string(),
                 ),
                 NextAction::Terminate => (
                     crate::history::HistoryEventType::BranchCompleted,
@@ -431,6 +502,37 @@ impl WorkflowEngine {
                     }
                     self.persist_instance(instance_id).await;
                 }
+                NextAction::EscalationEnd { escalation_code } => {
+                    self.complete_branch_token(instance_id, token.id).await?;
+
+                    if let Some(inst_arc) = self.instances.get(&instance_id).await {
+                        let mut inst = inst_arc.write().await;
+                        inst.tokens.remove(&token.id);
+                    }
+
+                    if self.all_tokens_completed(instance_id).await? {
+                        // Escalation at instance level: complete normally but propagate
+                        // escalation to parent (non-fatal, unlike ErrorEnd).
+                        if let Some(inst_arc) = self.instances.get(&instance_id).await {
+                            let mut inst = inst_arc.write().await;
+                            inst.state = InstanceState::Completed;
+                            inst.push_audit_log(format!(
+                                "⚡ All tokens completed with escalation '{escalation_code}'"
+                            ));
+                        }
+                        // Note: escalation propagation to parent happens in resume_parent_if_needed
+                        // via the normal Completed path. Escalations at instance level are non-fatal.
+                    }
+                    self.persist_instance(instance_id).await;
+                }
+                NextAction::SpawnAndContinue { main, spawned } => {
+                    // Main token continues normally
+                    queue.push_back(main);
+                    // Spawned tokens (escalation handlers etc.) also run
+                    for extra_token in spawned {
+                        queue.push_back(extra_token);
+                    }
+                }
                 NextAction::Terminate => {
                     // Cancel ALL pending items for this instance
                     self.pending_user_tasks
@@ -661,11 +763,59 @@ impl WorkflowEngine {
                 self.handle_sub_process_end_event(token, &def_clone, sub_process_id)
                     .await
             }
+            BpmnElement::EscalationEndEvent { escalation_code } => {
+                self.handle_escalation_end_event(
+                    instance_id,
+                    token,
+                    &def_clone,
+                    &current_id,
+                    escalation_code,
+                )
+                .await
+            }
+            BpmnElement::EscalationThrowEvent { escalation_code } => {
+                self.handle_escalation_throw_event(
+                    instance_id,
+                    token,
+                    &def_clone,
+                    &current_id,
+                    escalation_code,
+                )
+                .await
+            }
+            BpmnElement::CompensationThrowEvent { activity_ref } => {
+                self.handle_compensation_throw_event(
+                    instance_id,
+                    token,
+                    &def_clone,
+                    &current_id,
+                    activity_ref,
+                    false,
+                )
+                .await
+            }
+            BpmnElement::CompensationEndEvent { activity_ref } => {
+                self.handle_compensation_throw_event(
+                    instance_id,
+                    token,
+                    &def_clone,
+                    &current_id,
+                    activity_ref,
+                    true,
+                )
+                .await
+            }
             BpmnElement::BoundaryTimerEvent { .. }
             | BpmnElement::BoundaryMessageEvent { .. }
-            | BpmnElement::BoundaryErrorEvent { .. } => {
+            | BpmnElement::BoundaryErrorEvent { .. }
+            | BpmnElement::BoundaryEscalationEvent { .. } => {
                 self.handle_boundary_event(instance_id, token, &def_clone, &current_id)
                     .await
+            }
+            BpmnElement::BoundaryCompensationEvent { .. } => {
+                // Compensation boundary events are not directly executed —
+                // they register handlers when the attached activity completes.
+                Ok(NextAction::Complete)
             }
         }
     }

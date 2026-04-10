@@ -70,6 +70,22 @@ pub enum BpmnElement {
     },
     /// An end event that throws a specific BPMN error.
     ErrorEndEvent { error_code: String },
+    /// An end event that throws a BPMN escalation (non-fatal, propagates to parent scope).
+    EscalationEndEvent { escalation_code: String },
+    /// An intermediate throw event that fires an escalation signal.
+    EscalationThrowEvent { escalation_code: String },
+    /// A boundary escalation event attached to an activity.
+    BoundaryEscalationEvent {
+        attached_to: String,
+        escalation_code: Option<String>,
+        cancel_activity: bool,
+    },
+    /// An intermediate throw event that triggers compensation.
+    CompensationThrowEvent { activity_ref: Option<String> },
+    /// An end event that triggers compensation before completing.
+    CompensationEndEvent { activity_ref: Option<String> },
+    /// A boundary compensation event attached to an activity (registered on successful completion).
+    BoundaryCompensationEvent { attached_to: String },
     /// A Call Activity that invokes another globally deployed process definition.
     CallActivity { called_element: String },
     /// An Embedded Sub-Process acting as a nested scope within the same instance.

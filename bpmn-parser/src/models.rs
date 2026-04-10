@@ -65,6 +65,9 @@ pub(crate) struct BpmnDefinitions {
 
     #[serde(rename = "error", default)]
     pub errors: Vec<BpmnErrorDef>,
+
+    #[serde(rename = "escalation", default)]
+    pub escalations: Vec<BpmnEscalationDef>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -83,6 +86,16 @@ pub(crate) struct BpmnErrorDef {
     pub name: Option<String>,
     #[serde(rename = "@errorCode", default)]
     pub error_code: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct BpmnEscalationDef {
+    #[serde(rename = "@id")]
+    pub id: String,
+    #[serde(rename = "@name", default)]
+    pub name: Option<String>,
+    #[serde(rename = "@escalationCode", default)]
+    pub escalation_code: Option<String>,
 }
 
 /// A catch-all struct for elements we want to parse but otherwise ignore.
@@ -211,6 +224,18 @@ pub(crate) struct BpmnErrorEventDefinition {
 }
 
 #[derive(Debug, Deserialize)]
+pub(crate) struct BpmnEscalationEventDefinition {
+    #[serde(rename = "@escalationRef")]
+    pub escalation_ref: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct BpmnCompensateEventDefinition {
+    #[serde(rename = "@activityRef", default)]
+    pub activity_ref: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
 pub(crate) struct BpmnEndEvent {
     #[serde(rename = "@id")]
     pub id: String,
@@ -221,6 +246,10 @@ pub(crate) struct BpmnEndEvent {
     #[allow(dead_code)]
     #[serde(rename = "messageEventDefinition")]
     pub message_event_definition: Option<BpmnMessageEventDefinition>,
+    #[serde(rename = "escalationEventDefinition")]
+    pub escalation_event_definition: Option<BpmnEscalationEventDefinition>,
+    #[serde(rename = "compensateEventDefinition")]
+    pub compensate_event_definition: Option<BpmnCompensateEventDefinition>,
     #[serde(rename = "terminateEventDefinition")]
     pub terminate_event_definition: Option<IgnoredElement>,
 }
@@ -272,6 +301,10 @@ pub(crate) struct BpmnIntermediateThrowEvent {
     pub extension_elements: Option<BpmnExtensionElements>,
     #[serde(rename = "messageEventDefinition")]
     pub message_event_definition: Option<BpmnMessageEventDefinition>,
+    #[serde(rename = "escalationEventDefinition")]
+    pub escalation_event_definition: Option<BpmnEscalationEventDefinition>,
+    #[serde(rename = "compensateEventDefinition")]
+    pub compensate_event_definition: Option<BpmnCompensateEventDefinition>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -384,6 +417,10 @@ pub(crate) struct BpmnBoundaryEvent {
     pub error_event_definition: Option<BpmnErrorEventDefinition>,
     #[serde(rename = "messageEventDefinition")]
     pub message_event_definition: Option<BpmnMessageEventDefinition>,
+    #[serde(rename = "escalationEventDefinition")]
+    pub escalation_event_definition: Option<BpmnEscalationEventDefinition>,
+    #[serde(rename = "compensateEventDefinition")]
+    pub compensate_event_definition: Option<BpmnCompensateEventDefinition>,
 }
 
 #[allow(dead_code)]
