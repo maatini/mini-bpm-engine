@@ -174,6 +174,17 @@ mod tests {
         let a = json!(1.0);
         let b = json!(2.0);
         assert!(!values_eq(&a, &b));
+
+        // Edge case: diff exactly at EPSILON boundary → should NOT be equal
+        // (catches: replace < with <= in values_eq)
+        let x = 1.0_f64;
+        let y = x + f64::EPSILON;
+        let a = serde_json::Value::from(x);
+        let b = serde_json::Value::from(y);
+        assert!(
+            !values_eq(&a, &b),
+            "Numbers differing by exactly EPSILON should NOT be equal"
+        );
     }
 
     #[test]

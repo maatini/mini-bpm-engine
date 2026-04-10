@@ -350,3 +350,224 @@ impl WorkflowPersistence for InMemoryPersistence {
         ))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::history::{ActorType, HistoryEventType};
+
+    #[tokio::test]
+    async fn test_query_history_filters() {
+        let p = InMemoryPersistence::new();
+        let inst_id = uuid::Uuid::new_v4();
+        let now = chrono::Utc::now();
+
+        // Insert 3 history entries with different types, nodes, actors, timestamps
+        let e1 = HistoryEntry {
+            id: uuid::Uuid::new_v4(),
+            instance_id: inst_id,
+            event_type: HistoryEventType::InstanceStarted,
+            description: "started".into(),
+            actor_type: ActorType::Engine,
+            actor_id: None,
+            node_id: Some("start".into()),
+            diff: None,
+            timestamp: now - chrono::Duration::hours(2),
+            context: HashMap::new(),
+            metadata: None,
+            definition_version: None,
+            is_snapshot: false,
+            full_state_snapshot: None,
+        };
+        let e2 = HistoryEntry {
+            id: uuid::Uuid::new_v4(),
+            instance_id: inst_id,
+            event_type: HistoryEventType::TaskCompleted,
+            description: "task done".into(),
+            actor_type: ActorType::User,
+            actor_id: Some("alice".into()),
+            node_id: Some("task1".into()),
+            diff: None,
+            timestamp: now - chrono::Duration::hours(1),
+            context: HashMap::new(),
+            metadata: None,
+            definition_version: None,
+            is_snapshot: false,
+            full_state_snapshot: None,
+        };
+        let e3 = HistoryEntry {
+            id: uuid::Uuid::new_v4(),
+            instance_id: inst_id,
+            event_type: HistoryEventType::InstanceCompleted,
+            description: "done".into(),
+            actor_type: ActorType::Engine,
+            actor_id: None,
+            node_id: Some("end".into()),
+            diff: None,
+            timestamp: now,
+            context: HashMap::new(),
+            metadata: None,
+            definition_version: None,
+            is_snapshot: false,
+            full_state_snapshot: None,
+        };
+
+        p.append_history_entry(&e1).await.unwrap();
+        p.append_history_entry(&e2).await.unwrap();
+        p.append_history_entry(&e3).await.unwrap();
+
+        // No filter → all 3
+        let all = p
+            .query_history(HistoryQuery {
+                instance_id: inst_id,
+                event_types: None,
+                node_id: None,
+                actor_type: None,
+                from: None,
+                to: None,
+                offset: None,
+                limit: None,
+            })
+            .await
+            .unwrap();
+        assert_eq!(all.len(), 3);
+
+        // Filter by event_type
+        let tasks_only = p
+            .query_history(HistoryQuery {
+                instance_id: inst_id,
+                event_types: Some(vec![HistoryEventType::TaskCompleted]),
+                node_id: None,
+                actor_type: None,
+                from: None,
+                to: None,
+                offset: None,
+                limit: None,
+            })
+            .await
+            .unwrap();
+        assert_eq!(tasks_only.len(), 1);
+        assert_eq!(tasks_only[0].event_type, HistoryEventType::TaskCompleted);
+
+        // Filter by node_id
+        let start_only = p
+            .query_history(HistoryQuery {
+                instance_id: inst_id,
+                event_types: None,
+                node_id: Some("start".into()),
+                actor_type: None,
+                from: None,
+                to: None,
+                offset: None,
+                limit: None,
+            })
+            .await
+            .unwrap();
+        assert_eq!(start_only.len(), 1);
+        assert_eq!(start_only[0].node_id.as_deref(), Some("start"));
+
+        // Filter by actor_type
+        let user_only = p
+            .query_history(HistoryQuery {
+                instance_id: inst_id,
+                event_types: None,
+                node_id: None,
+                actor_type: Some(ActorType::User),
+                from: None,
+                to: None,
+                offset: None,
+                limit: None,
+            })
+            .await
+            .unwrap();
+        assert_eq!(user_only.len(), 1);
+
+        // Filter by from timestamp (excludes e1)
+        let from_filter = p
+            .query_history(HistoryQuery {
+                instance_id: inst_id,
+                event_types: None,
+                node_id: None,
+                actor_type: None,
+                from: Some(now - chrono::Duration::minutes(90)),
+                to: None,
+                offset: None,
+                limit: None,
+            })
+            .await
+            .unwrap();
+        assert_eq!(from_filter.len(), 2);
+
+        // Filter by to timestamp (excludes e3)
+        let to_filter = p
+            .query_history(HistoryQuery {
+                instance_id: inst_id,
+                event_types: None,
+                node_id: None,
+                actor_type: None,
+                from: None,
+                to: Some(now - chrono::Duration::minutes(30)),
+                offset: None,
+                limit: None,
+            })
+            .await
+            .unwrap();
+        assert_eq!(to_filter.len(), 2);
+
+        // Pagination: offset + limit
+        let page = p
+            .query_history(HistoryQuery {
+                instance_id: inst_id,
+                event_types: None,
+                node_id: None,
+                actor_type: None,
+                from: None,
+                to: None,
+                offset: Some(1),
+                limit: Some(1),
+            })
+            .await
+            .unwrap();
+        assert_eq!(page.len(), 1);
+        assert_eq!(page[0].event_type, HistoryEventType::TaskCompleted);
+    }
+
+    #[tokio::test]
+    async fn test_get_storage_info_arithmetic() {
+        let p = InMemoryPersistence::new();
+
+        // Insert some data to make counters non-zero
+        p.save_file("file1", &[0u8; 100]).await.unwrap();
+        p.save_file("file2", &[0u8; 200]).await.unwrap();
+
+        let inst = ProcessInstance {
+            id: uuid::Uuid::new_v4(),
+            definition_key: uuid::Uuid::new_v4(),
+            business_key: String::new(),
+            parent_instance_id: None,
+            state: crate::runtime::InstanceState::Running,
+            current_node: "x".into(),
+            audit_log: vec![],
+            variables: HashMap::new(),
+            tokens: HashMap::new(),
+            active_tokens: vec![],
+            join_barriers: HashMap::new(),
+            multi_instance_state: HashMap::new(),
+            compensation_log: Vec::new(),
+        };
+        p.save_instance(&inst).await.unwrap();
+
+        let info = p.get_storage_info().await.unwrap().unwrap();
+        assert_eq!(info.backend_name, "InMemoryPersistence");
+
+        // memory_bytes = files * 1024 + instances * 512
+        // 2 files, 1 instance → 2*1024 + 1*512 = 2560
+        assert_eq!(info.memory_bytes, 2 * 1024 + 1 * 512);
+
+        // Buckets should have correct entry counts
+        let files_bucket = info.buckets.iter().find(|b| b.name == "instance_files").unwrap();
+        assert_eq!(files_bucket.entries, 2);
+        let inst_bucket = info.buckets.iter().find(|b| b.name == "instances").unwrap();
+        assert_eq!(inst_bucket.entries, 1);
+    }
+}

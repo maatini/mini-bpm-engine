@@ -681,10 +681,22 @@ mod tests {
 
     #[test]
     fn test_format_file_human_text_exactly_1mb() {
-        // Exactly 1048576 should use MB (> threshold), not KB
+        // Exactly 1_048_576: > 1_048_576 is false → should use KB, not MB
+        // (catches: replace > with >= in format_file_human_text)
         let v = json!({"type": "file", "filename": "exact.bin", "size_bytes": 1048576});
         let text = format_file_human_text("f", &v).unwrap();
-        assert!(text.contains("KB") || text.contains("MB"));
+        assert!(
+            text.contains("KB"),
+            "Exactly 1 MB boundary should format as KB, got: {text}"
+        );
+
+        // 1 byte over → should use MB
+        let v2 = json!({"type": "file", "filename": "over.bin", "size_bytes": 1048577});
+        let text2 = format_file_human_text("f", &v2).unwrap();
+        assert!(
+            text2.contains("MB"),
+            "1 byte over 1 MB should format as MB, got: {text2}"
+        );
     }
 
     #[test]

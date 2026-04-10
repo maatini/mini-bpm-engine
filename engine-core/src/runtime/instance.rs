@@ -237,6 +237,44 @@ mod tests {
         assert_eq!(inst.audit_log.len(), crate::runtime::MAX_AUDIT_LOG_ENTRIES);
         // The latest entry should be the last one added
         assert!(inst.audit_log.last().unwrap().contains("249"));
+        // First entry should be "entry 50" (first 50 were trimmed)
+        assert!(
+            inst.audit_log.first().unwrap().contains("entry 50"),
+            "Oldest entry should be 'entry 50', got: {}",
+            inst.audit_log.first().unwrap()
+        );
+    }
+
+    #[test]
+    fn push_audit_log_exactly_at_limit_does_not_trim() {
+        // Catches: replace > with >= in push_audit_log
+        // At exactly MAX entries, no trimming should occur
+        let mut inst = make_instance();
+        for i in 0..crate::runtime::MAX_AUDIT_LOG_ENTRIES {
+            inst.push_audit_log(format!("entry {i}"));
+        }
+        assert_eq!(inst.audit_log.len(), crate::runtime::MAX_AUDIT_LOG_ENTRIES);
+        // First entry should still be "entry 0" (no trimming at boundary)
+        assert!(
+            inst.audit_log.first().unwrap().contains("entry 0"),
+            "At exact limit, 'entry 0' should still be present"
+        );
+    }
+
+    #[test]
+    fn push_audit_log_one_over_limit_trims_one() {
+        // One entry over limit → should trim exactly 1 entry from front
+        let mut inst = make_instance();
+        for i in 0..crate::runtime::MAX_AUDIT_LOG_ENTRIES + 1 {
+            inst.push_audit_log(format!("entry {i}"));
+        }
+        assert_eq!(inst.audit_log.len(), crate::runtime::MAX_AUDIT_LOG_ENTRIES);
+        // "entry 0" should be gone, "entry 1" should be first
+        assert!(
+            inst.audit_log.first().unwrap().contains("entry 1"),
+            "First entry should be 'entry 1' after trimming, got: {}",
+            inst.audit_log.first().unwrap()
+        );
     }
 
     #[test]
@@ -256,6 +294,18 @@ mod tests {
             .collect();
         inst.append_audit_log(&mut entries);
         assert_eq!(inst.audit_log.len(), crate::runtime::MAX_AUDIT_LOG_ENTRIES);
+    }
+
+    #[test]
+    fn append_audit_log_exactly_at_limit_does_not_trim() {
+        // Catches: replace > with >= in append_audit_log
+        let mut inst = make_instance();
+        let mut entries: Vec<String> = (0..crate::runtime::MAX_AUDIT_LOG_ENTRIES)
+            .map(|i| format!("batch {i}"))
+            .collect();
+        inst.append_audit_log(&mut entries);
+        assert_eq!(inst.audit_log.len(), crate::runtime::MAX_AUDIT_LOG_ENTRIES);
+        assert!(inst.audit_log.first().unwrap().contains("batch 0"));
     }
 
     #[test]
