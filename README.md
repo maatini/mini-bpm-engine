@@ -2,7 +2,7 @@
 
 [![Rust](https://img.shields.io/badge/Rust-stable-brightgreen.svg?style=flat-square)](https://www.rust-lang.org/)
 [![Tests](https://img.shields.io/badge/Tests-282_passing-success?style=flat-square)]()
-[![Mutation Score](https://img.shields.io/badge/Mutation_Score-~87%25-blue?style=flat-square)]()
+[![Mutation Score](https://img.shields.io/badge/Mutation_Score-72.4%25-blue?style=flat-square)]()
 [![License](https://img.shields.io/badge/License-MIT%20OR%20Apache--2.0-blue.svg?style=flat-square)](#license)
 
 <div align="center">
@@ -571,8 +571,8 @@ Tests use `vi.useFakeTimers()` and `vi.stubGlobal('fetch', …)` — no real HTT
 | **Rust workspace** | **91** | **~18,818** |
 | **Project total** | **~147** | **~26,220** |
 
-### Mutation Score (sample)
-A sample run via [`cargo-mutants`](https://mutants.rs) on business-critical components (`condition.rs`, `script_runner.rs`, `history.rs`) produced an initial **mutation score of ~87%** (41 of 47 mutants caught by tests). A full evaluation of all 945 mutants (runtime ~3.5h) is planned for later CI/CD phases.
+### Mutation Score
+A full workspace run via [`cargo-mutants`](https://mutants.rs) on the `engine-core` crate (CI workflow "Core Mutation Tests", 2026-04-13) produced a **mutation score of 72.4%** (359 caught, 137 missed, 552 unviable, 1 timeout out of 1049 mutants tested in ~3h). Top missed areas: `timer_processor.rs` (7 missed), `scripting/runner.rs` (4 missed), `handlers/events.rs` (1 missed). Results are stored as CI artifacts for 30 days.
 
 ### Continuous Fuzzing
 To safeguard security- and stability-critical parser and execution components, a parallel **fuzzing workflow** based on `cargo-fuzz` (libFuzzer) runs daily in the CI/CD pipeline (and on relevant pull requests).
