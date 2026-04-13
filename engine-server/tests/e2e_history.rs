@@ -156,3 +156,174 @@ async fn verify_instance_history_is_generated_and_retrieved() {
         Some(instance_id.as_str())
     );
 }
+
+#[tokio::test]
+async fn test_completed_instance_appears_in_history_instances() {
+    let base = match start_server_with_nats().await {
+        Some(b) => b,
+        None => return,
+    };
+
+    let client = reqwest::Client::new();
+
+    // Deploy
+    let deploy_res = client
+        .post(format!("{}/api/deploy", base))
+        .json(&serde_json::json!({
+            "xml": MINIMAL_BPMN_XML,
+            "name": "HistoryInstancesTest"
+        }))
+        .send()
+        .await
+        .expect("deploy failed");
+    assert_eq!(deploy_res.status(), 200);
+    let deploy_body: Value = deploy_res.json().await.unwrap();
+    let def_key = deploy_body["definition_key"].as_str().unwrap().to_string();
+
+    // Start instance (completes immediately since Start→End)
+    let start_res = client
+        .post(format!("{}/api/start", base))
+        .json(&serde_json::json!({
+            "definition_key": def_key,
+            "business_key": "order-42"
+        }))
+        .send()
+        .await
+        .expect("start failed");
+    assert_eq!(start_res.status(), 200);
+    let start_body: Value = start_res.json().await.unwrap();
+    let instance_id = start_body["instance_id"].as_str().unwrap().to_string();
+
+    // Wait for archival to propagate
+    tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
+
+    // Query completed instances — should find our instance
+    let list_res = client
+        .get(format!("{}/api/history/instances", base))
+        .send()
+        .await
+        .expect("list completed failed");
+    assert_eq!(list_res.status(), 200);
+    let list: Vec<Value> = list_res.json().await.unwrap();
+    assert!(
+        list.iter()
+            .any(|i| i["id"].as_str() == Some(instance_id.as_str())),
+        "archived instance should appear in history/instances"
+    );
+
+    // Get single completed instance
+    let get_res = client
+        .get(format!("{}/api/history/instances/{}", base, instance_id))
+        .send()
+        .await
+        .expect("get completed instance failed");
+    assert_eq!(get_res.status(), 200);
+    let inst: Value = get_res.json().await.unwrap();
+    assert_eq!(inst["id"].as_str(), Some(instance_id.as_str()));
+    assert!(
+        inst["completed_at"].as_str().is_some(),
+        "completed_at should be set"
+    );
+    assert!(
+        inst["started_at"].as_str().is_some(),
+        "started_at should be set"
+    );
+}
+
+#[tokio::test]
+async fn test_history_instances_filter_by_business_key() {
+    let base = match start_server_with_nats().await {
+        Some(b) => b,
+        None => return,
+    };
+
+    let client = reqwest::Client::new();
+
+    // Deploy
+    let deploy_res = client
+        .post(format!("{}/api/deploy", base))
+        .json(&serde_json::json!({
+            "xml": MINIMAL_BPMN_XML,
+            "name": "FilterTest"
+        }))
+        .send()
+        .await
+        .unwrap();
+    let deploy_body: Value = deploy_res.json().await.unwrap();
+    let def_key = deploy_body["definition_key"].as_str().unwrap().to_string();
+
+    // Start two instances with different business keys
+    for bk in ["alpha-123", "beta-456"] {
+        client
+            .post(format!("{}/api/start", base))
+            .json(&serde_json::json!({
+                "definition_key": def_key,
+                "business_key": bk
+            }))
+            .send()
+            .await
+            .unwrap();
+    }
+
+    tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
+
+    // Filter by business_key=alpha
+    let res = client
+        .get(format!("{}/api/history/instances?business_key=alpha", base))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res.status(), 200);
+    let list: Vec<Value> = res.json().await.unwrap();
+    assert!(
+        list.iter()
+            .all(|i| i["business_key"].as_str().unwrap_or("").contains("alpha")),
+        "all results should match business_key filter"
+    );
+    assert!(!list.is_empty(), "should find at least one match");
+}
+
+#[tokio::test]
+async fn test_history_instances_pagination() {
+    let base = match start_server_with_nats().await {
+        Some(b) => b,
+        None => return,
+    };
+
+    let client = reqwest::Client::new();
+
+    // Deploy
+    let deploy_res = client
+        .post(format!("{}/api/deploy", base))
+        .json(&serde_json::json!({
+            "xml": MINIMAL_BPMN_XML,
+            "name": "PaginationTest"
+        }))
+        .send()
+        .await
+        .unwrap();
+    let deploy_body: Value = deploy_res.json().await.unwrap();
+    let def_key = deploy_body["definition_key"].as_str().unwrap().to_string();
+
+    // Start 3 instances
+    for _ in 0..3 {
+        client
+            .post(format!("{}/api/start", base))
+            .json(&serde_json::json!({ "definition_key": def_key }))
+            .send()
+            .await
+            .unwrap();
+    }
+
+    tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
+
+    // Request with limit=2
+    let res = client
+        .get(format!("{}/api/history/instances?limit=2", base))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res.status(), 200);
+    let page1: Vec<Value> = res.json().await.unwrap();
+    assert!(page1.len() <= 2, "limit=2 should return at most 2 results");
+}

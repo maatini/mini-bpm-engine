@@ -3,6 +3,7 @@ use axum::{
     Json,
     extract::{Path, State},
 };
+use engine_core::persistence::CompletedInstanceQuery;
 use serde::Deserialize;
 use std::sync::Arc;
 
@@ -83,4 +84,59 @@ pub(crate) async fn get_instance_history_entry(
             "No persistence configured".to_string(),
         ))
     }
+}
+
+#[derive(Deserialize, Default)]
+pub(crate) struct CompletedInstancesQuery {
+    pub definition_key: Option<String>,
+    pub business_key: Option<String>,
+    pub from: Option<chrono::DateTime<chrono::Utc>>,
+    pub to: Option<chrono::DateTime<chrono::Utc>>,
+    pub state: Option<String>,
+    pub limit: Option<usize>,
+    pub offset: Option<usize>,
+}
+
+/// GET /api/history/instances — list archived (completed) process instances with filters.
+pub(crate) async fn list_completed_instances(
+    State(state): State<Arc<AppState>>,
+    axum::extract::Query(query): axum::extract::Query<CompletedInstancesQuery>,
+) -> Result<Json<Vec<engine_core::ProcessInstance>>, AppError> {
+    let definition_key = query.definition_key.map(|s| parse_uuid(&s)).transpose()?;
+
+    let completed_query = CompletedInstanceQuery {
+        definition_key,
+        business_key: query.business_key,
+        from: query.from,
+        to: query.to,
+        state_filter: query.state,
+        limit: query.limit,
+        offset: query.offset,
+    };
+
+    let results = state
+        .engine
+        .query_completed_instances(completed_query)
+        .await
+        .map_err(|e| {
+            AppError::BadRequest(format!("Failed to query completed instances: {:?}", e))
+        })?;
+
+    Ok(Json(results))
+}
+
+/// GET /api/history/instances/{id} — load a single archived or active instance by ID.
+pub(crate) async fn get_completed_instance(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+) -> Result<Json<engine_core::ProcessInstance>, AppError> {
+    let instance_id = parse_uuid(&id)?;
+
+    let instance = state
+        .engine
+        .get_instance_or_archived(instance_id)
+        .await
+        .map_err(|e| AppError::BadRequest(format!("{:?}", e)))?;
+
+    Ok(Json(instance))
 }

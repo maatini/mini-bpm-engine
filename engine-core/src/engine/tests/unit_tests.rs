@@ -1146,6 +1146,8 @@ async fn restore_instance_loads_from_persistence() {
         join_barriers: std::collections::HashMap::new(),
         multi_instance_state: std::collections::HashMap::new(),
         compensation_log: Vec::new(),
+        started_at: None,
+        completed_at: None,
     };
 
     engine.restore_instance(inst.clone()).await;
@@ -3661,6 +3663,8 @@ async fn test_instance_store_is_empty_and_clear() {
         join_barriers: HashMap::new(),
         multi_instance_state: HashMap::new(),
         compensation_log: Vec::new(),
+        started_at: None,
+        completed_at: None,
     };
     store.insert(id, inst).await;
     assert!(!store.is_empty().await);
@@ -4509,6 +4513,8 @@ async fn test_restore_instance_makes_it_accessible() {
         join_barriers: HashMap::new(),
         multi_instance_state: HashMap::new(),
         compensation_log: Vec::new(),
+        started_at: None,
+        completed_at: None,
     };
     engine.restore_instance(instance).await;
 

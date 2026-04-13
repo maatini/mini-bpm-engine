@@ -99,3 +99,17 @@ pub async fn resolve_incident(
     )
     .await
 }
+
+#[tauri::command]
+pub async fn get_pending_timers(
+    state: tauri::State<'_, AppState>,
+) -> Result<serde_json::Value, String> {
+    crate::api_helpers::api_get(&state, "/api/timers").await
+}
+
+#[tauri::command]
+pub async fn get_pending_message_catches(
+    state: tauri::State<'_, AppState>,
+) -> Result<serde_json::Value, String> {
+    crate::api_helpers::api_get(&state, "/api/messages").await
+}

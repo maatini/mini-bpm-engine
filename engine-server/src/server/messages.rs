@@ -1,5 +1,6 @@
 use crate::server::state::{AppError, AppState};
 use axum::{Json, extract::State};
+use engine_core::runtime::PendingMessageCatch;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -32,4 +33,11 @@ pub(crate) async fn correlate_message(
     Ok(Json(CorrelateMessageResponse {
         affected_instances: affected_strs,
     }))
+}
+
+/// Returns all currently pending message catch events.
+pub(crate) async fn get_pending_messages(
+    State(state): State<Arc<AppState>>,
+) -> Json<Vec<PendingMessageCatch>> {
+    Json(state.engine.get_pending_message_catches())
 }

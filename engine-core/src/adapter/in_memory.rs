@@ -7,7 +7,8 @@ use crate::domain::EngineResult;
 use crate::domain::{ProcessDefinition, Token};
 use crate::history::HistoryEntry;
 use crate::persistence::{
-    BucketEntry, BucketEntryDetail, HistoryQuery, StorageInfo, WorkflowPersistence,
+    BucketEntry, BucketEntryDetail, CompletedInstanceQuery, HistoryQuery, StorageInfo,
+    WorkflowPersistence,
 };
 use crate::runtime::{
     PendingMessageCatch, PendingServiceTask, PendingTimer, PendingUserTask, ProcessInstance,
@@ -25,6 +26,7 @@ pub struct InMemoryPersistence {
     files: Arc<RwLock<HashMap<String, Vec<u8>>>>,
     bpmn_xmls: Arc<RwLock<HashMap<String, String>>>,
     history: Arc<RwLock<HashMap<uuid::Uuid, Vec<HistoryEntry>>>>,
+    completed_instances: Arc<RwLock<HashMap<uuid::Uuid, ProcessInstance>>>,
 }
 
 impl InMemoryPersistence {
@@ -327,6 +329,87 @@ impl WorkflowPersistence for InMemoryPersistence {
         Ok(events)
     }
 
+    async fn save_completed_instance(&self, instance: &ProcessInstance) -> EngineResult<()> {
+        let mut store = self.completed_instances.write().await;
+        store.insert(instance.id, instance.clone());
+        Ok(())
+    }
+
+    async fn query_completed_instances(
+        &self,
+        query: CompletedInstanceQuery,
+    ) -> EngineResult<Vec<ProcessInstance>> {
+        let store = self.completed_instances.read().await;
+        let mut results: Vec<ProcessInstance> = store
+            .values()
+            .filter(|inst| {
+                if let Some(ref dk) = query.definition_key
+                    && inst.definition_key != *dk
+                {
+                    return false;
+                }
+                if let Some(ref bk) = query.business_key
+                    && !inst.business_key.contains(bk.as_str())
+                {
+                    return false;
+                }
+                if let Some(ref from) = query.from
+                    && let Some(ref completed) = inst.completed_at
+                    && completed < from
+                {
+                    return false;
+                }
+                if let Some(ref to) = query.to
+                    && let Some(ref completed) = inst.completed_at
+                    && completed > to
+                {
+                    return false;
+                }
+                if let Some(ref sf) = query.state_filter {
+                    match sf.as_str() {
+                        "completed" => {
+                            if !matches!(inst.state, crate::runtime::InstanceState::Completed) {
+                                return false;
+                            }
+                        }
+                        "error" => {
+                            if !matches!(
+                                inst.state,
+                                crate::runtime::InstanceState::CompletedWithError { .. }
+                            ) {
+                                return false;
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                true
+            })
+            .cloned()
+            .collect();
+
+        // Sort by completed_at descending (newest first)
+        results.sort_by(|a, b| b.completed_at.cmp(&a.completed_at));
+
+        // Pagination
+        if let Some(offset) = query.offset {
+            results = results.into_iter().skip(offset).collect();
+        }
+        if let Some(limit) = query.limit {
+            results.truncate(limit);
+        }
+
+        Ok(results)
+    }
+
+    async fn get_completed_instance(&self, id: &str) -> EngineResult<Option<ProcessInstance>> {
+        let uuid = id
+            .parse::<uuid::Uuid>()
+            .map_err(|e| crate::domain::EngineError::PersistenceError(e.to_string()))?;
+        let store = self.completed_instances.read().await;
+        Ok(store.get(&uuid).cloned())
+    }
+
     async fn get_bucket_entries(
         &self,
         bucket_name: &str,
@@ -554,6 +637,8 @@ mod tests {
             join_barriers: HashMap::new(),
             multi_instance_state: HashMap::new(),
             compensation_log: Vec::new(),
+            started_at: None,
+            completed_at: None,
         };
         p.save_instance(&inst).await.unwrap();
 
@@ -573,5 +658,222 @@ mod tests {
         assert_eq!(files_bucket.entries, 2);
         let inst_bucket = info.buckets.iter().find(|b| b.name == "instances").unwrap();
         assert_eq!(inst_bucket.entries, 1);
+    }
+
+    fn make_completed_instance(
+        def_key: uuid::Uuid,
+        bk: &str,
+        state: crate::runtime::InstanceState,
+        completed_at: chrono::DateTime<chrono::Utc>,
+    ) -> ProcessInstance {
+        ProcessInstance {
+            id: uuid::Uuid::new_v4(),
+            definition_key: def_key,
+            business_key: bk.into(),
+            parent_instance_id: None,
+            state,
+            current_node: "end".into(),
+            audit_log: vec![],
+            variables: HashMap::new(),
+            tokens: HashMap::new(),
+            active_tokens: vec![],
+            join_barriers: HashMap::new(),
+            multi_instance_state: HashMap::new(),
+            compensation_log: Vec::new(),
+            started_at: Some(completed_at - chrono::Duration::seconds(10)),
+            completed_at: Some(completed_at),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_save_and_query_completed_instances() {
+        let p = InMemoryPersistence::new();
+        let dk1 = uuid::Uuid::new_v4();
+        let dk2 = uuid::Uuid::new_v4();
+        let now = chrono::Utc::now();
+
+        let i1 = make_completed_instance(
+            dk1,
+            "order-1",
+            crate::runtime::InstanceState::Completed,
+            now,
+        );
+        let i2 = make_completed_instance(
+            dk2,
+            "order-2",
+            crate::runtime::InstanceState::Completed,
+            now,
+        );
+        p.save_completed_instance(&i1).await.unwrap();
+        p.save_completed_instance(&i2).await.unwrap();
+
+        // Query all
+        let all = p
+            .query_completed_instances(CompletedInstanceQuery::default())
+            .await
+            .unwrap();
+        assert_eq!(all.len(), 2);
+
+        // Filter by definition_key
+        let filtered = p
+            .query_completed_instances(CompletedInstanceQuery {
+                definition_key: Some(dk1),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+        assert_eq!(filtered.len(), 1);
+        assert_eq!(filtered[0].business_key, "order-1");
+    }
+
+    #[tokio::test]
+    async fn test_query_completed_pagination() {
+        let p = InMemoryPersistence::new();
+        let dk = uuid::Uuid::new_v4();
+        let now = chrono::Utc::now();
+
+        for i in 0..5 {
+            let inst = make_completed_instance(
+                dk,
+                &format!("bk-{i}"),
+                crate::runtime::InstanceState::Completed,
+                now + chrono::Duration::seconds(i),
+            );
+            p.save_completed_instance(&inst).await.unwrap();
+        }
+
+        let page = p
+            .query_completed_instances(CompletedInstanceQuery {
+                offset: Some(1),
+                limit: Some(2),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+        assert_eq!(page.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_query_completed_date_range() {
+        let p = InMemoryPersistence::new();
+        let dk = uuid::Uuid::new_v4();
+        let now = chrono::Utc::now();
+
+        let old = make_completed_instance(
+            dk,
+            "old",
+            crate::runtime::InstanceState::Completed,
+            now - chrono::Duration::hours(2),
+        );
+        let recent =
+            make_completed_instance(dk, "recent", crate::runtime::InstanceState::Completed, now);
+        p.save_completed_instance(&old).await.unwrap();
+        p.save_completed_instance(&recent).await.unwrap();
+
+        let filtered = p
+            .query_completed_instances(CompletedInstanceQuery {
+                from: Some(now - chrono::Duration::hours(1)),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+        assert_eq!(filtered.len(), 1);
+        assert_eq!(filtered[0].business_key, "recent");
+    }
+
+    #[tokio::test]
+    async fn test_query_completed_business_key() {
+        let p = InMemoryPersistence::new();
+        let dk = uuid::Uuid::new_v4();
+        let now = chrono::Utc::now();
+
+        let i1 = make_completed_instance(
+            dk,
+            "order-ABC-123",
+            crate::runtime::InstanceState::Completed,
+            now,
+        );
+        let i2 = make_completed_instance(
+            dk,
+            "invoice-XYZ",
+            crate::runtime::InstanceState::Completed,
+            now,
+        );
+        p.save_completed_instance(&i1).await.unwrap();
+        p.save_completed_instance(&i2).await.unwrap();
+
+        let filtered = p
+            .query_completed_instances(CompletedInstanceQuery {
+                business_key: Some("ABC".into()),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+        assert_eq!(filtered.len(), 1);
+        assert_eq!(filtered[0].business_key, "order-ABC-123");
+    }
+
+    #[tokio::test]
+    async fn test_query_completed_state_filter() {
+        let p = InMemoryPersistence::new();
+        let dk = uuid::Uuid::new_v4();
+        let now = chrono::Utc::now();
+
+        let ok = make_completed_instance(dk, "ok", crate::runtime::InstanceState::Completed, now);
+        let err = make_completed_instance(
+            dk,
+            "err",
+            crate::runtime::InstanceState::CompletedWithError {
+                error_code: "FAIL".into(),
+            },
+            now,
+        );
+        p.save_completed_instance(&ok).await.unwrap();
+        p.save_completed_instance(&err).await.unwrap();
+
+        let only_errors = p
+            .query_completed_instances(CompletedInstanceQuery {
+                state_filter: Some("error".into()),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+        assert_eq!(only_errors.len(), 1);
+        assert_eq!(only_errors[0].business_key, "err");
+
+        let only_completed = p
+            .query_completed_instances(CompletedInstanceQuery {
+                state_filter: Some("completed".into()),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+        assert_eq!(only_completed.len(), 1);
+        assert_eq!(only_completed[0].business_key, "ok");
+    }
+
+    #[tokio::test]
+    async fn test_get_completed_instance() {
+        let p = InMemoryPersistence::new();
+        let dk = uuid::Uuid::new_v4();
+        let now = chrono::Utc::now();
+        let inst = make_completed_instance(
+            dk,
+            "found-me",
+            crate::runtime::InstanceState::Completed,
+            now,
+        );
+        let id = inst.id;
+        p.save_completed_instance(&inst).await.unwrap();
+
+        let found = p.get_completed_instance(&id.to_string()).await.unwrap();
+        assert!(found.is_some());
+        assert_eq!(found.unwrap().business_key, "found-me");
+
+        let missing = p
+            .get_completed_instance(&uuid::Uuid::new_v4().to_string())
+            .await
+            .unwrap();
+        assert!(missing.is_none());
     }
 }

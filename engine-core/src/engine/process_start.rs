@@ -103,6 +103,8 @@ impl WorkflowEngine {
             join_barriers: std::collections::HashMap::new(),
             multi_instance_state: std::collections::HashMap::new(),
             compensation_log: Vec::new(),
+            started_at: Some(chrono::Utc::now()),
+            completed_at: None,
         };
 
         tracing::info!(
@@ -405,6 +407,8 @@ impl WorkflowEngine {
             join_barriers: std::collections::HashMap::new(),
             multi_instance_state: std::collections::HashMap::new(),
             compensation_log: Vec::new(),
+            started_at: Some(chrono::Utc::now()),
+            completed_at: None,
         };
 
         tracing::info!(
@@ -580,6 +584,8 @@ impl WorkflowEngine {
             join_barriers: std::collections::HashMap::new(),
             multi_instance_state: std::collections::HashMap::new(),
             compensation_log: Vec::new(),
+            started_at: Some(chrono::Utc::now()),
+            completed_at: None,
         };
 
         tracing::info!("Timer instance #{iteration} {instance_id} of def key {definition_key}");

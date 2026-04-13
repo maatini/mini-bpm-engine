@@ -101,6 +101,15 @@ impl NatsPersistence {
             })
             .await;
 
+        // Ensure the history_instances KV bucket exists for archived completed instances.
+        let _ = js
+            .create_key_value(async_nats::jetstream::kv::Config {
+                bucket: "history_instances".to_string(),
+                description: "Archived completed ProcessInstance objects (JSON)".to_string(),
+                ..Default::default()
+            })
+            .await;
+
         // Ensure the WORKFLOW_HISTORY JetStream stream exists for event-sourcing.
         let _ = js
             .get_or_create_stream(StreamConfig {

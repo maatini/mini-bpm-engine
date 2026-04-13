@@ -7,6 +7,19 @@ use crate::domain::EngineResult;
 use crate::domain::{ProcessDefinition, Token};
 use crate::runtime::{PendingServiceTask, PendingUserTask, ProcessInstance};
 
+/// Query filter for searching archived (completed) process instances.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct CompletedInstanceQuery {
+    pub definition_key: Option<uuid::Uuid>,
+    pub business_key: Option<String>,
+    pub from: Option<DateTime<Utc>>,
+    pub to: Option<DateTime<Utc>>,
+    /// Filter by terminal state: "completed", "error", or None (both).
+    pub state_filter: Option<String>,
+    pub limit: Option<usize>,
+    pub offset: Option<usize>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct HistoryQuery {
     pub instance_id: uuid::Uuid,
@@ -143,6 +156,18 @@ pub trait WorkflowPersistence: Send + Sync {
         &self,
         query: HistoryQuery,
     ) -> EngineResult<Vec<crate::history::HistoryEntry>>;
+
+    /// Archive a completed process instance to the history store.
+    async fn save_completed_instance(&self, instance: &ProcessInstance) -> EngineResult<()>;
+
+    /// Query archived (completed) process instances with filters and pagination.
+    async fn query_completed_instances(
+        &self,
+        query: CompletedInstanceQuery,
+    ) -> EngineResult<Vec<ProcessInstance>>;
+
+    /// Load a single archived instance by ID.
+    async fn get_completed_instance(&self, id: &str) -> EngineResult<Option<ProcessInstance>>;
 
     /// Retrieve list of entries inside a specific bucket for monitoring details.
     async fn get_bucket_entries(

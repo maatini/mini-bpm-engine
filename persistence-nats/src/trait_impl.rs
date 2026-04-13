@@ -859,4 +859,124 @@ impl WorkflowPersistence for NatsPersistence {
             )))
         }
     }
+
+    async fn save_completed_instance(&self, instance: &ProcessInstance) -> EngineResult<()> {
+        let store = self
+            .js
+            .get_key_value("history_instances")
+            .await
+            .map_err(|e| {
+                EngineError::PersistenceError(format!("Failed to get history_instances KV: {}", e))
+            })?;
+
+        let json = serde_json::to_vec(instance).map_err(|e| {
+            EngineError::PersistenceError(format!("Failed to serialize completed instance: {}", e))
+        })?;
+
+        store
+            .put(instance.id.to_string(), json.into())
+            .await
+            .map_err(|e| {
+                EngineError::PersistenceError(format!(
+                    "Failed to put completed instance to KV: {}",
+                    e
+                ))
+            })?;
+
+        Ok(())
+    }
+
+    async fn query_completed_instances(
+        &self,
+        query: engine_core::persistence::CompletedInstanceQuery,
+    ) -> EngineResult<Vec<ProcessInstance>> {
+        let mut all: Vec<ProcessInstance> = self
+            .list_kv_entries("history_instances", "completed_instance")
+            .await?;
+
+        // Apply filters in-memory (same approach as query_history)
+        all.retain(|inst| {
+            if let Some(ref dk) = query.definition_key
+                && inst.definition_key != *dk
+            {
+                return false;
+            }
+            if let Some(ref bk) = query.business_key
+                && !inst.business_key.contains(bk.as_str())
+            {
+                return false;
+            }
+            if let Some(ref from) = query.from
+                && let Some(ref completed) = inst.completed_at
+                && completed < from
+            {
+                return false;
+            }
+            if let Some(ref to) = query.to
+                && let Some(ref completed) = inst.completed_at
+                && completed > to
+            {
+                return false;
+            }
+            if let Some(ref sf) = query.state_filter {
+                match sf.as_str() {
+                    "completed" => {
+                        if !matches!(inst.state, engine_core::runtime::InstanceState::Completed) {
+                            return false;
+                        }
+                    }
+                    "error" => {
+                        if !matches!(
+                            inst.state,
+                            engine_core::runtime::InstanceState::CompletedWithError { .. }
+                        ) {
+                            return false;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            true
+        });
+
+        // Sort by completed_at descending (newest first)
+        all.sort_by(|a, b| b.completed_at.cmp(&a.completed_at));
+
+        // Pagination
+        if let Some(offset) = query.offset {
+            all = all.into_iter().skip(offset).collect();
+        }
+        if let Some(limit) = query.limit {
+            all.truncate(limit);
+        }
+
+        Ok(all)
+    }
+
+    async fn get_completed_instance(&self, id: &str) -> EngineResult<Option<ProcessInstance>> {
+        let store = self
+            .js
+            .get_key_value("history_instances")
+            .await
+            .map_err(|e| {
+                EngineError::PersistenceError(format!("Failed to get history_instances KV: {}", e))
+            })?;
+
+        match store.get(id).await {
+            Ok(Some(data)) => {
+                let inst: ProcessInstance = serde_json::from_slice(&data).map_err(|e| {
+                    EngineError::PersistenceError(format!(
+                        "Failed to deserialize completed instance: {}",
+                        e
+                    ))
+                })?;
+                Ok(Some(inst))
+            }
+            Ok(None) => Ok(None),
+            Err(e) => Err(EngineError::PersistenceError(format!(
+                "Failed to get completed instance {}: {}",
+                id, e
+            ))),
+        }
+    }
 }

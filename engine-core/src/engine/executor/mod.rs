@@ -143,6 +143,7 @@ impl WorkflowEngine {
                     inst.state = InstanceState::CompletedWithError {
                         error_code: "EXECUTION_LIMIT_EXCEEDED".to_string(),
                     };
+                    inst.completed_at = Some(chrono::Utc::now());
                     inst.push_audit_log(format!(
                         "ABORTED: Exceeded {} execution steps",
                         crate::runtime::MAX_EXECUTION_STEPS
@@ -463,6 +464,7 @@ impl WorkflowEngine {
                         if let Some(inst_arc) = self.instances.get(&instance_id).await {
                             let mut inst = inst_arc.write().await;
                             inst.state = InstanceState::Completed;
+                            inst.completed_at = Some(chrono::Utc::now());
                             inst.audit_log.push(
                                 "⏹ All tokens completed. Process fully completed.".to_string(),
                             );
@@ -496,6 +498,7 @@ impl WorkflowEngine {
                         inst.state = InstanceState::CompletedWithError {
                             error_code: error_code.clone(),
                         };
+                        inst.completed_at = Some(chrono::Utc::now());
                         inst.audit_log.push(format!(
                             "💥 All tokens completed at Error End with code '{error_code}'"
                         ));
@@ -516,6 +519,7 @@ impl WorkflowEngine {
                         if let Some(inst_arc) = self.instances.get(&instance_id).await {
                             let mut inst = inst_arc.write().await;
                             inst.state = InstanceState::Completed;
+                            inst.completed_at = Some(chrono::Utc::now());
                             inst.push_audit_log(format!(
                                 "⚡ All tokens completed with escalation '{escalation_code}'"
                             ));
@@ -551,6 +555,7 @@ impl WorkflowEngine {
                             at.completed = true;
                         }
                         inst.state = InstanceState::Completed;
+                        inst.completed_at = Some(chrono::Utc::now());
                         inst.audit_log
                             .push("⛔ Process terminated. All tokens killed.".to_string());
                     }
@@ -630,6 +635,8 @@ impl WorkflowEngine {
             metrics::gauge!("bpmn_active_instances").decrement(1.0);
             self.resume_parent_if_needed(instance_id, error_code_to_propagate)
                 .await?;
+            // Archive to history store and remove from active map
+            self.archive_completed_instance(instance_id).await;
         }
 
         Ok(())

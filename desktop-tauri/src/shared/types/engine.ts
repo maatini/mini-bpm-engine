@@ -19,6 +19,18 @@ export interface ProcessInstance {
   current_node: string;
   audit_log: string[];
   variables: Record<string, unknown>;
+  started_at?: string | null;
+  completed_at?: string | null;
+}
+
+export interface CompletedInstanceQuery {
+  definition_key?: string;
+  business_key?: string;
+  from?: string;
+  to?: string;
+  state_filter?: 'completed' | 'error';
+  limit?: number;
+  offset?: number;
 }
 
 export interface PendingServiceTask {
@@ -124,4 +136,22 @@ export interface FileReference {
   mime_type: string;
   size_bytes: number;
   uploaded_at: string;
+}
+
+export interface PendingTimer {
+  id: string;
+  instance_id: string;
+  node_id: string;
+  expires_at: string;
+  token_id: string;
+  timer_def: { Date: string } | { Duration: string } | { RepeatingInterval: { interval: string; repetitions: number | null } } | null;
+  remaining_repetitions: number | null;
+}
+
+export interface PendingMessageCatch {
+  id: string;
+  instance_id: string;
+  node_id: string;
+  message_name: string;
+  token_id: string;
 }

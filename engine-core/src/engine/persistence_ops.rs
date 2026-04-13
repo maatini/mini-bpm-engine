@@ -355,4 +355,33 @@ impl WorkflowEngine {
             );
         }
     }
+
+    /// Archives a completed instance to the history store and removes it from active instances.
+    /// If no persistence is configured, the instance stays in the active map (in-memory only mode).
+    /// If archival fails, the instance also remains in the active map.
+    pub(crate) async fn archive_completed_instance(&self, instance_id: Uuid) {
+        let Some(p) = &self.persistence else {
+            return; // No persistence — keep completed instances in active DashMap
+        };
+
+        if let Some(inst_arc) = self.instances.get(&instance_id).await {
+            let inst = inst_arc.read().await;
+            if let Err(e) = p.save_completed_instance(&inst).await {
+                tracing::warn!(
+                    "Failed to archive completed instance {instance_id}: {e} — keeping in active map"
+                );
+                return;
+            }
+        }
+
+        // Delete from active persistence bucket after successful archival
+        if let Err(e) = p.delete_instance(&instance_id.to_string()).await {
+            tracing::warn!(
+                "Failed to delete archived instance {instance_id} from active store: {e}"
+            );
+        }
+
+        // Remove from active DashMap
+        self.instances.remove(&instance_id).await;
+    }
 }

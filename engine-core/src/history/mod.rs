@@ -193,11 +193,15 @@ fn format_file_human_text(_key: &str, value: &serde_json::Value) -> Option<Strin
 
 fn truncate_value_for_diff(v: &serde_json::Value) -> serde_json::Value {
     match v {
-        serde_json::Value::String(s) if s.len() > 1024 => serde_json::Value::String(format!(
-            "{}... <truncated {} chars>",
-            &s[..1024],
-            s.len() - 1024
-        )),
+        serde_json::Value::String(s) if s.len() > 1024 => {
+            // Use floor_char_boundary to avoid panicking on multi-byte UTF-8 chars
+            let boundary = s.floor_char_boundary(1024);
+            serde_json::Value::String(format!(
+                "{}... <truncated {} chars>",
+                &s[..boundary],
+                s.chars().count() - s[..boundary].chars().count()
+            ))
+        }
         serde_json::Value::Array(a) if a.len() > 128 => {
             serde_json::Value::String(format!("<Large Array: {} elements>", a.len()))
         }
@@ -348,6 +352,8 @@ mod tests {
             join_barriers: HashMap::new(),
             multi_instance_state: HashMap::new(),
             compensation_log: Vec::new(),
+            started_at: None,
+            completed_at: None,
         };
         old.variables.insert("a".into(), json!(1));
         old.variables.insert("b".into(), json!(2));
@@ -394,6 +400,8 @@ mod tests {
             join_barriers: HashMap::new(),
             multi_instance_state: HashMap::new(),
             compensation_log: Vec::new(),
+            started_at: None,
+            completed_at: None,
         };
 
         let mut new = old.clone();
@@ -500,6 +508,8 @@ mod tests {
             join_barriers: HashMap::new(),
             multi_instance_state: HashMap::new(),
             compensation_log: Vec::new(),
+            started_at: None,
+            completed_at: None,
         };
 
         let new = old.clone();
@@ -726,6 +736,8 @@ mod tests {
             join_barriers: HashMap::new(),
             multi_instance_state: HashMap::new(),
             compensation_log: Vec::new(),
+            started_at: None,
+            completed_at: None,
         };
         let mut new = old.clone();
         // Only change variables, not status or node
@@ -755,6 +767,8 @@ mod tests {
             join_barriers: HashMap::new(),
             multi_instance_state: HashMap::new(),
             compensation_log: Vec::new(),
+            started_at: None,
+            completed_at: None,
         };
         old.variables.insert("gone".into(), json!("bye"));
 
@@ -785,6 +799,8 @@ mod tests {
             join_barriers: HashMap::new(),
             multi_instance_state: HashMap::new(),
             compensation_log: Vec::new(),
+            started_at: None,
+            completed_at: None,
         };
         old.variables.insert("a".into(), json!(1));
         old.variables.insert("b".into(), json!(2));

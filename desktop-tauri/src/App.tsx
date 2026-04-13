@@ -7,9 +7,11 @@ import { SettingsPage } from './features/settings/SettingsPage'
 import { MonitoringPage } from './features/monitoring/MonitoringPage'
 import { PendingTasksPage } from './features/tasks/PendingTasksPage'
 import { MessageDialog } from './shared/components/MessageDialog'
-import { PenTool, Database, ListTodo, Layers, BarChart2, Settings as SettingsIcon, Mail, AlertTriangle } from 'lucide-react'
+import { PenTool, Database, ListTodo, Layers, BarChart2, Settings as SettingsIcon, Mail, AlertTriangle, Eye, History } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { IncidentsPage } from './features/incidents/IncidentsPage'
+import { OverviewPage } from './features/overview/OverviewPage'
+import { HistoryPage } from './features/history/HistoryPage'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 
@@ -85,7 +87,9 @@ function App() {
     { id: 'definitions', icon: Database, label: 'Deployed Processes' },
     { id: 'tasks', icon: ListTodo, label: 'Pending Tasks' },
     { id: 'incidents', icon: AlertTriangle, label: 'Incidents' },
-    { id: 'instances', icon: Layers, label: 'Instances', 
+    { id: 'overview', icon: Eye, label: 'Overview' },
+    { id: 'history', icon: History, label: 'History' },
+    { id: 'instances', icon: Layers, label: 'Instances',
       onClick: () => { setSelectedInstanceId(null); setActiveTab('instances'); } 
     },
     { id: 'monitoring', icon: BarChart2, label: 'Monitoring' },
@@ -152,6 +156,8 @@ function App() {
 
         {activeTab === 'tasks' && <PendingTasksPage />}
         {activeTab === 'incidents' && <IncidentsPage onViewInstance={(id: string) => { setSelectedInstanceId(id); setActiveTab('instances'); }} />}
+        {activeTab === 'overview' && <OverviewPage onViewInstance={(id: string) => { setSelectedInstanceId(id); setActiveTab('instances'); }} />}
+        {activeTab === 'history' && <HistoryPage onViewInstance={(id: string) => { setSelectedInstanceId(id); setActiveTab('instances'); }} />}
         
         {activeTab === 'instances' && (
           <InstancesPage 

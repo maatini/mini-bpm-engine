@@ -111,9 +111,20 @@ pub fn build_app_with_engine(
             "/api/monitoring/buckets/{bucket}/entries/{key}",
             get(monitoring::get_bucket_entry_detail),
         )
+        // Historical (completed) instances
+        .route(
+            "/api/history/instances",
+            get(history::list_completed_instances),
+        )
+        .route(
+            "/api/history/instances/{id}",
+            get(history::get_completed_instance),
+        )
         // Phase 1 endpoints
         .route("/api/message", post(messages::correlate_message))
+        .route("/api/timers", get(timers::get_pending_timers))
         .route("/api/timers/process", post(timers::process_timers))
+        .route("/api/messages", get(messages::get_pending_messages))
         // Service Task endpoints
         .route("/api/service-tasks", get(tasks::get_service_tasks))
         .route(

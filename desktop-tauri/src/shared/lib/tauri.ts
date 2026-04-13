@@ -10,7 +10,10 @@ import type {
   BucketEntry,
   BucketEntryDetail,
   FileReference,
-  MoveTokenRequest
+  MoveTokenRequest,
+  PendingTimer,
+  PendingMessageCatch,
+  CompletedInstanceQuery
 } from '../types/engine';
 
 export * from '../types/engine';
@@ -184,4 +187,36 @@ export async function deleteInstanceFile(
   instanceId: string, varName: string
 ): Promise<void> {
   return invoke('delete_instance_file', { instanceId, varName });
+}
+
+// ---------------------------------------------------------------------------
+// Overview: Timers & Messages
+// ---------------------------------------------------------------------------
+
+export async function getPendingTimers(): Promise<PendingTimer[]> {
+  return invoke('get_pending_timers');
+}
+
+export async function getPendingMessageCatches(): Promise<PendingMessageCatch[]> {
+  return invoke('get_pending_message_catches');
+}
+
+// ---------------------------------------------------------------------------
+// Historical (completed) instances
+// ---------------------------------------------------------------------------
+
+export async function queryCompletedInstances(query: CompletedInstanceQuery = {}): Promise<ProcessInstance[]> {
+  return invoke('query_completed_instances', {
+    definitionKey: query.definition_key ?? null,
+    businessKey: query.business_key ?? null,
+    from: query.from ?? null,
+    to: query.to ?? null,
+    stateFilter: query.state_filter ?? null,
+    limit: query.limit ?? null,
+    offset: query.offset ?? null,
+  });
+}
+
+export async function getCompletedInstance(instanceId: string): Promise<ProcessInstance> {
+  return invoke('get_completed_instance', { instanceId });
 }

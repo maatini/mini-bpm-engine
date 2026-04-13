@@ -711,6 +711,18 @@ async fn persistence_error_counter_increments() {
         ) -> EngineResult<crate::persistence::BucketEntryDetail> {
             Err(crate::domain::EngineError::PersistenceError("Mock".into()))
         }
+        async fn save_completed_instance(&self, _: &ProcessInstance) -> EngineResult<()> {
+            Ok(())
+        }
+        async fn query_completed_instances(
+            &self,
+            _: crate::persistence::CompletedInstanceQuery,
+        ) -> EngineResult<Vec<ProcessInstance>> {
+            Ok(vec![])
+        }
+        async fn get_completed_instance(&self, _: &str) -> EngineResult<Option<ProcessInstance>> {
+            Ok(None)
+        }
     }
 
     let mut engine = WorkflowEngine::new();

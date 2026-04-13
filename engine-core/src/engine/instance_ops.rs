@@ -4,10 +4,12 @@ use uuid::Uuid;
 
 use crate::domain::FileReference;
 use crate::domain::{EngineError, EngineResult};
+use crate::persistence::CompletedInstanceQuery;
 
 use super::WorkflowEngine;
 use crate::runtime::{
-    EngineStats, InstanceState, PendingServiceTask, PendingUserTask, ProcessInstance,
+    EngineStats, InstanceState, PendingMessageCatch, PendingServiceTask, PendingTimer,
+    PendingUserTask, ProcessInstance,
 };
 
 impl WorkflowEngine {
@@ -46,22 +48,23 @@ impl WorkflowEngine {
         }
     }
 
-    /// Returns the state of a process instance.
+    /// Returns the state of a process instance (checks archive if not in active map).
     pub async fn get_instance_state(&self, instance_id: Uuid) -> EngineResult<InstanceState> {
         if let Some(i_arc) = self.instances.get(&instance_id).await {
-            Ok(i_arc.read().await.state.clone())
-        } else {
-            Err(EngineError::NoSuchInstance(instance_id))
+            return Ok(i_arc.read().await.state.clone());
         }
+        // Fall back to archived instances
+        let inst = self.get_instance_or_archived(instance_id).await?;
+        Ok(inst.state)
     }
 
-    /// Returns the audit log of a process instance.
+    /// Returns the audit log of a process instance (checks archive if not in active map).
     pub async fn get_audit_log(&self, instance_id: Uuid) -> EngineResult<Vec<String>> {
         if let Some(i_arc) = self.instances.get(&instance_id).await {
-            Ok(i_arc.read().await.audit_log.clone())
-        } else {
-            Err(EngineError::NoSuchInstance(instance_id))
+            return Ok(i_arc.read().await.audit_log.clone());
         }
+        let inst = self.get_instance_or_archived(instance_id).await?;
+        Ok(inst.audit_log)
     }
 
     /// Returns all currently pending user tasks.
@@ -80,6 +83,49 @@ impl WorkflowEngine {
             .collect()
     }
 
+    /// Returns all currently pending timers.
+    pub fn get_pending_timers(&self) -> Vec<PendingTimer> {
+        self.pending_timers
+            .iter()
+            .map(|it| it.value().clone())
+            .collect()
+    }
+
+    /// Returns all currently pending message catch events.
+    pub fn get_pending_message_catches(&self) -> Vec<PendingMessageCatch> {
+        self.pending_message_catches
+            .iter()
+            .map(|it| it.value().clone())
+            .collect()
+    }
+
+    /// Query archived (completed) instances via persistence.
+    pub async fn query_completed_instances(
+        &self,
+        query: CompletedInstanceQuery,
+    ) -> EngineResult<Vec<ProcessInstance>> {
+        if let Some(p) = &self.persistence {
+            p.query_completed_instances(query).await
+        } else {
+            Ok(vec![])
+        }
+    }
+
+    /// Load a single instance by ID — checks active instances first, then archive.
+    pub async fn get_instance_or_archived(&self, id: Uuid) -> EngineResult<ProcessInstance> {
+        // Check active instances first
+        if let Some(inst_arc) = self.instances.get(&id).await {
+            return Ok(inst_arc.read().await.clone());
+        }
+        // Fall back to archived instances
+        if let Some(p) = &self.persistence
+            && let Some(inst) = p.get_completed_instance(&id.to_string()).await?
+        {
+            return Ok(inst);
+        }
+        Err(EngineError::NoSuchInstance(id))
+    }
+
     /// Returns a list of all process instances (cloned).
     pub async fn list_instances(&self) -> Vec<ProcessInstance> {
         let all = self.instances.all().await;
@@ -90,13 +136,9 @@ impl WorkflowEngine {
         out
     }
 
-    /// Returns full details for a single process instance.
+    /// Returns full details for a single process instance (checks archive if not in active map).
     pub async fn get_instance_details(&self, id: Uuid) -> EngineResult<ProcessInstance> {
-        if let Some(i_arc) = self.instances.get(&id).await {
-            Ok(i_arc.read().await.clone())
-        } else {
-            Err(EngineError::NoSuchInstance(id))
-        }
+        self.get_instance_or_archived(id).await
     }
 
     /// Updates variables on a running process instance.

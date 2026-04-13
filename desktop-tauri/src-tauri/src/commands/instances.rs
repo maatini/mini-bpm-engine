@@ -150,3 +150,52 @@ pub async fn delete_instance(
 ) -> Result<(), String> {
     crate::api_helpers::api_delete(&state, &format!("/api/instances/{}", instance_id)).await
 }
+
+#[tauri::command]
+pub async fn query_completed_instances(
+    state: tauri::State<'_, AppState>,
+    definition_key: Option<String>,
+    business_key: Option<String>,
+    from: Option<String>,
+    to: Option<String>,
+    state_filter: Option<String>,
+    limit: Option<usize>,
+    offset: Option<usize>,
+) -> Result<serde_json::Value, String> {
+    let mut params = Vec::new();
+    if let Some(dk) = definition_key {
+        params.push(format!("definition_key={dk}"));
+    }
+    if let Some(bk) = business_key {
+        params.push(format!("business_key={bk}"));
+    }
+    if let Some(f) = from {
+        params.push(format!("from={f}"));
+    }
+    if let Some(t) = to {
+        params.push(format!("to={t}"));
+    }
+    if let Some(s) = state_filter {
+        params.push(format!("state={s}"));
+    }
+    if let Some(l) = limit {
+        params.push(format!("limit={l}"));
+    }
+    if let Some(o) = offset {
+        params.push(format!("offset={o}"));
+    }
+    let query = if params.is_empty() {
+        String::new()
+    } else {
+        format!("?{}", params.join("&"))
+    };
+    crate::api_helpers::api_get(&state, &format!("/api/history/instances{query}")).await
+}
+
+#[tauri::command]
+pub async fn get_completed_instance(
+    state: tauri::State<'_, AppState>,
+    instance_id: String,
+) -> Result<serde_json::Value, String> {
+    crate::api_helpers::api_get(&state, &format!("/api/history/instances/{instance_id}")).await
+}

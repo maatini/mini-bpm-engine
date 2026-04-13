@@ -1,5 +1,6 @@
 use crate::domain::{FileReference, Token};
 use crate::runtime::{PendingMessageCatch, PendingServiceTask, PendingTimer, PendingUserTask};
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -160,6 +161,12 @@ pub struct ProcessInstance {
     /// LIFO log of completed compensatable activities and their handlers.
     #[serde(default)]
     pub compensation_log: Vec<CompensationRecord>,
+    /// Timestamp when this instance was started.
+    #[serde(default)]
+    pub started_at: Option<DateTime<Utc>>,
+    /// Timestamp when this instance reached a terminal state.
+    #[serde(default)]
+    pub completed_at: Option<DateTime<Utc>>,
 }
 
 impl ProcessInstance {
@@ -220,6 +227,8 @@ mod tests {
             join_barriers: HashMap::new(),
             multi_instance_state: HashMap::new(),
             compensation_log: Vec::new(),
+            started_at: None,
+            completed_at: None,
         }
     }
 
