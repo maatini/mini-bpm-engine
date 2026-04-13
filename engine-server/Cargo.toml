@@ -24,7 +24,7 @@ chrono = { version = "0.4.44", features = ["serde"] }
 # Note: opentelemetry-prometheus is officially discontinued (v0.31).
 # The `metrics` ecosystem is the idiomatic Rust choice for Prometheus export.
 metrics = "0.24"
-metrics-exporter-prometheus = { version = "0.16", default-features = false }
+metrics-exporter-prometheus = { version = "0.18", default-features = false }
 metrics-process = "2.4"
 tower = "0.5"
 pin-project-lite = "0.2"
