@@ -1,7 +1,7 @@
 # BPMNinja
 
 [![Rust](https://img.shields.io/badge/Rust-stable-brightgreen.svg?style=flat-square)](https://www.rust-lang.org/)
-[![Tests](https://img.shields.io/badge/Tests-282_passing-success?style=flat-square)]()
+[![Tests](https://img.shields.io/badge/Tests-291_passing-success?style=flat-square)]()
 [![Mutation Score](https://img.shields.io/badge/Mutation_Score-72.4%25-blue?style=flat-square)]()
 [![License](https://img.shields.io/badge/License-MIT%20OR%20Apache--2.0-blue.svg?style=flat-square)](#license)
 
@@ -35,7 +35,7 @@
 bpmninja is a BPMN 2.0 engine with the following core features:
 
 - **Token-based execution** — each path is tracked as an independent token
-- **18 BPMN elements** — start/end events, user/service tasks, gateways (XOR, AND, OR, event-based), timers, messages, boundary events, call activities, sub-processes
+- **28 BPMN elements** — start/end events, user/service/script tasks, gateways (XOR, AND, OR, complex, event-based), timers, messages, boundary events (timer, message, error, escalation, compensation), call activities, sub-processes
 - **Full ISO 8601 timers** — Duration (`PT30S`), AbsoluteDate (`2026-04-06T14:30:00Z`), Cron (`0 9 * * MON-FRI`), Repeating Interval (`R3/PT10M`)
 - **Lock-free concurrency** — multi-threaded scaling via `DashMap` wait-state queues with atomic `remove_if` for race-condition-free task operations
 - **NATS JetStream persistence** — KV stores for instances, object store for files, event streaming for history
@@ -45,7 +45,8 @@ bpmninja is a BPMN 2.0 engine with the following core features:
 - **Rhai script engine** — execution listeners for dynamic variable manipulation
 - **Suspend / resume** — pause and continue instances (timers and tasks blocked)
 - **Incident management** — handle failed service tasks with retry/resolve directly from the UI
-- **Desktop UI** — Tauri app with bpmn-js modeler and live instance tracking (including cross-platform GitHub Actions CI releases)
+- **Historical instance archival** — completed instances are automatically archived to a separate store with search by definition, business key, date range, status and pagination
+- **Desktop UI** — Tauri app with bpmn-js modeler, live instance tracking, history page for archived instances (including cross-platform GitHub Actions CI releases)
 
 ---
 
@@ -57,7 +58,7 @@ bpmninja is a BPMN 2.0 engine with the following core features:
 | **`bpmn-parser`** | Parses BPMN 2.0 XML (`quick-xml` + `serde`) into internal `ProcessDefinition` structs |
 | **`persistence-nats`** | NATS JetStream-based `WorkflowPersistence` implementation (KV, Object Store, Streams) |
 | **`engine-server`** | Axum HTTP REST API with type-safe error handling (`AppError` → HTTP status codes) |
-| **`desktop-tauri`** | Tauri desktop app (React + bpmn-js) with modeler, instances dashboard and event history |
+| **`desktop-tauri`** | Tauri desktop app (React + bpmn-js) with modeler, instances dashboard, event history and historical instance search |
 | **`agent-orchestrator`** | Sample worker for external service task processing |
 | **`bpmn-ninja-external-task-client`** | TypeScript/Node worker client (ESM) — long polling, retry, lock extension, graceful shutdown |
 
@@ -118,6 +119,7 @@ bpmninja is a BPMN 2.0 engine with the following core features:
 | **Message Correlation** | Matching via `messageName` + optional `businessKey`. |
 | **BPMN Error Handling** | ServiceTasks report errors via `bpmnError`. Routing to the matching `BoundaryErrorEvent`. |
 | **Detailed History** | Gap-free event log with diffs, snapshots and actors (`User`, `Engine`, `Timer`, `ServiceWorker`). |
+| **Instance Archival** | Completed instances are archived to a dedicated store. Searchable by definition key, business key, date range, status with pagination. |
 | **Persistent Wait States** | Timers, messages, user/service tasks survive server restarts via NATS KV. |
 | **Structured JSON Logging** | Configurable via `tracing-subscriber` with the JSON feature and `RUST_LOG` filter. |
 
@@ -135,7 +137,7 @@ For performance and architectural reasons (keep it simple), bpmninja deviates fr
 The engine focuses on a practical and performant core feature set. The following BPMN elements are currently **not** supported and will either cause parser errors on deployment or be silently ignored:
 
 - **Other task types:** `BusinessRuleTask` (no DMN support), `ManualTask`, `ReceiveTask`.
-- **Specific intermediate/boundary events:** `SignalEvent`, `EscalationEvent`, `CompensationEvent`, `CancelEvent`, `LinkEvent`.
+- **Specific intermediate/boundary events:** `SignalEvent`, `CancelEvent`, `LinkEvent`.
 - **Extended sub-processes:** `Transaction Sub-Process`, `Ad-Hoc Sub-Process`.
 - **Specialized gateways:** `Complex Gateway`.
 - **Data Objects / Data Stores:** Visual data objects and associations (`Data Input/Output Association`) are ignored. Data exchange is done exclusively via the JSON variable state (`HashMap<String, serde_json::Value>`).
@@ -261,6 +263,7 @@ The server runs at `http://localhost:8081`.
 | `POST` | `/api/instances/:id/suspend` | Suspend an instance (timers/tasks paused) |
 | `POST` | `/api/instances/:id/resume` | Resume a suspended instance |
 | `PUT` | `/api/instances/:id/variables` | Update variables |
+| `POST` | `/api/instances/:id/move-token` | Move a token to a different node (modify process instance) |
 
 ### User Tasks
 
@@ -295,7 +298,18 @@ The server runs at `http://localhost:8081`.
 | Method | Path | Description |
 |--------|------|-------------|
 | `POST` | `/api/message` | Correlate a message |
+| `GET` | `/api/messages` | List all pending message subscriptions |
+| `GET` | `/api/timers` | List all active timers |
 | `POST` | `/api/timers/process` | Manually process expired timers |
+
+### History & Archival
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/instances/:id/history` | Event history of an instance (with filter query params) |
+| `GET` | `/api/instances/:id/history/:eid` | A single history event |
+| `GET` | `/api/history/instances` | List archived (completed) instances with filters (`definition_key`, `business_key`, `from`, `to`, `state`, `limit`, `offset`) |
+| `GET` | `/api/history/instances/:id` | Load a single archived or active instance by ID |
 
 ### Monitoring & Health
 
@@ -307,8 +321,6 @@ The server runs at `http://localhost:8081`.
 | `GET` | `/api/monitoring` | Engine statistics (instances, tasks, storage, errors) |
 | `GET` | `/api/monitoring/buckets/:bucket/entries` | List KV bucket entries |
 | `GET` | `/api/monitoring/buckets/:bucket/entries/:key` | Load a single KV entry |
-| `GET` | `/api/instances/:id/history` | Event history of an instance |
-| `GET` | `/api/instances/:id/history/:eid` | A single history event |
 
 ### Error Handling
 
@@ -486,30 +498,30 @@ Services reachable at `localhost:8081` (API) and `localhost:4222` (NATS).
 
 ## Test Metrics
 
-> Measured via `cargo test --workspace` (Rust) and `npm run test` (TypeScript) on 2026-04-13 — **282 tests, 0 failures**
+> Measured via `cargo test --workspace` (Rust) and `npm run test` (TypeScript) on 2026-04-13 — **291 tests, 0 failures**
 
 ### Workspace Overview
 
 | Package | Unit | E2E | Total |
 |---------|------|-----|-------|
-| **engine-core** | 243 | 5 | 248 |
+| **engine-core** | 214 | 5 | 219 |
 | **bpmn-parser** | 30 | — | 30 |
 | **persistence-nats** | 2 | — | 2 |
-| **engine-server** | — | 36 | 36 |
+| **engine-server** | 1 | 39 | 40 |
 | **bpmn-ninja-external-task-client** | 68 | — | 68 |
-| **Total** | **241** | **41** | **282** ✅ |
+| **Total** | **247** | **44** | **291** ✅ |
 
-### engine-core Breakdown (248 tests)
+### engine-core Breakdown (219 tests)
 
 | Module | Tests | Coverage |
 |--------|-------|----------|
 | `engine::unit_tests` | 80 | State machine, gateways, user/service tasks, boundary events, call activities, EventBasedGateway, timers, messages, lock ownership, message correlation |
 | `engine::stress_tests` | 24 | Throughput, gateway correctness, crash recovery, concurrency, race conditions, memory, infinite loops |
 | `domain::tests` | 28 | ProcessDefinition builder, token serialization, validation, timer definitions |
-| `history::tests` | 20 | Diff calculation, human-readable text, truncation, snapshots |
+| `history::tests` | 24 | Diff calculation, human-readable text, truncation, snapshots, UTF-8 safety |
 | `condition::tests` | 5 | Condition evaluation, numeric comparisons, truthy checks |
 | `runtime::instance::tests` | 11 | Audit log limits, file variables, file references |
-| `adapter::in_memory::tests` | 2 | Storage info, history query filters |
+| `adapter::in_memory::tests` | 8 | Storage info, history query filters, completed instance archival, pagination, date range, business key, state filter |
 | `retry_queue::tests` | 3 | Display, shutdown, skip missing entities |
 | `boundary::tests` | 3 | No-events, timer boundary setup, message boundary setup |
 | Integration tests | 5 | BPMN compliance, complex gateways |
@@ -527,7 +539,7 @@ Services reachable at `localhost:8081` (API) and `localhost:4222` (NATS).
 | Sub-processes | 2 | EventSubProcess, RegularSubProcess |
 | Advanced | 3 | TerminateEndEvent, CompensationEvents, EscalationEvents |
 
-### engine-server E2E Tests (36 tests, 12 files)
+### engine-server E2E Tests (40 tests, 12 files)
 
 | Test file | Tests | Coverage |
 |-----------|-------|----------|
@@ -535,7 +547,7 @@ Services reachable at `localhost:8081` (API) and `localhost:4222` (NATS).
 | `e2e_file_variables.rs` | 3 | File upload, task completion with files, multi-file + delete |
 | `e2e_files.rs` | 1 | Upload/download/delete lifecycle |
 | `e2e_gateways.rs` | 1 | Parallel gateway over HTTP |
-| `e2e_history.rs` | 1 | History generation and querying |
+| `e2e_history.rs` | 4 | History generation, querying, completed instances listing, business key filter, pagination |
 | `e2e_lifecycle.rs` | 6 | Delete instance, delete definition, unknown instances, process timers, correlate messages |
 | `e2e_monitoring.rs` | 4 | Health, ready (connected/disconnected), info, monitoring stats |
 | `e2e_service_tasks.rs` | 7 | List service tasks, FetchAndLock, ExtendLock, Complete, Complete with Failure, BPMN error, lock conflict |
@@ -558,18 +570,19 @@ Tests use `vi.useFakeTimers()` and `vi.stubGlobal('fetch', …)` — no real HTT
 
 | Area | Files | LoC |
 |------|-------|-----|
-| engine-core (lib) | 48 | 11,366 |
-| engine-core (tests) | — | 380 |
-| bpmn-parser | 4 | 2,039 |
-| persistence-nats | 5 | 1,149 |
-| engine-server (lib) | 12 | 1,326 |
-| engine-server (E2E tests) | 12 | 1,934 |
-| desktop-tauri (TypeScript + CSS) | 45 | 5,405 |
-| desktop-tauri (Rust backend) | 10 | 624 |
-| external-task-client (lib) | 5 | 1,031 |
-| external-task-client (tests) | 6 | 966 |
-| **Rust workspace** | **91** | **~18,818** |
-| **Project total** | **~147** | **~26,220** |
+| engine-core (lib) | 45 | 10,626 |
+| engine-core (tests) | 3 | 6,415 |
+| bpmn-parser | 4 | 2,385 |
+| persistence-nats | 5 | 1,282 |
+| engine-server (lib) | 13 | 1,728 |
+| engine-server (E2E tests) | 12 | 2,106 |
+| desktop-tauri (TypeScript + CSS) | 49 | 7,015 |
+| desktop-tauri (Rust backend) | 10 | 798 |
+| external-task-client (lib) | 11 | 1,997 |
+| external-task-client (tests) | 6 | 1,285 |
+| fuzz targets | 9 | 704 |
+| **Rust workspace** | **101** | **~26,044** |
+| **Project total** | **~167** | **~36,341** |
 
 ### Mutation Score
 A full workspace run via [`cargo-mutants`](https://mutants.rs) on the `engine-core` crate (CI workflow "Core Mutation Tests", 2026-04-13) produced a **mutation score of 72.4%** (359 caught, 137 missed, 552 unviable, 1 timeout out of 1049 mutants tested in ~3h). Top missed areas: `timer_processor.rs` (7 missed), `scripting/runner.rs` (4 missed), `handlers/events.rs` (1 missed). Results are stored as CI artifacts for 30 days.
@@ -577,7 +590,7 @@ A full workspace run via [`cargo-mutants`](https://mutants.rs) on the `engine-co
 ### Continuous Fuzzing
 To safeguard security- and stability-critical parser and execution components, a parallel **fuzzing workflow** based on `cargo-fuzz` (libFuzzer) runs daily in the CI/CD pipeline (and on relevant pull requests).
 
-Currently 7 dedicated fuzz targets are implemented:
+Currently 9 dedicated fuzz targets are implemented:
 * **`fuzz_bpmn_parser`**: Feeds the `quick-xml` parser with arbitrary UTF-8 strings.
 * **`fuzz_condition`**: Tests the `evaluate_condition` parser with wild expression/variable combinations.
 * **`fuzz_rhai_script`**: Checks memory limits and sandboxing when executing manipulated scripts.
@@ -585,6 +598,8 @@ Currently 7 dedicated fuzz targets are implemented:
 * **`fuzz_token_deserialize`**: Deserializes arbitrary JSON as Token, ProcessInstance, HistoryEntry and FileReference.
 * **`fuzz_cron_expression`**: Parses arbitrary strings as cron expressions via `croner`.
 * **`fuzz_deploy_roundtrip`**: End-to-end pipeline: XML → Parse → Deploy → Start Instance.
+* **`fuzz_history_diff`**: Fuzzes `calculate_diff` and `calculate_diff_from_snapshot` with `arbitrary`-generated structured input — boundary-length strings (incl. multi-byte UTF-8), large arrays, deeply nested JSON, file-reference-shaped objects, and all `InstanceState` variants.
+* **`fuzz_server_payloads`**: Deserializes arbitrary bytes against all 18 REST API DTOs (`FetchAndLockRequest`, `DeployRequest`, `StartRequest`, `CorrelateMessageRequest`, etc.) to ensure no panics on malformed input.
 
 Sanitizers (AddressSanitizer) are enabled by default and will cause a structured abort and upload of crash artifacts on *memory leaks*, *panics* or *undefined behaviour*.
 
@@ -601,11 +616,11 @@ Sanitizers (AddressSanitizer) are enabled by default and will cause a structured
 | Timer start events with repeating intervals (`R3/PT30S`) | ✅ Implemented |
 | Suspend / resume of process instances | ✅ Implemented |
 | Extended incident handling (retry / resolve) | ✅ Implemented |
-| Central timer / message / job overview | 🔲 Planned |
-| Historical instances + search | 🔲 Planned |
+| Historical instances + search | ✅ Implemented |
+| Central timer / message / job overview | ✅ Implemented |
 | Batch operations on instances | 🔲 Planned |
 | Process instance migration | 🔲 Planned |
-| Token move (modify process instance) | 🔲 Planned |
+| Token move (modify process instance) | ✅ Implemented |
 | Multi-node cluster (NATS-based token locking) | 🔲 Planned |
 | OIDC/OAuth2 middleware | 🔲 Planned |
 | Prometheus metrics endpoint | 🔲 Planned |
