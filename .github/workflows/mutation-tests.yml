@@ -38,41 +38,54 @@ jobs:
           cargo mutants -p engine-core -j 2 --timeout 120 --exclude-re "persistence_in_memory|tests|stress_tests" --output mutants.out -- -- --skip stress_tests
         continue-on-error: true
 
+      - name: Upload mutation results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutation-results
+          path: |
+            mutants.out/outcomes.json
+            mutants.out/missed.txt
+            mutants.out/caught.txt
+            mutants.out/timeout.txt
+            mutants.out/unviable.txt
+          retention-days: 30
+
       - name: Generate Job Summary
         if: always()
         run: |
           python3 -c '
           import json, os, sys
-          
+
           out_file = "mutants.out/outcomes.json"
           if not os.path.exists(out_file):
               print("⚠️ Keine Mutation-Ergebnisse (outcomes.json) gefunden.")
               sys.exit(0)
-              
+
           with open(out_file) as f:
               data = json.load(f)
-          
-          # cargo-mutants JSON enthält eine Liste an Objekten oder ein Dictionary, 
+
+          # cargo-mutants JSON enthält eine Liste an Objekten oder ein Dictionary,
           # je nach exakter Version. Dies wertet die Outcomes aus.
           caught = sum(1 for m in data if m.get("status") == "caught")
           missed = sum(1 for m in data if m.get("status") == "missed")
           timeout = sum(1 for m in data if m.get("status") == "timeout")
           unviable = sum(1 for m in data if m.get("status") == "unviable")
-          
+
           total_tested = caught + missed + timeout
           score = (caught / total_tested * 100) if total_tested > 0 else 0
-          
+
           summary = f"""## 🧬 Mutation Testing Results
-          
+
           **Mutation Score: {score:.1f}%**
-          
+
           - ✅ **Caught (Erkannt):** {caught}
           - ❌ **Missed (Überlebt):** {missed}
           - ⏱️ **Timeout:** {timeout}
           - ⚠️ **Unviable (Kompiliert nicht):** {unviable}
-          
+
           """
-          
+
           if missed > 0:
               summary += "### ❌ Überlebende Mutanten (Beispiele)\n"
               summary += "| Pfad | Zeile | Mutation |\n|---|---|---|\n"
@@ -82,7 +95,7 @@ jobs:
                   line = m.get("mutant", {}).get("line", "?")
                   mut = m.get("mutant", {}).get("replacement", "unknown mutation")
                   summary += f"| `{file}` | {line} | `{mut}` |\n"
-                  
+
           with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as summary_file:
               summary_file.write(summary)
           '
