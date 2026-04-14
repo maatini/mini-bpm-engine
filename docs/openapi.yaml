@@ -6,7 +6,7 @@ info:
     
     Built with Axum (Rust). Supports BPMN process deployment, instance management,
     user/service task handling, message correlation, timer processing, and file attachments.
-  version: 0.6.4
+  version: 0.7.13
   contact:
     name: bpmninja
   license:
@@ -598,6 +598,79 @@ paths:
         '404':
           description: Event not found
 
+  # ──────────────────────────── Historical Instances ──────────────────────────
+
+  /api/history/instances:
+    get:
+      tags: [History]
+      summary: Query archived (completed) process instances
+      description: |
+        Returns instances that have reached a terminal state (Completed,
+        CompletedWithError, Terminated) and were moved to the history archive.
+      parameters:
+        - name: definition_key
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: business_key
+          in: query
+          schema:
+            type: string
+        - name: from
+          in: query
+          description: ISO-8601 lower bound (inclusive) for completed_at.
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          description: ISO-8601 upper bound (exclusive) for completed_at.
+          schema:
+            type: string
+            format: date-time
+        - name: state
+          in: query
+          description: Terminal-state filter.
+          schema:
+            type: string
+            enum: [completed, error]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+      responses:
+        '200':
+          description: Matching archived instances
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ProcessInstance'
+
+  /api/history/instances/{id}:
+    get:
+      tags: [History]
+      summary: Get a single archived instance by id
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+      responses:
+        '200':
+          description: Archived instance
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProcessInstance'
+        '404':
+          description: Not found
+
   # ──────────────────────────── Monitoring & Health ───────────────────────────
 
   /api/health:
@@ -803,6 +876,14 @@ components:
         variables:
           type: object
           additionalProperties: true
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
 
     PendingUserTask:
       type: object

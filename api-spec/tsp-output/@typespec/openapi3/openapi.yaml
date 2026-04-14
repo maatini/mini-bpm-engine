@@ -1,6 +1,6 @@
 openapi: 3.0.0
 info:
-  title: mini-bpm Engine Server API
+  title: bpmninja Engine Server API
   version: 0.0.0
 tags: []
 paths:
@@ -41,6 +41,31 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/DefinitionInfo'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppError'
+  /api/definitions/bpmn/{bpmn_id}:
+    delete:
+      operationId: Api_deleteAllDefinitions
+      description: Delete all versions of a definition by its bpmn_id.
+      parameters:
+        - name: bpmn_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: cascade
+          in: query
+          required: false
+          schema:
+            type: boolean
+          explode: false
+      responses:
+        '204':
+          description: 'There is no content to send for this request, but the headers may be useful. '
         default:
           description: An unexpected error response.
           content:
@@ -116,6 +141,109 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/DeployRequest'
+  /api/health:
+    get:
+      operationId: Api_health
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppError'
+  /api/history/instances:
+    get:
+      operationId: Api_listCompletedInstances
+      description: Query archived (completed) process instances.
+      parameters:
+        - name: definition_key
+          in: query
+          required: false
+          schema:
+            type: string
+          explode: false
+        - name: business_key
+          in: query
+          required: false
+          schema:
+            type: string
+          explode: false
+        - name: from
+          in: query
+          required: false
+          schema:
+            type: string
+          explode: false
+        - name: to
+          in: query
+          required: false
+          schema:
+            type: string
+          explode: false
+        - name: state
+          in: query
+          required: false
+          description: 'Terminal-state filter: `completed` or `error`.'
+          schema:
+            type: string
+            enum:
+              - completed
+              - error
+          explode: false
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int32
+          explode: false
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int32
+          explode: false
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ProcessInstance'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppError'
+  /api/history/instances/{id}:
+    get:
+      operationId: Api_getCompletedInstance
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProcessInstance'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppError'
   /api/info:
     get:
       operationId: Api_getInfo
@@ -155,6 +283,7 @@ paths:
   /api/instances/{id}:
     get:
       operationId: Api_getInstance
+      description: Returns an instance by id. Falls back to the history archive if the instance is no longer active.
       parameters:
         - name: id
           in: path
@@ -364,6 +493,66 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AppError'
+  /api/instances/{id}/move-token:
+    post:
+      operationId: Api_moveToken
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: 'There is no content to send for this request, but the headers may be useful. '
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppError'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MoveTokenRequest'
+  /api/instances/{id}/resume:
+    post:
+      operationId: Api_resumeInstance
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: 'There is no content to send for this request, but the headers may be useful. '
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppError'
+  /api/instances/{id}/suspend:
+    post:
+      operationId: Api_suspendInstance
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: 'There is no content to send for this request, but the headers may be useful. '
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppError'
   /api/instances/{id}/variables:
     put:
       operationId: Api_updateInstanceVariables
@@ -411,6 +600,25 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/CorrelateMessageRequest'
+  /api/messages:
+    get:
+      operationId: Api_getPendingMessages
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PendingMessage'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppError'
   /api/monitoring:
     get:
       operationId: Api_getMonitoring
@@ -422,6 +630,70 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/MonitoringData'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppError'
+  /api/monitoring/buckets/{bucket}/entries:
+    get:
+      operationId: Api_getBucketEntries
+      parameters:
+        - name: bucket
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BucketEntry'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppError'
+  /api/monitoring/buckets/{bucket}/entries/{key}:
+    get:
+      operationId: Api_getBucketEntryDetail
+      parameters:
+        - name: bucket
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BucketEntryDetail'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppError'
+  /api/ready:
+    get:
+      operationId: Api_ready
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
         default:
           description: An unexpected error response.
           content:
@@ -549,6 +821,42 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/FailServiceTaskRequest'
+  /api/service-task/{id}/resolve:
+    post:
+      operationId: Api_resolveIncident
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: 'There is no content to send for this request, but the headers may be useful. '
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppError'
+  /api/service-task/{id}/retry:
+    post:
+      operationId: Api_retryIncident
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: 'There is no content to send for this request, but the headers may be useful. '
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppError'
   /api/service-tasks:
     get:
       operationId: Api_getServiceTasks
@@ -591,6 +899,54 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/StartRequest'
+  /api/start/latest:
+    post:
+      operationId: Api_startLatest
+      description: Start an instance of the latest deployed version of a BPMN definition (by bpmn_id).
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StartResponse'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppError'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StartLatestRequest'
+  /api/start/timer:
+    post:
+      operationId: Api_startTimer
+      description: Start an instance whose start event carries a timerEventDefinition.
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StartResponse'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppError'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StartRequest'
   /api/tasks:
     get:
       operationId: Api_getTasks
@@ -604,6 +960,25 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/PendingUserTask'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppError'
+  /api/timers:
+    get:
+      operationId: Api_getPendingTimers
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PendingTimer'
         default:
           description: An unexpected error response.
           content:
@@ -658,6 +1033,30 @@ components:
           type: string
         errorCode:
           type: string
+    BucketEntry:
+      type: object
+      required:
+        - key
+      properties:
+        key:
+          type: string
+        size_bytes:
+          type: integer
+          format: int64
+        revision:
+          type: integer
+          format: int64
+        updated_at:
+          type: string
+    BucketEntryDetail:
+      type: object
+      required:
+        - key
+        - value
+      properties:
+        key:
+          type: string
+        value: {}
     CompleteRequest:
       type: object
       properties:
@@ -700,12 +1099,16 @@ components:
       required:
         - key
         - bpmn_id
+        - version
         - node_count
       properties:
         key:
           type: string
         bpmn_id:
           type: string
+        version:
+          type: integer
+          format: int32
         node_count:
           type: integer
           format: int32
@@ -824,6 +1227,26 @@ components:
           format: int32
         storage_info:
           $ref: '#/components/schemas/StorageInfo'
+    MoveTokenRequest:
+      type: object
+      required:
+        - target_node_id
+      properties:
+        target_node_id:
+          type: string
+    PendingMessage:
+      type: object
+      required:
+        - instance_id
+        - node_id
+        - message_name
+      properties:
+        instance_id:
+          type: string
+        node_id:
+          type: string
+        message_name:
+          type: string
     PendingServiceTask:
       type: object
       required:
@@ -837,6 +1260,8 @@ components:
         id:
           type: string
         instance_id:
+          type: string
+        definition_key:
           type: string
         node_id:
           type: string
@@ -856,6 +1281,19 @@ components:
           type: integer
           format: int32
         error_message:
+          type: string
+    PendingTimer:
+      type: object
+      required:
+        - instance_id
+        - node_id
+        - fire_at
+      properties:
+        instance_id:
+          type: string
+        node_id:
+          type: string
+        fire_at:
           type: string
     PendingUserTask:
       type: object
@@ -883,34 +1321,30 @@ components:
       type: object
       required:
         - id
-        - definition_id
+        - definition_key
         - state
-        - started_at
         - variables
-        - active_nodes
       properties:
         id:
           type: string
-        definition_id:
+        definition_key:
           type: string
-        state:
+        business_key:
           type: string
-          enum:
-            - Running
-            - Completed
-            - Suspended
-        started_at:
+        parent_instance_id:
           type: string
-        ended_at:
+        state: {}
+        current_node:
           type: string
         variables:
           type: object
           additionalProperties:
             $ref: '#/components/schemas/VariableValue'
-        active_nodes:
-          type: array
-          items:
-            type: string
+        started_at:
+          type: string
+        completed_at:
+          type: string
+      description: Lifecycle state. Terminal states are `Completed`, `CompletedWithError`, and `Terminated`. Waiting variants carry additional payloads in the JSON object form.
     ProcessTimersResponse:
       type: object
       required:
@@ -919,12 +1353,26 @@ components:
         triggered:
           type: integer
           format: int32
+    StartLatestRequest:
+      type: object
+      required:
+        - bpmn_id
+      properties:
+        bpmn_id:
+          type: string
+        business_key:
+          type: string
+        variables:
+          type: object
+          additionalProperties: {}
     StartRequest:
       type: object
       required:
         - definition_key
       properties:
         definition_key:
+          type: string
+        business_key:
           type: string
         variables:
           type: object
