@@ -39,9 +39,15 @@ const SCRIPT_LANGUAGES = [
  * Camunda 7 Modeler Kompatibilität – determine the current condition type
  * from the element's conditionExpression.
  */
-function getConditionType(element: any): 'none' | 'expression' | 'script' {
+function isDefaultFlow(element: any): boolean {
+  const sourceRef = element.businessObject.sourceRef;
+  return !!sourceRef && sourceRef.default === element.businessObject;
+}
+
+function getConditionType(element: any): 'none' | 'expression' | 'script' | 'default' {
+  if (isDefaultFlow(element)) return 'default';
   const expr = element.businessObject.conditionExpression;
-  if (!expr || !expr.body) return 'none';
+  if (!expr) return 'none';
   if (expr.language) return 'script';
   return 'expression';
 }
@@ -60,6 +66,25 @@ function ConditionTypeEntry(props: any) {
   const getValue = () => getConditionType(element);
 
   const setValue = (value: string) => {
+    const sourceRef = element.businessObject.sourceRef;
+    const wasDefault = isDefaultFlow(element);
+
+    // Clear default-flag on source gateway when switching away from 'default'
+    if (wasDefault && value !== 'default' && sourceRef) {
+      modeling.updateProperties(sourceRef, { default: undefined });
+    }
+
+    if (value === 'default') {
+      // Become the gateway's default flow: drop any conditionExpression
+      if (element.businessObject.conditionExpression) {
+        modeling.updateProperties(element, { conditionExpression: undefined });
+      }
+      if (sourceRef) {
+        modeling.updateProperties(sourceRef, { default: element.businessObject });
+      }
+      return;
+    }
+
     if (value === 'none') {
       // Camunda 7 Modeler Kompatibilität – remove condition entirely
       modeling.updateProperties(element, { conditionExpression: undefined });
@@ -84,11 +109,21 @@ function ConditionTypeEntry(props: any) {
     }
   };
 
-  const getOptions = () => [
-    { value: 'none', label: translate('None') },
-    { value: 'expression', label: translate('Expression') },
-    { value: 'script', label: translate('Script') },
-  ];
+  const sourceRef = element.businessObject.sourceRef;
+  const sourceIsConditionalGateway =
+    !!sourceRef && (is(sourceRef, 'bpmn:ExclusiveGateway') || is(sourceRef, 'bpmn:InclusiveGateway'));
+
+  const getOptions = () => {
+    const opts: { value: string; label: string }[] = [
+      { value: 'none', label: translate('None') },
+      { value: 'expression', label: translate('Expression') },
+      { value: 'script', label: translate('Script') },
+    ];
+    if (sourceIsConditionalGateway) {
+      opts.push({ value: 'default', label: translate('Default Flow') });
+    }
+    return opts;
+  };
 
   return SelectEntry({
     element,
@@ -248,11 +283,6 @@ function CustomConditionGroup(element: any, translate: any) {
 
   // Camunda 7 Modeler Kompatibilität – only show for conditional gateways
   if (!sourceRef || (!is(sourceRef, 'bpmn:ExclusiveGateway') && !is(sourceRef, 'bpmn:InclusiveGateway'))) {
-    return null;
-  }
-
-  // Camunda 7 Modeler Kompatibilität – default flows cannot have conditions
-  if (sourceRef.default === element.businessObject) {
     return null;
   }
 
