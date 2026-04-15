@@ -3,6 +3,7 @@ import { RefreshCw, Activity, CheckCircle, Clock, Trash, FileCode2, Network, Scr
 import { type ProcessInstance, type DefinitionInfo } from '../../shared/types/engine';
 import { listInstances, listDefinitions, deleteInstance } from '../../shared/lib/tauri';
 import { usePolling } from '../../shared/hooks/use-polling';
+import { useEngineEvents } from '../../shared/hooks/use-engine-events';
 import { PageHeader } from '../../shared/components/PageHeader';
 import { EmptyState } from '../../shared/components/EmptyState';
 import { groupInstances, stateBadgeClass, stateLabel } from './InstanceStateUtils';
@@ -42,7 +43,8 @@ export function InstancesPage({ selectedInstanceId, onClearSelection }: { select
     }
   };
 
-  usePolling(fetchData, 3000, !selected);
+  usePolling(fetchData, 30000, !selected);
+  useEngineEvents(fetchData, ['instance_changed', 'definition_changed'], !selected);
 
   // Initial selection if driven from outside (e.g. Incidents list) — must be in useEffect, not render body
   useEffect(() => {
@@ -83,7 +85,7 @@ export function InstancesPage({ selectedInstanceId, onClearSelection }: { select
         title="Instances" 
         actions={
           <>
-            <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded-md">Auto-refreshing</span>
+            <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded-md">Push-Updates aktiv</span>
             <Button onClick={fetchData} variant="outline" size="sm" className="gap-2">
               <RefreshCw className="h-4 w-4" /> Refresh
             </Button>

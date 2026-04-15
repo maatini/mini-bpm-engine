@@ -7,6 +7,7 @@ import {
   type CompletedInstanceQuery,
 } from '../../shared/lib/tauri';
 import { usePolling } from '../../shared/hooks/use-polling';
+import { useEngineEvents } from '../../shared/hooks/use-engine-events';
 import { useToast } from '@/hooks/use-toast';
 import { History, RefreshCw, Search, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -86,7 +87,8 @@ export function HistoryPage({ onViewInstance }: { onViewInstance?: (id: string) 
     }
   }, [buildQuery, definitions, toast]);
 
-  usePolling(fetchData, 10000);
+  usePolling(fetchData, 30000);
+  useEngineEvents(fetchData, ['instance_changed']);
 
   // Refetch whenever the offset changes (pagination), after the initial mount.
   const didMountRef = useRef(false);

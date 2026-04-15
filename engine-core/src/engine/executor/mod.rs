@@ -314,6 +314,7 @@ impl WorkflowEngine {
                     self.pending_user_tasks.insert(task_id, pending);
                     self.persist_user_task(task_id).await;
                     self.persist_instance(instance_id).await;
+                    self.emit_event(crate::engine::events::EngineEvent::TaskChanged);
                 }
                 NextAction::WaitForServiceTask(svc_task) => {
                     let task_id = svc_task.id;
@@ -326,6 +327,7 @@ impl WorkflowEngine {
                     self.pending_service_tasks.insert(task_id, svc_task);
                     self.persist_service_task(task_id).await;
                     self.persist_instance(instance_id).await;
+                    self.emit_event(crate::engine::events::EngineEvent::TaskChanged);
                 }
                 NextAction::WaitForTimer(pending) => {
                     let timer_id = pending.id;
@@ -638,6 +640,8 @@ impl WorkflowEngine {
             // Archive to history store and remove from active map
             self.archive_completed_instance(instance_id).await;
         }
+
+        self.emit_event(crate::engine::events::EngineEvent::InstanceChanged);
 
         Ok(())
     }

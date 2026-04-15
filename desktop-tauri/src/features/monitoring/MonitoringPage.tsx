@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { useEngineEvents } from '../../shared/hooks/use-engine-events'
 import { getMonitoringData, getBucketEntries, getBucketEntryDetail, type MonitoringData, type BucketEntry, type BucketEntryDetail } from '../../shared/lib/tauri'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -8,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Server, Settings2, Database, List, ExternalLink } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { LogStream } from './LogStream'
+import { DataViewer } from '@/shared/components/DataViewer'
 
 /**
  * Formats bytes into a human-readable string (B, KB, MB, GB).
@@ -82,17 +84,18 @@ export function MonitoringPage() {
 
   useEffect(() => {
     refresh()
-    intervalRef.current = setInterval(refresh, 5000)
+    intervalRef.current = setInterval(refresh, 30000)
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current)
     }
   }, [])
+  useEngineEvents(refresh);
 
   return (
     <div className="flex flex-col h-full bg-background">
       <div className="flex items-center justify-between px-6 py-4 border-b bg-background">
         <h2 className="text-2xl font-bold tracking-tight">Monitoring</h2>
-        <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded-md">Auto-refreshing every 5s</span>
+        <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded-md">Push-Updates aktiv</span>
       </div>
 
       <ScrollArea className="flex-1">
@@ -351,20 +354,11 @@ export function MonitoringPage() {
                 <Skeleton className="h-[200px] w-full" />
               </div>
             ) : entryDetail ? (
-              <div className="relative">
-                <pre className="p-4 rounded-md bg-zinc-950 text-zinc-50 border whitespace-pre-wrap word-break break-all font-mono text-sm overflow-x-auto shadow-inner">
-                  {(() => {
-                    try {
-                      // Attempt to pretty-print if JSON
-                      const obj = JSON.parse(entryDetail.data)
-                      return JSON.stringify(obj, null, 2)
-                    } catch {
-                      // Fallback to raw string
-                      return entryDetail.data
-                    }
-                  })()}
-                </pre>
-              </div>
+              <DataViewer
+                content={entryDetail.data}
+                filename={entryDetail.key}
+                height="500px"
+              />
             ) : null}
           </div>
         </DialogContent>

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useEngineEvents } from '../../shared/hooks/use-engine-events';
 import { Trash, RefreshCw, Clock, Pause, Play, ArrowRightLeft } from 'lucide-react';
 import { type ProcessInstance, type DefinitionInfo, type PendingUserTask, type PendingServiceTask } from '../../shared/types/engine';
 import { getInstanceDetails, getDefinitionXml, getPendingTasks, getPendingServiceTasks, updateInstanceVariables, suspendInstance, resumeInstance } from '../../shared/lib/tauri';
@@ -74,9 +75,10 @@ export function InstanceDetailDialog({
 
   useEffect(() => {
     if (!selected) return;
-    const interval = setInterval(liveRefresh, 3000);
+    const interval = setInterval(liveRefresh, 30000);
     return () => clearInterval(interval);
   }, [selected?.id, liveRefresh]);
+  useEngineEvents(liveRefresh, ['instance_changed', 'task_changed'], !!selected);
 
   // Full refresh: re-fetches everything including state, pending tasks, and history.
   const refreshDetails = useCallback(async () => {

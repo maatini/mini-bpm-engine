@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
+import { DataViewer } from '@/shared/components/DataViewer';
 
 interface HistoryTimelineProps {
   instanceId: string;
@@ -210,9 +211,11 @@ export function HistoryTimeline({ instanceId, refreshTrigger = 0 }: HistoryTimel
                 {selectedEntry.diff?.changes && Object.keys(selectedEntry.diff.changes).length > 0 && (
                   <div>
                     <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Raw Data Changes</h3>
-                    <pre className="bg-muted border text-foreground p-4 rounded-md text-xs overflow-x-auto">
-                      {JSON.stringify(selectedEntry.diff.changes, null, 2)}
-                    </pre>
+                    <DataViewer
+                      content={JSON.stringify(selectedEntry.diff.changes, null, 2)}
+                      format="json"
+                      height="200px"
+                    />
                   </div>
                 )}
               </div>

@@ -8,6 +8,7 @@ import {
   type PendingMessageCatch
 } from '../../shared/lib/tauri';
 import { usePolling } from '../../shared/hooks/use-polling';
+import { useEngineEvents } from '../../shared/hooks/use-engine-events';
 import { useToast } from '@/hooks/use-toast';
 import { Eye, RefreshCw, Timer, Mail, Briefcase, ExternalLink } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -69,7 +70,8 @@ export function OverviewPage({ onViewInstance }: { onViewInstance?: (id: string)
     }
   }, [toast]);
 
-  usePolling(fetchAll, 5000);
+  usePolling(fetchAll, 30000);
+  useEngineEvents(fetchAll);
 
   const skeletonCards = (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -92,7 +94,7 @@ export function OverviewPage({ onViewInstance }: { onViewInstance?: (id: string)
         icon={<Eye className="h-6 w-6 text-primary" />}
         actions={
           <>
-            <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded-md">Auto-refreshing</span>
+            <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded-md">Push-Updates aktiv</span>
             <Button onClick={fetchAll} variant="outline" size="sm" className="gap-2">
               <RefreshCw className="h-4 w-4" /> Refresh
             </Button>

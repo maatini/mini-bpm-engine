@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useEngineEvents } from '../../shared/hooks/use-engine-events';
 import { getPendingTasks, getPendingServiceTasks, completeTask, 
          fetchAndLockServiceTasks, completeServiceTask, 
          type PendingUserTask, type PendingServiceTask } from '../../shared/lib/tauri';
@@ -42,9 +43,10 @@ export function PendingTasksPage() {
 
   useEffect(() => {
     fetchTasks();
-    intervalRef.current = setInterval(fetchTasks, 3000);
+    intervalRef.current = setInterval(fetchTasks, 30000);
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, []);
+  useEngineEvents(fetchTasks, ['task_changed', 'instance_changed']);
 
   const handleCompleteClick = (task: PendingUserTask) => {
     setCompletingTask(task);
@@ -97,7 +99,7 @@ export function PendingTasksPage() {
       <div className="flex items-center justify-between px-6 py-4 border-b bg-background">
         <h2 className="text-2xl font-bold tracking-tight">Pending Tasks</h2>
         <div className="flex items-center gap-4">
-          <span className="text-xs text-muted-foreground">Auto-refreshing</span>
+          <span className="text-xs text-muted-foreground">Push-Updates aktiv</span>
           <Button onClick={fetchTasks} variant="outline" size="sm" className="gap-2">
             <RefreshCw className="h-4 w-4" /> Refresh
           </Button>

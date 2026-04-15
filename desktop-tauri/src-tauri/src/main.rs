@@ -5,6 +5,7 @@
 
 mod api_helpers;
 mod commands;
+mod sse_consumer;
 mod state;
 
 
@@ -21,6 +22,15 @@ fn main() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(initial_state)
+        .setup(|app| {
+            use tauri::Manager;
+            let app_handle = app.handle().clone();
+            let state = app.state::<state::AppState>();
+            let base_url = state.base_url.lock().map(|u: std::sync::MutexGuard<'_, String>| u.clone()).unwrap_or_else(|_| "http://localhost:8081".to_string());
+            let client = state.client.clone();
+            sse_consumer::spawn(app_handle, base_url, client);
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             commands::deploy::deploy_simple_process,
             commands::deploy::deploy_definition,

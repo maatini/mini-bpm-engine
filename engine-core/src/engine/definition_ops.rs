@@ -57,6 +57,7 @@ impl WorkflowEngine {
         );
         self.definitions.insert(key, Arc::new(def));
         self.persist_definition(key).await;
+        self.emit_event(crate::engine::events::EngineEvent::DefinitionChanged);
         (key, version)
     }
 
@@ -96,6 +97,7 @@ impl WorkflowEngine {
                 .await?;
         }
 
+        self.emit_event(crate::engine::events::EngineEvent::DefinitionChanged);
         Ok(())
     }
 

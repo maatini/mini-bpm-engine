@@ -1,5 +1,6 @@
 use tokio::sync::RwLock;
 pub(crate) mod deploy;
+pub(crate) mod events;
 pub(crate) mod files;
 pub(crate) mod history;
 pub(crate) mod instances;
@@ -154,6 +155,7 @@ pub fn build_app_with_engine(
         )
         .route("/api/service-task/{id}/bpmnError", post(tasks::bpmn_error))
         .route("/api/logs", get(logs::get_logs))
+        .route("/api/events", get(events::engine_events))
         .route("/api/health", get(|| async { axum::http::StatusCode::OK }))
         .route("/api/ready", get(monitoring::ready_endpoint))
         .layer(middleware::from_fn(

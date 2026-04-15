@@ -9,6 +9,7 @@ import {
   type PendingServiceTask,
 } from '../../shared/lib/tauri';
 import { usePolling } from '../../shared/hooks/use-polling';
+import { useEngineEvents } from '../../shared/hooks/use-engine-events';
 import { useToast } from '@/hooks/use-toast';
 import { Activity, AlertTriangle, ArrowLeft, RefreshCw, Clock, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -85,7 +86,8 @@ export function ProcessDefinitionPage({ definitionKey, onBack, onViewInstance }:
     }
   }, [definitionKey, toast]);
 
-  usePolling(fetchLiveState, 3000);
+  usePolling(fetchLiveState, 30000);
+  useEngineEvents(fetchLiveState);
 
   // Aggregate token counts per node across all active instances
   const tokenCountsByNode = useMemo(() => {

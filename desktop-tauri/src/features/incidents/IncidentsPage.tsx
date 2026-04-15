@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { getPendingServiceTasks, retryIncident, type PendingServiceTask } from '../../shared/lib/tauri';
 import { usePolling } from '../../shared/hooks/use-polling';
+import { useEngineEvents } from '../../shared/hooks/use-engine-events';
 import { IncidentDetailDialog } from './IncidentDetailDialog';
 import { useToast } from '@/hooks/use-toast';
 import { AlertTriangle, RefreshCw, ExternalLink, RotateCcw, Search } from 'lucide-react';
@@ -29,7 +30,8 @@ export function IncidentsPage({ onViewInstance }: { onViewInstance?: (id: string
     }
   }, [toast]);
 
-  usePolling(fetchIncidents, 5000, !selectedIncident);
+  usePolling(fetchIncidents, 30000, !selectedIncident);
+  useEngineEvents(fetchIncidents, ['task_changed', 'instance_changed'], !selectedIncident);
 
   const handleQuickRetry = async (e: React.MouseEvent, inc: PendingServiceTask) => {
     e.stopPropagation();
@@ -60,7 +62,7 @@ export function IncidentsPage({ onViewInstance }: { onViewInstance?: (id: string
             {incidents.length > 0 && (
               <Badge variant="destructive" className="text-sm">{incidents.length} active</Badge>
             )}
-            <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded-md">Auto-refreshing</span>
+            <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded-md">Push-Updates aktiv</span>
             <Button onClick={fetchIncidents} variant="outline" size="sm" className="gap-2">
               <RefreshCw className="h-4 w-4" /> Refresh
             </Button>

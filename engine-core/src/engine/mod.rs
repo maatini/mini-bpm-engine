@@ -22,6 +22,7 @@ use crate::persistence::WorkflowPersistence;
 
 pub(crate) mod boundary;
 mod definition_ops;
+pub(crate) mod events;
 pub(crate) mod executor;
 pub(crate) mod gateway;
 pub(crate) mod handlers;
@@ -35,6 +36,8 @@ pub(crate) mod retry_queue;
 mod service_task;
 mod timer_processor;
 mod user_task;
+
+pub use events::EngineEvent;
 
 /// The central workflow engine managing definitions, instances, and handlers.
 pub struct WorkflowEngine {
@@ -50,6 +53,8 @@ pub struct WorkflowEngine {
     pub(crate) retry_worker_handle: tokio::sync::Mutex<Option<tokio::task::JoinHandle<()>>>,
     /// Hardened Rhai script execution configuration.
     pub(crate) script_config: crate::scripting::ScriptConfig,
+    /// Broadcast channel — feuert bei jeder relevanten Zustandsänderung.
+    pub(crate) event_tx: tokio::sync::broadcast::Sender<EngineEvent>,
 }
 
 impl WorkflowEngine {
@@ -61,6 +66,8 @@ impl WorkflowEngine {
             script_config.max_operations,
             script_config.timeout_ms
         );
+
+        let (event_tx, _) = tokio::sync::broadcast::channel(256);
 
         Self {
             definitions: registry::DefinitionRegistry::new(),
@@ -74,7 +81,18 @@ impl WorkflowEngine {
             retry_tx: None,
             retry_worker_handle: tokio::sync::Mutex::new(None),
             script_config,
+            event_tx,
         }
+    }
+
+    /// Returns a new receiver for engine state-change events.
+    pub fn subscribe_events(&self) -> tokio::sync::broadcast::Receiver<EngineEvent> {
+        self.event_tx.subscribe()
+    }
+
+    /// Fires a state-change event to all current subscribers. Ignores "no receivers" errors.
+    pub(crate) fn emit_event(&self, event: EngineEvent) {
+        let _ = self.event_tx.send(event);
     }
 
     /// Creates a new engine equipped with the InMemoryPersistence backend.
