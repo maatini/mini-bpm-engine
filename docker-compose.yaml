@@ -1,7 +1,7 @@
 services:
   nats:
     image: nats:alpine
-    command: ["--js", "--sd", "/data"]
+    command: [ "--js", "--sd", "/data" ]
     ports:
       - "4222:4222" # Client Connections
       - "8222:8222" # HTTP Monitoring
@@ -9,9 +9,10 @@ services:
       - nats-data:/data
 
   engine-server:
-    build:
-      context: .
-      dockerfile: engine-server/Dockerfile
+    image: ghcr.io/maatini/bpmninja/engine-server:latest
+    # build:
+    #   context: .
+    #   dockerfile: engine-server/Dockerfile
     ports:
       - "8081:8081"
     environment:
