@@ -18,26 +18,16 @@ pub async fn get_monitoring_data(
 ) -> Result<MonitoringData, String> {
     let base = crate::state::get_base_url(&state)?;
     let url = format!("{}/api/monitoring", base);
-    match state.client.get(&url).send().await {
-        Ok(res) if res.status().is_success() => {
-            let data: MonitoringData = res.json().await.map_err(|e| e.to_string())?;
-            Ok(data)
-        }
-        _ => {
-            // Return dummy data if engine server doesn't respond properly for monitoring
-            Ok(MonitoringData {
-                definitions_count: 0,
-                instances_total: 0,
-                instances_running: 0,
-                instances_completed: 0,
-                pending_user_tasks: 0,
-                pending_service_tasks: 0,
-                pending_timers: 0,
-                pending_message_catches: 0,
-                storage_info: None,
-            })
-        }
+    let res = state
+        .client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| format!("Verbindung fehlgeschlagen: {e}"))?;
+    if !res.status().is_success() {
+        return Err(format!("Engine antwortete mit Status {}", res.status()));
     }
+    res.json().await.map_err(|e| format!("Ungültige Antwort: {e}"))
 }
 
 #[tauri::command]

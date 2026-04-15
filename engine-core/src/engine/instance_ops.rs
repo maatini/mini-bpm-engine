@@ -83,6 +83,44 @@ impl WorkflowEngine {
             .collect()
     }
 
+    /// Like `get_pending_user_tasks` but enriches each task's `business_key`
+    /// from the in-memory instance (covers tasks persisted before the field existed).
+    pub async fn get_pending_user_tasks_enriched(&self) -> Vec<PendingUserTask> {
+        let tasks = self.get_pending_user_tasks();
+        let mut result = Vec::with_capacity(tasks.len());
+        for mut task in tasks {
+            if task.business_key.is_none() {
+                if let Some(arc) = self.instances.get(&task.instance_id).await {
+                    let inst = arc.read().await;
+                    if !inst.business_key.is_empty() {
+                        task.business_key = Some(inst.business_key.clone());
+                    }
+                }
+            }
+            result.push(task);
+        }
+        result
+    }
+
+    /// Like `get_pending_service_tasks` but enriches each task's `business_key`
+    /// from the in-memory instance.
+    pub async fn get_pending_service_tasks_enriched(&self) -> Vec<PendingServiceTask> {
+        let tasks = self.get_pending_service_tasks();
+        let mut result = Vec::with_capacity(tasks.len());
+        for mut task in tasks {
+            if task.business_key.is_none() {
+                if let Some(arc) = self.instances.get(&task.instance_id).await {
+                    let inst = arc.read().await;
+                    if !inst.business_key.is_empty() {
+                        task.business_key = Some(inst.business_key.clone());
+                    }
+                }
+            }
+            result.push(task);
+        }
+        result
+    }
+
     /// Returns all currently pending timers.
     pub fn get_pending_timers(&self) -> Vec<PendingTimer> {
         self.pending_timers

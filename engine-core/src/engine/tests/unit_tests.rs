@@ -4262,6 +4262,7 @@ async fn test_restore_user_and_service_tasks() {
         assignee: "alice".into(),
         token_id: uuid::Uuid::new_v4(),
         created_at: chrono::Utc::now(),
+        business_key: None,
     };
     engine.restore_user_task(pending_user);
     assert_eq!(engine.pending_user_tasks.len(), 1);

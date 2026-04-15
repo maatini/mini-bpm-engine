@@ -26,6 +26,13 @@ impl WorkflowEngine {
             self.pending_message_catches.insert(m.id, m);
         }
 
+        let inst_arc = self
+            .instances
+            .get(&instance_id)
+            .await
+            .ok_or(EngineError::NoSuchInstance(instance_id))?;
+        let mut inst = inst_arc.write().await;
+
         let pending = PendingUserTask {
             task_id: Uuid::new_v4(),
             instance_id,
@@ -33,14 +40,9 @@ impl WorkflowEngine {
             assignee: assignee.clone(),
             token_id: token.id,
             created_at: Utc::now(),
+            business_key: if inst.business_key.is_empty() { None } else { Some(inst.business_key.clone()) },
         };
 
-        let inst_arc = self
-            .instances
-            .get(&instance_id)
-            .await
-            .ok_or(EngineError::NoSuchInstance(instance_id))?;
-        let mut inst = inst_arc.write().await;
         inst.current_node = current_id.to_string();
         inst.tokens.insert(token.id, token.clone());
         inst.push_audit_log(format!(
@@ -137,6 +139,13 @@ impl WorkflowEngine {
             self.pending_message_catches.insert(m.id, m);
         }
 
+        let inst_arc = self
+            .instances
+            .get(&instance_id)
+            .await
+            .ok_or(EngineError::NoSuchInstance(instance_id))?;
+        let mut inst = inst_arc.write().await;
+
         let svc_task = PendingServiceTask {
             id: Uuid::new_v4(),
             instance_id,
@@ -151,14 +160,9 @@ impl WorkflowEngine {
             retries: 3,
             error_message: None,
             error_details: None,
+            business_key: if inst.business_key.is_empty() { None } else { Some(inst.business_key.clone()) },
         };
 
-        let inst_arc = self
-            .instances
-            .get(&instance_id)
-            .await
-            .ok_or(EngineError::NoSuchInstance(instance_id))?;
-        let mut inst = inst_arc.write().await;
         inst.current_node = current_id.to_string();
         inst.tokens.insert(token.id, token.clone());
         inst.push_audit_log(format!(

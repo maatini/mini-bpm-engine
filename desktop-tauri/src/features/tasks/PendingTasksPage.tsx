@@ -156,6 +156,12 @@ export function PendingTasksPage() {
                       <span className="text-muted-foreground text-xs mb-1">Instance ID</span>
                       <span className="font-mono text-xs">{task.instance_id.substring(0, 8)}…</span>
                     </div>
+                    {task.business_key && (
+                      <div className="flex flex-col pt-1">
+                        <span className="text-muted-foreground text-xs mb-1">Business Key</span>
+                        <span className="text-xs font-medium">{task.business_key}</span>
+                      </div>
+                    )}
                   </CardContent>
                   <CardFooter className="pt-2">
                     <Button className="w-full gap-2" onClick={() => handleCompleteClick(task)}>
@@ -226,6 +232,12 @@ export function PendingTasksPage() {
                       <span className="text-muted-foreground">Instance</span>
                       <span className="font-mono text-xs">{task.instance_id.substring(0, 8)}…</span>
                     </div>
+                    {task.business_key && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Business Key</span>
+                        <span className="font-medium text-xs">{task.business_key}</span>
+                      </div>
+                    )}
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Retries left</span>
                       <span className="font-medium">{task.retries}</span>

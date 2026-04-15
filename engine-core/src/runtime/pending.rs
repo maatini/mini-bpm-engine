@@ -15,6 +15,8 @@ pub struct PendingUserTask {
     /// Reference to the token stored in ProcessInstance.tokens
     pub token_id: Uuid,
     pub created_at: DateTime<Utc>,
+    #[serde(default)]
+    pub business_key: Option<String>,
 }
 
 // ---------------------------------------------------------------------------
@@ -31,6 +33,8 @@ pub struct PendingServiceTask {
     pub topic: String,
     /// Reference to the token stored in ProcessInstance.tokens
     pub token_id: Uuid,
+    #[serde(default)]
+    pub business_key: Option<String>,
     /// Snapshot of variables at task creation (for worker fetch-and-lock API).
     /// This is a read-only copy; the authoritative variables live in instance.tokens.
     pub variables_snapshot: HashMap<String, Value>,

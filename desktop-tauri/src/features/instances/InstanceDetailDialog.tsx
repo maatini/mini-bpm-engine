@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Trash, RefreshCw, Clock, Pause, Play, ArrowRightLeft } from 'lucide-react';
 import { type ProcessInstance, type DefinitionInfo, type PendingUserTask, type PendingServiceTask } from '../../shared/types/engine';
 import { getInstanceDetails, getDefinitionXml, getPendingTasks, getPendingServiceTasks, updateInstanceVariables, suspendInstance, resumeInstance } from '../../shared/lib/tauri';
@@ -163,6 +163,19 @@ export function InstanceDetailDialog({
   const isSuspended = selected && typeof selected.state === 'object' && 'Suspended' in selected.state;
   const isCompleted = selected && (selected.state === 'Completed' || (typeof selected.state === 'object' && 'CompletedWithError' in selected.state));
 
+  const activeNodeIds = useMemo(() => {
+    if (!selected) return [];
+    if (selected.tokens && Object.keys(selected.tokens).length > 0) {
+      return [...new Set(
+        Object.values(selected.tokens)
+          .filter(t => !t.is_merged)
+          .map(t => t.current_node)
+          .filter(Boolean)
+      )];
+    }
+    return [selected.current_node].filter(Boolean);
+  }, [selected]);
+
   const handleSuspendResume = async () => {
     if (!selected) return;
     try {
@@ -253,7 +266,7 @@ export function InstanceDetailDialog({
                     <div className="border rounded-md bg-card overflow-hidden h-[400px]">
                       <InstanceViewer
                         xml={definitionXml}
-                        activeNodeId={selected.current_node}
+                        activeNodeIds={activeNodeIds}
                         onNodeClick={() => setShowNodeDetails((prev) => !prev)}
                         timerStartNodeId={
                           selected.variables._timer_start_node &&
@@ -262,7 +275,7 @@ export function InstanceDetailDialog({
                           selected.variables._timer_iteration < selected.variables._timer_total
                             ? String(selected.variables._timer_start_node)
                             : undefined
-                        } 
+                        }
                       />
                     </div>
                   </ErrorBoundary>
@@ -287,7 +300,9 @@ export function InstanceDetailDialog({
                   )}
                   {!showNodeDetails && (
                     <p className="text-sm text-muted-foreground">
-                      Click on the highlighted active node ({selected.current_node}) to view variables and state details.
+                      {activeNodeIds.length > 1
+                        ? `Click on one of the ${activeNodeIds.length} highlighted active nodes to view details.`
+                        : `Click on the highlighted active node (${activeNodeIds[0]}) to view variables and state details.`}
                     </p>
                   )}
                 </div>

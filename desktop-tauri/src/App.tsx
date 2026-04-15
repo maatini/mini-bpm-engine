@@ -7,17 +7,20 @@ import { SettingsPage } from './features/settings/SettingsPage'
 import { MonitoringPage } from './features/monitoring/MonitoringPage'
 import { PendingTasksPage } from './features/tasks/PendingTasksPage'
 import { MessageDialog } from './shared/components/MessageDialog'
-import { PenTool, Database, ListTodo, Layers, BarChart2, Settings as SettingsIcon, Mail, AlertTriangle, Eye, History } from 'lucide-react'
+import { PenTool, Database, ListTodo, Layers, BarChart2, Settings as SettingsIcon, Mail, AlertTriangle, Eye, History, Wifi, WifiOff, Loader2 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { IncidentsPage } from './features/incidents/IncidentsPage'
 import { OverviewPage } from './features/overview/OverviewPage'
 import { HistoryPage } from './features/history/HistoryPage'
 import { ProcessDefinitionPage } from './features/definitions/ProcessDefinitionPage'
 import { cn } from '@/lib/utils'
-import { Badge } from '@/components/ui/badge'
+import { useEngineStatus } from './shared/hooks/use-engine-status'
+import { EngineOfflineBanner } from './shared/components/EngineOfflineBanner'
 
 function App() {
   const { toast } = useToast()
+  const { status: engineStatus, refresh: refreshEngine } = useEngineStatus(10_000)
+
   useEffect(() => {
     const saved = localStorage.getItem('theme')
     
@@ -85,18 +88,21 @@ function App() {
   }
 
   const navItems = [
-    { id: 'modeler', icon: PenTool, label: 'BPMN Modeler' },
-    { id: 'definitions', icon: Database, label: 'Deployed Processes' },
-    { id: 'tasks', icon: ListTodo, label: 'Pending Tasks' },
-    { id: 'incidents', icon: AlertTriangle, label: 'Incidents' },
-    { id: 'overview', icon: Eye, label: 'Overview' },
-    { id: 'history', icon: History, label: 'History' },
-    { id: 'instances', icon: Layers, label: 'Instances',
-      onClick: () => { setSelectedInstanceId(null); setActiveTab('instances'); } 
+    { id: 'modeler',      icon: PenTool,        label: 'BPMN Modeler',        requiresEngine: false },
+    { id: 'definitions',  icon: Database,        label: 'Deployed Processes',  requiresEngine: true  },
+    { id: 'tasks',        icon: ListTodo,        label: 'Pending Tasks',       requiresEngine: true  },
+    { id: 'incidents',    icon: AlertTriangle,   label: 'Incidents',           requiresEngine: true  },
+    { id: 'overview',     icon: Eye,             label: 'Overview',            requiresEngine: true  },
+    { id: 'history',      icon: History,         label: 'History',             requiresEngine: true  },
+    { id: 'instances',    icon: Layers,          label: 'Instances',           requiresEngine: true,
+      onClick: () => { setSelectedInstanceId(null); setActiveTab('instances'); }
     },
-    { id: 'monitoring', icon: BarChart2, label: 'Monitoring' },
-    { id: 'settings', icon: SettingsIcon, label: 'Settings' },
+    { id: 'monitoring',   icon: BarChart2,       label: 'Monitoring',          requiresEngine: true  },
+    { id: 'settings',     icon: SettingsIcon,    label: 'Settings',            requiresEngine: false },
   ];
+
+  const activePageRequiresEngine = navItems.find(i => i.id === activeTab)?.requiresEngine ?? false
+  const showOfflineBanner = activePageRequiresEngine && engineStatus === 'offline'
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-background text-foreground">
@@ -114,40 +120,76 @@ function App() {
         </div>
         
         <nav className="flex-1 flex flex-col pt-2 overflow-y-auto w-full">
-          {navItems.map(item => (
-            <button
-              key={item.id}
-              onClick={item.onClick || (() => setActiveTab(item.id))}
-              className={cn(
-                "nav-item w-full flex items-center gap-3 px-5 py-3.5 text-sm font-medium transition-colors border-b border-transparent",
-                activeTab === item.id 
-                  ? "active bg-accent text-primary border-r-4 border-r-primary" 
-                  : "hover:bg-accent/50 hover:text-foreground text-muted-foreground"
-              )}
-            >
-              <item.icon className="h-4 w-4" />
-              {item.label}
-            </button>
-          ))}
+          {navItems.map(item => {
+            const isOffline = item.requiresEngine && engineStatus === 'offline'
+            return (
+              <button
+                key={item.id}
+                onClick={item.onClick || (() => setActiveTab(item.id))}
+                title={isOffline ? 'Engine-Server nicht erreichbar' : undefined}
+                className={cn(
+                  "nav-item w-full flex items-center gap-3 px-5 py-3.5 text-sm font-medium transition-colors border-b border-transparent",
+                  activeTab === item.id
+                    ? "active bg-accent text-primary border-r-4 border-r-primary"
+                    : "hover:bg-accent/50 hover:text-foreground text-muted-foreground",
+                  isOffline && "opacity-40"
+                )}
+              >
+                <item.icon className="h-4 w-4" />
+                <span className="flex-1 text-left">{item.label}</span>
+                {isOffline && <WifiOff className="h-3 w-3 opacity-60 flex-shrink-0" />}
+              </button>
+            )
+          })}
 
-          <button 
-            className="w-full flex items-center gap-3 px-5 py-3.5 text-sm font-medium transition-colors hover:bg-accent/50 mt-auto text-muted-foreground border-t"
+          <button
+            className={cn(
+              "w-full flex items-center gap-3 px-5 py-3.5 text-sm font-medium transition-colors hover:bg-accent/50 mt-auto text-muted-foreground border-t",
+              engineStatus === 'offline' && "opacity-40"
+            )}
             onClick={() => setShowMessageDialog(true)}
+            title={engineStatus === 'offline' ? 'Engine-Server nicht erreichbar' : undefined}
           >
-            <Mail className="h-4 w-4" /> 
+            <Mail className="h-4 w-4" />
             Send Message
+            {engineStatus === 'offline' && <WifiOff className="h-3 w-3 opacity-60 ml-auto flex-shrink-0" />}
           </button>
         </nav>
 
-        <div className="p-4 border-t bg-background/50">
-          <Badge className="bg-green-600 hover:bg-green-700 text-white border-0 font-medium tracking-wide">
-             <span className="mr-1.5 text-[0.65rem] leading-none">●</span> Thin Client
-          </Badge>
+        {/* Engine-Status-Anzeige */}
+        <div className="p-3 border-t bg-background/50 flex items-center gap-2">
+          {engineStatus === 'checking' && (
+            <>
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground flex-shrink-0" />
+              <span className="text-xs text-muted-foreground">Verbinde...</span>
+            </>
+          )}
+          {engineStatus === 'online' && (
+            <>
+              <Wifi className="h-3.5 w-3.5 text-green-500 flex-shrink-0" />
+              <span className="text-xs text-green-600 dark:text-green-500 font-medium">Engine Online</span>
+            </>
+          )}
+          {engineStatus === 'offline' && (
+            <>
+              <WifiOff className="h-3.5 w-3.5 text-destructive flex-shrink-0" />
+              <span className="text-xs text-destructive font-medium">Engine Offline</span>
+              <button
+                onClick={() => setActiveTab('settings')}
+                className="ml-auto text-xs text-destructive underline underline-offset-2 hover:no-underline whitespace-nowrap"
+              >
+                Prüfen →
+              </button>
+            </>
+          )}
         </div>
       </div>
       
       {/* MAIN CONTENT */}
       <div className="flex-1 flex flex-col relative overflow-hidden bg-background">
+        {showOfflineBanner && (
+          <EngineOfflineBanner onGoToSettings={() => setActiveTab('settings')} />
+        )}
         <div className={cn("flex-1 flex flex-col h-full", activeTab === 'modeler' ? 'flex' : 'hidden')}>
           <ModelerPage onDeploy={handleDeploy} onStart={handleStart} onNewDiagram={handleNewDiagram} onOpenFile={handleOpenFile} initialXml={viewXml} />
         </div>
@@ -181,7 +223,9 @@ function App() {
         )}
 
         {activeTab === 'monitoring' && <MonitoringPage />}
-        {activeTab === 'settings' && <SettingsPage />}
+        {activeTab === 'settings' && (
+          <SettingsPage engineStatus={engineStatus} onConnectionChanged={refreshEngine} />
+        )}
       </div>
       
       <MessageDialog open={showMessageDialog} onClose={() => setShowMessageDialog(false)} />

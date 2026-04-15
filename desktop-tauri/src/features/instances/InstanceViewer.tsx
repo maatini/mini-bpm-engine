@@ -10,12 +10,12 @@ import 'bpmn-js/dist/assets/bpmn-font/css/bpmn-embedded.css';
 
 interface InstanceViewerProps {
   xml: string;
-  activeNodeId: string;
-  onNodeClick: () => void;
+  activeNodeIds: string[];
+  onNodeClick: (nodeId: string) => void;
   timerStartNodeId?: string;
 }
 
-export const InstanceViewer = memo(function InstanceViewer({ xml, activeNodeId, onNodeClick, timerStartNodeId }: InstanceViewerProps) {
+export const InstanceViewer = memo(function InstanceViewer({ xml, activeNodeIds, onNodeClick, timerStartNodeId }: InstanceViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<any>(null);
 
@@ -50,20 +50,22 @@ export const InstanceViewer = memo(function InstanceViewer({ xml, activeNodeId, 
         // Zoom to fit
         canvas.zoom('fit-viewport', 'auto');
 
-        // Highlight active node
-        if (activeNodeId && elementRegistry.get(activeNodeId)) {
-          canvas.addMarker(activeNodeId, 'highlight-node');
+        // Highlight all active nodes (supports parallel execution)
+        for (const nodeId of activeNodeIds) {
+          if (nodeId && elementRegistry.get(nodeId)) {
+            canvas.addMarker(nodeId, 'highlight-node');
+          }
         }
 
         // Highlight timer start event if cycle is still active
-        if (timerStartNodeId && timerStartNodeId !== activeNodeId && elementRegistry.get(timerStartNodeId)) {
+        if (timerStartNodeId && !activeNodeIds.includes(timerStartNodeId) && elementRegistry.get(timerStartNodeId)) {
           canvas.addMarker(timerStartNodeId, 'highlight-timer-active');
         }
 
         // Add click listener
         eventBus.on('element.click', (e: any) => {
-          if (e.element.id === activeNodeId) {
-            onNodeClick();
+          if (activeNodeIds.includes(e.element.id)) {
+            onNodeClick(e.element.id);
           }
         });
 
@@ -75,7 +77,7 @@ export const InstanceViewer = memo(function InstanceViewer({ xml, activeNodeId, 
     return () => {
       isMounted = false;
     };
-  }, [xml, activeNodeId, onNodeClick, timerStartNodeId]);
+  }, [xml, activeNodeIds, onNodeClick, timerStartNodeId]);
 
   const handleCenter = () => {
     if (viewerRef.current) {

@@ -4,12 +4,22 @@ export interface PendingUserTask {
   node_id: string;
   assignee: string;
   created_at: string;
+  business_key: string | null;
+}
+
+export interface ActiveToken {
+  token: { id: string; current_node: string; variables: Record<string, unknown>; is_merged: boolean };
+  fork_id: string | null;
+  branch_index: number;
+  completed: boolean;
 }
 
 export interface ProcessInstance {
   id: string;
   definition_key: string;
   business_key: string | null;
+  tokens?: Record<string, { current_node: string; variables: Record<string, unknown>; is_merged: boolean }>;
+  active_tokens?: ActiveToken[];
   state: 'Running' | 'Completed'
     | { WaitingOnUserTask: { task_id: string } }
     | { WaitingOnServiceTask: { task_id: string } }
@@ -46,6 +56,7 @@ export interface PendingServiceTask {
   error_details: string | null;
   created_at: string;
   variables_snapshot: Record<string, unknown>;
+  business_key: string | null;
 }
 
 export interface HistoryEntry {

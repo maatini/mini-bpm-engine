@@ -18,7 +18,7 @@ pub(crate) struct CompleteRequest {
 
 pub(crate) async fn get_tasks(State(state): State<Arc<AppState>>) -> Json<Vec<PendingUserTask>> {
     let engine = &state.engine;
-    let tasks = engine.get_pending_user_tasks().to_vec();
+    let tasks = engine.get_pending_user_tasks_enriched().await;
     Json(tasks)
 }
 
@@ -26,7 +26,7 @@ pub(crate) async fn get_service_tasks(
     State(state): State<Arc<AppState>>,
 ) -> Json<Vec<PendingServiceTask>> {
     let engine = &state.engine;
-    let tasks = engine.get_pending_service_tasks().to_vec();
+    let tasks = engine.get_pending_service_tasks_enriched().await;
     Json(tasks)
 }
 
