@@ -253,17 +253,27 @@ impl WorkflowEngine {
                     inst.tokens.remove(&token_id);
                 }
 
-                if self.all_tokens_completed(instance_id).await?
-                    && let Some(inst_arc) = self.instances.get(&instance_id).await
-                {
-                    let mut inst = inst_arc.write().await;
-                    inst.state = InstanceState::CompletedWithError {
-                        error_code: error_code.clone(),
-                    };
-                    inst.completed_at = Some(chrono::Utc::now());
-                    inst.audit_log.push(format!(
-                        "💥 All tokens completed at Error End with code '{error_code}'"
-                    ));
+                if self.all_tokens_completed(instance_id).await? {
+                    // Schreiblock in eigenem Block — muss vor record_history_event freigegeben sein
+                    if let Some(inst_arc) = self.instances.get(&instance_id).await {
+                        let mut inst = inst_arc.write().await;
+                        inst.state = InstanceState::CompletedWithError {
+                            error_code: error_code.clone(),
+                        };
+                        inst.completed_at = Some(chrono::Utc::now());
+                        inst.audit_log.push(format!(
+                            "💥 All tokens completed at Error End with code '{error_code}'"
+                        ));
+                    } // ← Write-Lock hier freigegeben
+                    self.record_history_event(
+                        instance_id,
+                        crate::history::HistoryEventType::InstanceCompleted,
+                        &format!("Process completed with error code '{error_code}'"),
+                        crate::history::ActorType::Engine,
+                        None,
+                        None,
+                    )
+                    .await;
                 }
                 self.persist_instance(instance_id).await;
             }
@@ -275,15 +285,25 @@ impl WorkflowEngine {
                     inst.tokens.remove(&token_id);
                 }
 
-                if self.all_tokens_completed(instance_id).await?
-                    && let Some(inst_arc) = self.instances.get(&instance_id).await
-                {
-                    let mut inst = inst_arc.write().await;
-                    inst.state = InstanceState::Completed;
-                    inst.completed_at = Some(chrono::Utc::now());
-                    inst.push_audit_log(format!(
-                        "⚡ All tokens completed with escalation '{escalation_code}'"
-                    ));
+                if self.all_tokens_completed(instance_id).await? {
+                    // Schreiblock in eigenem Block — muss vor record_history_event freigegeben sein
+                    if let Some(inst_arc) = self.instances.get(&instance_id).await {
+                        let mut inst = inst_arc.write().await;
+                        inst.state = InstanceState::Completed;
+                        inst.completed_at = Some(chrono::Utc::now());
+                        inst.push_audit_log(format!(
+                            "⚡ All tokens completed with escalation '{escalation_code}'"
+                        ));
+                    } // ← Write-Lock hier freigegeben
+                    self.record_history_event(
+                        instance_id,
+                        crate::history::HistoryEventType::InstanceCompleted,
+                        &format!("Process completed via escalation '{escalation_code}'"),
+                        crate::history::ActorType::Engine,
+                        None,
+                        None,
+                    )
+                    .await;
                 }
                 self.persist_instance(instance_id).await;
             }

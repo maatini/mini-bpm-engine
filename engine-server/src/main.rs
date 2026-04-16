@@ -127,18 +127,33 @@ async fn main() -> anyhow::Result<()> {
     let filter = tracing_subscriber::EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));
 
-    let log_buffer = Arc::new(LogBuffer::new());
+    // Datei-Persistenz für den Log-Buffer.
+    // LOG_FILE=off  → rein in-memory (kein Schreiben auf Disk)
+    // LOG_FILE=/pfad/zur/engine_logs.jsonl  → benutzerdefinierter Pfad
+    // Standard: ./engine_logs.jsonl im Arbeitsverzeichnis
+    let log_file_env = env::var("LOG_FILE").unwrap_or_else(|_| "engine_logs.jsonl".to_string());
+    let log_buffer = Arc::new(if log_file_env.eq_ignore_ascii_case("off") {
+        LogBuffer::new()
+    } else {
+        LogBuffer::new_with_persistence(&log_file_env)
+    });
     let buffer_layer = (*log_buffer).clone();
+
+    // Der Buffer-Layer bekommt denselben Filter wie der fmt-Layer, damit er
+    // nicht mit internem TRACE/DEBUG-Spam von tokio/hyper/nats geflutet wird.
+    // Der Filter wird neu aus RUST_LOG erzeugt (EnvFilter ist nicht Clone).
+    let buffer_filter = tracing_subscriber::EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));
 
     if format.to_lowercase() == "json" {
         tracing_subscriber::registry()
             .with(tracing_subscriber::fmt::layer().json().with_filter(filter))
-            .with(buffer_layer)
+            .with(buffer_layer.with_filter(buffer_filter))
             .init();
     } else {
         tracing_subscriber::registry()
             .with(tracing_subscriber::fmt::layer().with_filter(filter))
-            .with(buffer_layer)
+            .with(buffer_layer.with_filter(buffer_filter))
             .init();
     }
 

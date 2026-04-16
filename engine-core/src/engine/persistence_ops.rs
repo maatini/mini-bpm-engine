@@ -159,6 +159,12 @@ impl WorkflowEngine {
                 return;
             }
 
+            // Vor dem Move von event_type: prüfen ob ein terminaler Event vorliegt
+            let is_terminal = matches!(
+                event_type,
+                crate::history::HistoryEventType::InstanceCompleted
+            );
+
             let mut entry = crate::history::HistoryEntry::new(
                 instance_id,
                 event_type,
@@ -178,10 +184,14 @@ impl WorkflowEngine {
             if let Some(curr) = new_state {
                 entry = entry.with_node(curr.current_node.clone());
 
-                // Snapshot heuristic: store a full snapshot every 8 audit log entries
-                if !curr.audit_log.is_empty()
-                    && curr.audit_log.len() % 8 == 0
-                    && let Ok(json_state) = serde_json::to_value(curr)
+                // Snapshot-Heuristik: alle 8 Audit-Log-Einträge ODER immer bei
+                // Instanz-Abschluss — damit ist der letzte Zustand (Variablen,
+                // current_node, completed_at) garantiert in der Historie enthalten.
+                let periodic_snapshot = !curr.audit_log.is_empty()
+                    && curr.audit_log.len() % 8 == 0;
+
+                if (is_terminal || periodic_snapshot)
+                    && let Ok(json_state) = serde_json::to_value(&curr)
                 {
                     entry = entry.with_snapshot(json_state);
                 }
@@ -356,32 +366,23 @@ impl WorkflowEngine {
         }
     }
 
-    /// Archives a completed instance to the history store and removes it from active instances.
-    /// If no persistence is configured, the instance stays in the active map (in-memory only mode).
-    /// If archival fails, the instance also remains in the active map.
+    /// Archives a completed instance to the history store (for history queries/filtering),
+    /// but intentionally keeps the instance in the active DashMap and active persistence bucket.
+    ///
+    /// Completed instances remain visible in `list_instances()` with state `Completed`.
+    /// Manual deletion via `DELETE /api/instances/{id}` is still possible.
     pub(crate) async fn archive_completed_instance(&self, instance_id: Uuid) {
         let Some(p) = &self.persistence else {
-            return; // No persistence — keep completed instances in active DashMap
+            return; // No persistence — instance stays in DashMap already
         };
 
         if let Some(inst_arc) = self.instances.get(&instance_id).await {
             let inst = inst_arc.read().await;
             if let Err(e) = p.save_completed_instance(&inst).await {
-                tracing::warn!(
-                    "Failed to archive completed instance {instance_id}: {e} — keeping in active map"
-                );
-                return;
+                tracing::warn!("Failed to archive completed instance {instance_id} to history: {e}");
             }
         }
-
-        // Delete from active persistence bucket after successful archival
-        if let Err(e) = p.delete_instance(&instance_id.to_string()).await {
-            tracing::warn!(
-                "Failed to delete archived instance {instance_id} from active store: {e}"
-            );
-        }
-
-        // Remove from active DashMap
-        self.instances.remove(&instance_id).await;
+        // Deliberately NOT deleting from active persistence bucket or DashMap.
+        // Completed instances stay available via list_instances() and GET /api/instances/{id}.
     }
 }

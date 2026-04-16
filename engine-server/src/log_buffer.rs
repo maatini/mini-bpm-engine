@@ -1,10 +1,18 @@
-//! Rollender In-Memory-Log-Buffer für den Engine-Server.
+//! Rollender Log-Buffer für den Engine-Server.
 //!
-//! Implementiert einen `tracing::Layer`, der alle Log-Events abfängt
-//! und in einem `VecDeque` mit maximal `MAX_ENTRIES` Einträgen speichert.
-//! Älteste Einträge werden automatisch verdrängt.
+//! Hält bis zu `MAX_ENTRIES` (5 000) Einträge im Speicher.
+//! Optional: Datei-Persistenz via `LogBuffer::new_with_persistence(path)`.
+//!
+//! **Persistenz-Strategie**
+//! - Jeder neue Eintrag wird als JSON-Zeile an die Log-Datei angehängt.
+//! - Nach `COMPACT_AFTER` Schreibvorgängen wird die Datei auf die letzten
+//!   `MAX_ENTRIES` Zeilen kompaktiert (Temp-Datei + atomisches Rename).
+//! - Beim Start werden die letzten `MAX_ENTRIES` Zeilen aus der Datei geladen.
 
 use std::collections::VecDeque;
+use std::fs::{File, OpenOptions};
+use std::io::{BufRead, BufReader, Write};
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use chrono::Utc;
@@ -12,11 +20,19 @@ use serde::Serialize;
 use tracing::Level;
 use tracing_subscriber::Layer;
 
-/// Maximale Anzahl an Log-Einträgen im Buffer.
+/// Maximale Anzahl an Log-Einträgen im Buffer und in der Datei.
 const MAX_ENTRIES: usize = 5_000;
 
+/// Nach wie vielen Append-Schreibvorgängen die Datei kompaktiert wird.
+/// Damit wird die Datei nie wesentlich größer als MAX_ENTRIES + COMPACT_AFTER Zeilen.
+const COMPACT_AFTER: usize = 500;
+
+// ---------------------------------------------------------------------------
+// Öffentliche Typen
+// ---------------------------------------------------------------------------
+
 /// Ein einzelner Log-Eintrag.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, serde::Deserialize)]
 pub struct LogEntry {
     /// ISO-8601 Zeitstempel (UTC).
     pub timestamp: String,
@@ -28,37 +44,97 @@ pub struct LogEntry {
     pub message: String,
 }
 
+// ---------------------------------------------------------------------------
+// Interner Zustand
+// ---------------------------------------------------------------------------
+
+struct PersistState {
+    path: PathBuf,
+    /// Zählt Schreibvorgänge seit der letzten Kompaktierung.
+    written_since_compact: usize,
+}
+
+struct InnerBuffer {
+    entries: VecDeque<LogEntry>,
+    persist: Option<PersistState>,
+}
+
+impl Default for InnerBuffer {
+    fn default() -> Self {
+        Self {
+            entries: VecDeque::with_capacity(MAX_ENTRIES),
+            persist: None,
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// LogBuffer
+// ---------------------------------------------------------------------------
+
 /// Rollender Log-Buffer — thread-sicher über `Arc<Mutex<...>>`.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct LogBuffer {
-    inner: Arc<Mutex<VecDeque<LogEntry>>>,
+    inner: Arc<Mutex<InnerBuffer>>,
+}
+
+impl std::fmt::Debug for InnerBuffer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("InnerBuffer")
+            .field("entries_len", &self.entries.len())
+            .field("persisted", &self.persist.is_some())
+            .finish()
+    }
 }
 
 impl LogBuffer {
+    /// Rein in-memory Buffer (keine Datei-Persistenz). Geeignet für Tests.
     pub fn new() -> Self {
         Self {
-            inner: Arc::new(Mutex::new(VecDeque::with_capacity(MAX_ENTRIES))),
+            inner: Arc::new(Mutex::new(InnerBuffer {
+                entries: VecDeque::with_capacity(MAX_ENTRIES),
+                persist: None,
+            })),
         }
     }
 
-    /// Gibt alle Einträge als geklonten Vec zurück, optional gefiltert.
+    /// Buffer mit Datei-Persistenz.
+    ///
+    /// Beim Erstellen werden vorhandene Einträge aus `path` geladen.
+    /// Jeder neue Eintrag wird an die Datei angehängt; periodisch wird
+    /// kompaktiert.
+    pub fn new_with_persistence(path: impl AsRef<Path>) -> Self {
+        let path = path.as_ref().to_path_buf();
+        let entries = load_entries_from_file(&path);
+        Self {
+            inner: Arc::new(Mutex::new(InnerBuffer {
+                entries,
+                persist: Some(PersistState {
+                    path,
+                    written_since_compact: 0,
+                }),
+            })),
+        }
+    }
+
+    /// Gibt alle Einträge zurück, optional gefiltert.
     ///
     /// - `level_filter`: Mindest-Level ("error", "warn", "info", "debug", "trace").
-    ///   Einträge mit niedrigerem Level werden übersprungen.
     /// - `search`: Substring-Filter auf `message` und `target` (case-insensitive).
     pub fn entries(&self, level_filter: Option<&str>, search: Option<&str>) -> Vec<LogEntry> {
         let min_level = level_filter
-            .and_then(|l| parse_level(l))
+            .and_then(parse_level)
             .unwrap_or(Level::TRACE);
 
         let search_lower = search.map(|s| s.to_lowercase());
 
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         guard
+            .entries
             .iter()
             .filter(|e| {
                 let entry_level = parse_level(&e.level).unwrap_or(Level::TRACE);
-                entry_level <= min_level
+                entry_level >= min_level
             })
             .filter(|e| {
                 if let Some(ref q) = search_lower {
@@ -74,12 +150,99 @@ impl LogBuffer {
 
     fn push(&self, entry: LogEntry) {
         let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        if guard.len() >= MAX_ENTRIES {
-            guard.pop_front();
+
+        // Explizit deref-en, damit der Borrow-Checker die Struct-Felder
+        // `inner.persist` (mut) und `inner.entries` (immut) als disjunkt erkennt.
+        let inner = &mut *guard;
+
+        // Rollend: ältesten Eintrag verdrängen
+        if inner.entries.len() >= MAX_ENTRIES {
+            inner.entries.pop_front();
         }
-        guard.push_back(entry);
+        inner.entries.push_back(entry.clone());
+
+        let compact_info: Option<(PathBuf, Vec<LogEntry>)> =
+            if let Some(ref mut persist) = inner.persist {
+                append_entry_to_file(&persist.path, &entry);
+                persist.written_since_compact += 1;
+
+                if persist.written_since_compact >= COMPACT_AFTER {
+                    persist.written_since_compact = 0;
+                    // Felder-Split: inner.persist (mut) + inner.entries (immut) — OK
+                    let snapshot: Vec<LogEntry> = inner.entries.iter().cloned().collect();
+                    Some((persist.path.clone(), snapshot))
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+
+        // Kompaktierung außerhalb des gemischten Borrows (Guard bereits released)
+        drop(guard);
+        if let Some((path, snapshot)) = compact_info {
+            compact_file(&path, &snapshot);
+        }
     }
 }
+
+// ---------------------------------------------------------------------------
+// Datei-I/O
+// ---------------------------------------------------------------------------
+
+/// Lädt die letzten `MAX_ENTRIES` Einträge aus einer JSON-Lines-Datei.
+fn load_entries_from_file(path: &Path) -> VecDeque<LogEntry> {
+    let file = match File::open(path) {
+        Ok(f) => f,
+        Err(_) => return VecDeque::with_capacity(MAX_ENTRIES),
+    };
+
+    let reader = BufReader::new(file);
+    let mut entries: VecDeque<LogEntry> = VecDeque::with_capacity(MAX_ENTRIES);
+
+    for line in reader.lines().map_while(Result::ok) {
+        if line.trim().is_empty() {
+            continue;
+        }
+        if let Ok(entry) = serde_json::from_str::<LogEntry>(&line) {
+            if entries.len() >= MAX_ENTRIES {
+                entries.pop_front();
+            }
+            entries.push_back(entry);
+        }
+    }
+
+    entries
+}
+
+/// Hängt einen einzelnen Eintrag als JSON-Zeile an die Datei an.
+fn append_entry_to_file(path: &Path, entry: &LogEntry) {
+    let Ok(mut file) = OpenOptions::new().append(true).create(true).open(path) else {
+        return;
+    };
+    if let Ok(line) = serde_json::to_string(entry) {
+        let _ = writeln!(file, "{}", line);
+    }
+}
+
+/// Schreibt `entries` atomar als neue Datei (Temp-Datei + Rename).
+fn compact_file(path: &Path, entries: &[LogEntry]) {
+    let temp_path = path.with_extension("jsonl.tmp");
+    let Ok(mut file) = File::create(&temp_path) else {
+        return;
+    };
+    for entry in entries {
+        if let Ok(line) = serde_json::to_string(entry) {
+            let _ = writeln!(file, "{}", line);
+        }
+    }
+    let _ = file.flush();
+    let _ = std::fs::rename(&temp_path, path);
+}
+
+// ---------------------------------------------------------------------------
+// Hilfsfunktionen
+// ---------------------------------------------------------------------------
 
 fn parse_level(s: &str) -> Option<Level> {
     match s.to_uppercase().as_str() {
@@ -108,7 +271,6 @@ where
         let level = event.metadata().level().to_string();
         let target = event.metadata().target().to_string();
 
-        // Nachricht aus den Fields extrahieren
         let mut visitor = MessageVisitor::default();
         event.record(&mut visitor);
 
