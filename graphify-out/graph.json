@@ -9,7 +9,7 @@
       "source_file": "test_cron.rs",
       "source_location": "L1",
       "id": "test_cron_rs",
-      "community": 31,
+      "community": 33,
       "norm_label": "test_cron.rs"
     },
     {
@@ -18,7 +18,7 @@
       "source_file": "test_cron.rs",
       "source_location": "L1",
       "id": "test_cron_main",
-      "community": 31,
+      "community": 33,
       "norm_label": "main()"
     },
     {
@@ -27,7 +27,7 @@
       "source_file": "bpmn-parser/src/lib.rs",
       "source_location": "L1",
       "id": "bpmn_parser_src_lib_rs",
-      "community": 48,
+      "community": 50,
       "norm_label": "lib.rs"
     },
     {
@@ -720,7 +720,7 @@
       "source_file": "bpmn-ninja-external-task-client/vitest.config.ts",
       "source_location": "L1",
       "id": "bpmn_ninja_external_task_client_vitest_config_ts",
-      "community": 49,
+      "community": 51,
       "norm_label": "vitest.config.ts"
     },
     {
@@ -945,7 +945,7 @@
       "source_file": "bpmn-ninja-external-task-client/src/index.ts",
       "source_location": "L1",
       "id": "bpmn_ninja_external_task_client_src_index_ts",
-      "community": 50,
+      "community": 52,
       "norm_label": "index.ts"
     },
     {
@@ -1098,7 +1098,7 @@
       "source_file": "desktop-tauri/tailwind.config.js",
       "source_location": "L1",
       "id": "desktop_tauri_tailwind_config_js",
-      "community": 51,
+      "community": 53,
       "norm_label": "tailwind.config.js"
     },
     {
@@ -1107,7 +1107,7 @@
       "source_file": "desktop-tauri/playwright.config.ts",
       "source_location": "L1",
       "id": "desktop_tauri_playwright_config_ts",
-      "community": 52,
+      "community": 54,
       "norm_label": "playwright.config.ts"
     },
     {
@@ -1116,7 +1116,7 @@
       "source_file": "desktop-tauri/eslint.config.js",
       "source_location": "L1",
       "id": "desktop_tauri_eslint_config_js",
-      "community": 53,
+      "community": 55,
       "norm_label": "eslint.config.js"
     },
     {
@@ -1125,7 +1125,7 @@
       "source_file": "desktop-tauri/vite.config.ts",
       "source_location": "L1",
       "id": "desktop_tauri_vite_config_ts",
-      "community": 54,
+      "community": 56,
       "norm_label": "vite.config.ts"
     },
     {
@@ -1134,43 +1134,43 @@
       "source_file": "desktop-tauri/tests/e2e/app.spec.ts",
       "source_location": "L1",
       "id": "desktop_tauri_tests_e2e_app_spec_ts",
-      "community": 15,
+      "community": 14,
       "norm_label": "app.spec.ts"
     },
     {
       "label": "injectTauriMock()",
       "file_type": "code",
       "source_file": "desktop-tauri/tests/e2e/app.spec.ts",
-      "source_location": "L98",
+      "source_location": "L104",
       "id": "app_spec_injecttaurimock",
-      "community": 15,
+      "community": 14,
       "norm_label": "injecttaurimock()"
     },
     {
       "label": "collectToasts()",
       "file_type": "code",
       "source_file": "desktop-tauri/tests/e2e/app.spec.ts",
-      "source_location": "L481",
+      "source_location": "L558",
       "id": "app_spec_collecttoasts",
-      "community": 15,
+      "community": 14,
       "norm_label": "collecttoasts()"
     },
     {
       "label": "loadXmlAndClickElement()",
       "file_type": "code",
       "source_file": "desktop-tauri/tests/e2e/app.spec.ts",
-      "source_location": "L1592",
+      "source_location": "L1669",
       "id": "app_spec_loadxmlandclickelement",
-      "community": 15,
+      "community": 14,
       "norm_label": "loadxmlandclickelement()"
     },
     {
       "label": "makeCompleted()",
       "file_type": "code",
       "source_file": "desktop-tauri/tests/e2e/app.spec.ts",
-      "source_location": "L1712",
+      "source_location": "L1789",
       "id": "app_spec_makecompleted",
-      "community": 15,
+      "community": 14,
       "norm_label": "makecompleted()"
     },
     {
@@ -1179,7 +1179,7 @@
       "source_file": "desktop-tauri/src-tauri/build.rs",
       "source_location": "L1",
       "id": "desktop_tauri_src_tauri_build_rs",
-      "community": 32,
+      "community": 34,
       "norm_label": "build.rs"
     },
     {
@@ -1188,7 +1188,7 @@
       "source_file": "desktop-tauri/src-tauri/build.rs",
       "source_location": "L1",
       "id": "build_main",
-      "community": 32,
+      "community": 34,
       "norm_label": "main()"
     },
     {
@@ -1323,7 +1323,7 @@
       "source_file": "desktop-tauri/src-tauri/src/sse_consumer.rs",
       "source_location": "L1",
       "id": "desktop_tauri_src_tauri_src_sse_consumer_rs",
-      "community": 4,
+      "community": 5,
       "norm_label": "sse_consumer.rs"
     },
     {
@@ -1332,7 +1332,7 @@
       "source_file": "desktop-tauri/src-tauri/src/sse_consumer.rs",
       "source_location": "L14",
       "id": "sse_consumer_spawn",
-      "community": 4,
+      "community": 5,
       "norm_label": "spawn()"
     },
     {
@@ -1341,7 +1341,7 @@
       "source_file": "desktop-tauri/src-tauri/src/sse_consumer.rs",
       "source_location": "L18",
       "id": "sse_consumer_run_consumer",
-      "community": 4,
+      "community": 5,
       "norm_label": "run_consumer()"
     },
     {
@@ -1350,7 +1350,7 @@
       "source_file": "desktop-tauri/src-tauri/src/sse_consumer.rs",
       "source_location": "L41",
       "id": "sse_consumer_connect_and_consume",
-      "community": 4,
+      "community": 5,
       "norm_label": "connect_and_consume()"
     },
     {
@@ -1359,7 +1359,7 @@
       "source_file": "desktop-tauri/src-tauri/src/sse_consumer.rs",
       "source_location": "L87",
       "id": "sse_consumer_tracing_or_eprintln",
-      "community": 4,
+      "community": 5,
       "norm_label": "tracing_or_eprintln()"
     },
     {
@@ -1458,7 +1458,7 @@
       "source_file": "engine-server/src/server/instances.rs",
       "source_location": "L191",
       "id": "instances_migrate_instance",
-      "community": 3,
+      "community": 0,
       "norm_label": "migrate_instance()"
     },
     {
@@ -1755,7 +1755,7 @@
       "source_file": "desktop-tauri/src-tauri/src/commands/mod.rs",
       "source_location": "L1",
       "id": "desktop_tauri_src_tauri_src_commands_mod_rs",
-      "community": 55,
+      "community": 57,
       "norm_label": "mod.rs"
     },
     {
@@ -1854,7 +1854,7 @@
       "source_file": "desktop-tauri/src/vite-env.d.ts",
       "source_location": "L1",
       "id": "desktop_tauri_src_vite_env_d_ts",
-      "community": 56,
+      "community": 58,
       "norm_label": "vite-env.d.ts"
     },
     {
@@ -1944,7 +1944,7 @@
       "source_file": "desktop-tauri/src/features/modeler/ModelerPage.tsx",
       "source_location": "L1",
       "id": "desktop_tauri_src_features_modeler_modelerpage_tsx",
-      "community": 15,
+      "community": 14,
       "norm_label": "modelerpage.tsx"
     },
     {
@@ -1953,7 +1953,7 @@
       "source_file": "desktop-tauri/src/features/modeler/ModelerPage.tsx",
       "source_location": "L44",
       "id": "modelerpage_generateprocessid",
-      "community": 15,
+      "community": 14,
       "norm_label": "generateprocessid()"
     },
     {
@@ -1962,7 +1962,7 @@
       "source_file": "desktop-tauri/src/features/modeler/ModelerPage.tsx",
       "source_location": "L52",
       "id": "modelerpage_generateemptybpmn",
-      "community": 15,
+      "community": 14,
       "norm_label": "generateemptybpmn()"
     },
     {
@@ -1989,7 +1989,7 @@
       "source_file": "desktop-tauri/src/features/modeler/properties/TopicPropertiesProvider.ts",
       "source_location": "L1",
       "id": "desktop_tauri_src_features_modeler_properties_topicpropertiesprovider_ts",
-      "community": 22,
+      "community": 24,
       "norm_label": "topicpropertiesprovider.ts"
     },
     {
@@ -1998,7 +1998,7 @@
       "source_file": "desktop-tauri/src/features/modeler/properties/TopicPropertiesProvider.ts",
       "source_location": "L7",
       "id": "topicpropertiesprovider_topicprops",
-      "community": 22,
+      "community": 24,
       "norm_label": "topicprops()"
     },
     {
@@ -2007,7 +2007,7 @@
       "source_file": "desktop-tauri/src/features/modeler/properties/TopicPropertiesProvider.ts",
       "source_location": "L35",
       "id": "topicpropertiesprovider_customtopicgroup",
-      "community": 22,
+      "community": 24,
       "norm_label": "customtopicgroup()"
     },
     {
@@ -2016,7 +2016,7 @@
       "source_file": "desktop-tauri/src/features/modeler/properties/TopicPropertiesProvider.ts",
       "source_location": "L55",
       "id": "topicpropertiesprovider_topicpropertiesprovider",
-      "community": 22,
+      "community": 24,
       "norm_label": "topicpropertiesprovider"
     },
     {
@@ -2025,7 +2025,7 @@
       "source_file": "desktop-tauri/src/features/modeler/properties/TopicPropertiesProvider.ts",
       "source_location": "L58",
       "id": "topicpropertiesprovider_topicpropertiesprovider_constructor",
-      "community": 22,
+      "community": 24,
       "norm_label": ".constructor()"
     },
     {
@@ -2034,7 +2034,7 @@
       "source_file": "desktop-tauri/src/features/modeler/properties/TopicPropertiesProvider.ts",
       "source_location": "L65",
       "id": "topicpropertiesprovider_topicpropertiesprovider_getgroups",
-      "community": 22,
+      "community": 24,
       "norm_label": ".getgroups()"
     },
     {
@@ -2043,7 +2043,7 @@
       "source_file": "desktop-tauri/src/features/modeler/properties/ScriptPropertiesProvider.ts",
       "source_location": "L1",
       "id": "desktop_tauri_src_features_modeler_properties_scriptpropertiesprovider_ts",
-      "community": 20,
+      "community": 22,
       "norm_label": "scriptpropertiesprovider.ts"
     },
     {
@@ -2052,7 +2052,7 @@
       "source_file": "desktop-tauri/src/features/modeler/properties/ScriptPropertiesProvider.ts",
       "source_location": "L25",
       "id": "scriptpropertiesprovider_findlistener",
-      "community": 20,
+      "community": 22,
       "norm_label": "findlistener()"
     },
     {
@@ -2061,7 +2061,7 @@
       "source_file": "desktop-tauri/src/features/modeler/properties/ScriptPropertiesProvider.ts",
       "source_location": "L42",
       "id": "scriptpropertiesprovider_scriptentry",
-      "community": 20,
+      "community": 22,
       "norm_label": "scriptentry()"
     },
     {
@@ -2070,7 +2070,7 @@
       "source_file": "desktop-tauri/src/features/modeler/properties/ScriptPropertiesProvider.ts",
       "source_location": "L123",
       "id": "scriptpropertiesprovider_scriptgroup",
-      "community": 20,
+      "community": 22,
       "norm_label": "scriptgroup()"
     },
     {
@@ -2079,7 +2079,7 @@
       "source_file": "desktop-tauri/src/features/modeler/properties/ScriptPropertiesProvider.ts",
       "source_location": "L165",
       "id": "scriptpropertiesprovider_scriptpropertiesprovider",
-      "community": 20,
+      "community": 22,
       "norm_label": "scriptpropertiesprovider"
     },
     {
@@ -2088,7 +2088,7 @@
       "source_file": "desktop-tauri/src/features/modeler/properties/ScriptPropertiesProvider.ts",
       "source_location": "L170",
       "id": "scriptpropertiesprovider_scriptpropertiesprovider_constructor",
-      "community": 20,
+      "community": 22,
       "norm_label": ".constructor()"
     },
     {
@@ -2097,7 +2097,7 @@
       "source_file": "desktop-tauri/src/features/modeler/properties/ScriptPropertiesProvider.ts",
       "source_location": "L175",
       "id": "scriptpropertiesprovider_scriptpropertiesprovider_getgroups",
-      "community": 20,
+      "community": 22,
       "norm_label": ".getgroups()"
     },
     {
@@ -2106,7 +2106,7 @@
       "source_file": "desktop-tauri/src/features/modeler/properties/CalledElementPropertiesProvider.ts",
       "source_location": "L1",
       "id": "desktop_tauri_src_features_modeler_properties_calledelementpropertiesprovider_ts",
-      "community": 23,
+      "community": 25,
       "norm_label": "calledelementpropertiesprovider.ts"
     },
     {
@@ -2115,7 +2115,7 @@
       "source_file": "desktop-tauri/src/features/modeler/properties/CalledElementPropertiesProvider.ts",
       "source_location": "L7",
       "id": "calledelementpropertiesprovider_calledelementprops",
-      "community": 23,
+      "community": 25,
       "norm_label": "calledelementprops()"
     },
     {
@@ -2124,7 +2124,7 @@
       "source_file": "desktop-tauri/src/features/modeler/properties/CalledElementPropertiesProvider.ts",
       "source_location": "L35",
       "id": "calledelementpropertiesprovider_calledelementgroup",
-      "community": 23,
+      "community": 25,
       "norm_label": "calledelementgroup()"
     },
     {
@@ -2133,7 +2133,7 @@
       "source_file": "desktop-tauri/src/features/modeler/properties/CalledElementPropertiesProvider.ts",
       "source_location": "L55",
       "id": "calledelementpropertiesprovider_calledelementpropertiesprovider",
-      "community": 23,
+      "community": 25,
       "norm_label": "calledelementpropertiesprovider"
     },
     {
@@ -2142,7 +2142,7 @@
       "source_file": "desktop-tauri/src/features/modeler/properties/CalledElementPropertiesProvider.ts",
       "source_location": "L58",
       "id": "calledelementpropertiesprovider_calledelementpropertiesprovider_constructor",
-      "community": 23,
+      "community": 25,
       "norm_label": ".constructor()"
     },
     {
@@ -2151,7 +2151,7 @@
       "source_file": "desktop-tauri/src/features/modeler/properties/CalledElementPropertiesProvider.ts",
       "source_location": "L65",
       "id": "calledelementpropertiesprovider_calledelementpropertiesprovider_getgroups",
-      "community": 23,
+      "community": 25,
       "norm_label": ".getgroups()"
     },
     {
@@ -2160,7 +2160,7 @@
       "source_file": "desktop-tauri/src/features/modeler/properties/ConditionPropertiesProvider.ts",
       "source_location": "L1",
       "id": "desktop_tauri_src_features_modeler_properties_conditionpropertiesprovider_ts",
-      "community": 17,
+      "community": 16,
       "norm_label": "conditionpropertiesprovider.ts"
     },
     {
@@ -2169,7 +2169,7 @@
       "source_file": "desktop-tauri/src/features/modeler/properties/ConditionPropertiesProvider.ts",
       "source_location": "L42",
       "id": "conditionpropertiesprovider_isdefaultflow",
-      "community": 17,
+      "community": 16,
       "norm_label": "isdefaultflow()"
     },
     {
@@ -2178,7 +2178,7 @@
       "source_file": "desktop-tauri/src/features/modeler/properties/ConditionPropertiesProvider.ts",
       "source_location": "L47",
       "id": "conditionpropertiesprovider_getconditiontype",
-      "community": 17,
+      "community": 16,
       "norm_label": "getconditiontype()"
     },
     {
@@ -2187,7 +2187,7 @@
       "source_file": "desktop-tauri/src/features/modeler/properties/ConditionPropertiesProvider.ts",
       "source_location": "L59",
       "id": "conditionpropertiesprovider_conditiontypeentry",
-      "community": 17,
+      "community": 16,
       "norm_label": "conditiontypeentry()"
     },
     {
@@ -2196,7 +2196,7 @@
       "source_file": "desktop-tauri/src/features/modeler/properties/ConditionPropertiesProvider.ts",
       "source_location": "L142",
       "id": "conditionpropertiesprovider_expressionentry",
-      "community": 17,
+      "community": 16,
       "norm_label": "expressionentry()"
     },
     {
@@ -2205,7 +2205,7 @@
       "source_file": "desktop-tauri/src/features/modeler/properties/ConditionPropertiesProvider.ts",
       "source_location": "L182",
       "id": "conditionpropertiesprovider_scriptlanguageentry",
-      "community": 17,
+      "community": 16,
       "norm_label": "scriptlanguageentry()"
     },
     {
@@ -2214,7 +2214,7 @@
       "source_file": "desktop-tauri/src/features/modeler/properties/ConditionPropertiesProvider.ts",
       "source_location": "L224",
       "id": "conditionpropertiesprovider_scriptbodyentry",
-      "community": 17,
+      "community": 16,
       "norm_label": "scriptbodyentry()"
     },
     {
@@ -2223,7 +2223,7 @@
       "source_file": "desktop-tauri/src/features/modeler/properties/ConditionPropertiesProvider.ts",
       "source_location": "L277",
       "id": "conditionpropertiesprovider_customconditiongroup",
-      "community": 17,
+      "community": 16,
       "norm_label": "customconditiongroup()"
     },
     {
@@ -2232,7 +2232,7 @@
       "source_file": "desktop-tauri/src/features/modeler/properties/ConditionPropertiesProvider.ts",
       "source_location": "L326",
       "id": "conditionpropertiesprovider_custompropertiesprovider",
-      "community": 17,
+      "community": 16,
       "norm_label": "custompropertiesprovider"
     },
     {
@@ -2241,7 +2241,7 @@
       "source_file": "desktop-tauri/src/features/modeler/properties/ConditionPropertiesProvider.ts",
       "source_location": "L329",
       "id": "conditionpropertiesprovider_custompropertiesprovider_constructor",
-      "community": 17,
+      "community": 16,
       "norm_label": ".constructor()"
     },
     {
@@ -2250,7 +2250,7 @@
       "source_file": "desktop-tauri/src/features/modeler/properties/ConditionPropertiesProvider.ts",
       "source_location": "L336",
       "id": "conditionpropertiesprovider_custompropertiesprovider_getgroups",
-      "community": 17,
+      "community": 16,
       "norm_label": ".getgroups()"
     },
     {
@@ -2484,7 +2484,7 @@
       "source_file": "desktop-tauri/src/features/instances/InstanceViewer.tsx",
       "source_location": "L1",
       "id": "desktop_tauri_src_features_instances_instanceviewer_tsx",
-      "community": 57,
+      "community": 59,
       "norm_label": "instanceviewer.tsx"
     },
     {
@@ -2493,7 +2493,7 @@
       "source_file": "desktop-tauri/src/features/monitoring/MonitoringPage.tsx",
       "source_location": "L1",
       "id": "desktop_tauri_src_features_monitoring_monitoringpage_tsx",
-      "community": 16,
+      "community": 15,
       "norm_label": "monitoringpage.tsx"
     },
     {
@@ -2502,7 +2502,7 @@
       "source_file": "desktop-tauri/src/features/monitoring/MonitoringPage.tsx",
       "source_location": "L17",
       "id": "monitoringpage_formatbytes",
-      "community": 16,
+      "community": 15,
       "norm_label": "formatbytes()"
     },
     {
@@ -2511,7 +2511,7 @@
       "source_file": "desktop-tauri/src/features/monitoring/MonitoringPage.tsx",
       "source_location": "L26",
       "id": "monitoringpage_buckettypelabel",
-      "community": 16,
+      "community": 15,
       "norm_label": "buckettypelabel()"
     },
     {
@@ -2520,7 +2520,7 @@
       "source_file": "desktop-tauri/src/features/monitoring/MonitoringPage.tsx",
       "source_location": "L33",
       "id": "monitoringpage_monitoringpage",
-      "community": 16,
+      "community": 15,
       "norm_label": "monitoringpage()"
     },
     {
@@ -2529,7 +2529,7 @@
       "source_file": "desktop-tauri/src/features/monitoring/LogStream.tsx",
       "source_location": "L1",
       "id": "desktop_tauri_src_features_monitoring_logstream_tsx",
-      "community": 33,
+      "community": 35,
       "norm_label": "logstream.tsx"
     },
     {
@@ -2538,7 +2538,7 @@
       "source_file": "desktop-tauri/src/features/monitoring/LogStream.tsx",
       "source_location": "L26",
       "id": "logstream_logstream",
-      "community": 33,
+      "community": 35,
       "norm_label": "logstream()"
     },
     {
@@ -2547,7 +2547,7 @@
       "source_file": "desktop-tauri/src/features/overview/OverviewPage.tsx",
       "source_location": "L1",
       "id": "desktop_tauri_src_features_overview_overviewpage_tsx",
-      "community": 27,
+      "community": 29,
       "norm_label": "overviewpage.tsx"
     },
     {
@@ -2556,7 +2556,7 @@
       "source_file": "desktop-tauri/src/features/overview/OverviewPage.tsx",
       "source_location": "L23",
       "id": "overviewpage_formatrelativetime",
-      "community": 27,
+      "community": 29,
       "norm_label": "formatrelativetime()"
     },
     {
@@ -2565,7 +2565,7 @@
       "source_file": "desktop-tauri/src/features/overview/OverviewPage.tsx",
       "source_location": "L42",
       "id": "overviewpage_timertypebadge",
-      "community": 27,
+      "community": 29,
       "norm_label": "timertypebadge()"
     },
     {
@@ -2646,7 +2646,7 @@
       "source_file": "desktop-tauri/src/features/definitions/ProcessDefinitionPage.tsx",
       "source_location": "L1",
       "id": "desktop_tauri_src_features_definitions_processdefinitionpage_tsx",
-      "community": 16,
+      "community": 15,
       "norm_label": "processdefinitionpage.tsx"
     },
     {
@@ -2655,7 +2655,7 @@
       "source_file": "desktop-tauri/src/features/definitions/ProcessDefinitionPage.tsx",
       "source_location": "L33",
       "id": "processdefinitionpage_isactive",
-      "community": 16,
+      "community": 15,
       "norm_label": "isactive()"
     },
     {
@@ -2664,7 +2664,7 @@
       "source_file": "desktop-tauri/src/features/definitions/ProcessDefinitionPage.tsx",
       "source_location": "L39",
       "id": "processdefinitionpage_formatdatetime",
-      "community": 16,
+      "community": 15,
       "norm_label": "formatdatetime()"
     },
     {
@@ -2673,7 +2673,7 @@
       "source_file": "desktop-tauri/src/features/definitions/ProcessDefinitionPage.tsx",
       "source_location": "L44",
       "id": "processdefinitionpage_processdefinitionpage",
-      "community": 16,
+      "community": 15,
       "norm_label": "processdefinitionpage()"
     },
     {
@@ -2736,7 +2736,7 @@
       "source_file": "desktop-tauri/src/shared/types/engine.ts",
       "source_location": "L1",
       "id": "desktop_tauri_src_shared_types_engine_ts",
-      "community": 58,
+      "community": 60,
       "norm_label": "engine.ts"
     },
     {
@@ -2745,7 +2745,7 @@
       "source_file": "desktop-tauri/src/shared/components/PageHeader.tsx",
       "source_location": "L1",
       "id": "desktop_tauri_src_shared_components_pageheader_tsx",
-      "community": 59,
+      "community": 61,
       "norm_label": "pageheader.tsx"
     },
     {
@@ -2754,7 +2754,7 @@
       "source_file": "desktop-tauri/src/shared/components/MessageDialog.tsx",
       "source_location": "L1",
       "id": "desktop_tauri_src_shared_components_messagedialog_tsx",
-      "community": 16,
+      "community": 15,
       "norm_label": "messagedialog.tsx"
     },
     {
@@ -2763,7 +2763,7 @@
       "source_file": "desktop-tauri/src/shared/components/MessageDialog.tsx",
       "source_location": "L17",
       "id": "messagedialog_messagedialog",
-      "community": 16,
+      "community": 15,
       "norm_label": "messagedialog()"
     },
     {
@@ -2772,7 +2772,7 @@
       "source_file": "desktop-tauri/src/shared/components/HistoryTimeline.tsx",
       "source_location": "L1",
       "id": "desktop_tauri_src_shared_components_historytimeline_tsx",
-      "community": 34,
+      "community": 36,
       "norm_label": "historytimeline.tsx"
     },
     {
@@ -2781,7 +2781,7 @@
       "source_file": "desktop-tauri/src/shared/components/HistoryTimeline.tsx",
       "source_location": "L18",
       "id": "historytimeline_historytimeline",
-      "community": 34,
+      "community": 36,
       "norm_label": "historytimeline()"
     },
     {
@@ -2898,7 +2898,7 @@
       "source_file": "desktop-tauri/src/shared/components/DataViewer.tsx",
       "source_location": "L1",
       "id": "desktop_tauri_src_shared_components_dataviewer_tsx",
-      "community": 15,
+      "community": 14,
       "norm_label": "dataviewer.tsx"
     },
     {
@@ -2907,7 +2907,7 @@
       "source_file": "desktop-tauri/src/shared/components/DataViewer.tsx",
       "source_location": "L47",
       "id": "dataviewer_detectmimetype",
-      "community": 15,
+      "community": 14,
       "norm_label": "detectmimetype()"
     },
     {
@@ -2916,7 +2916,7 @@
       "source_file": "desktop-tauri/src/shared/components/DataViewer.tsx",
       "source_location": "L54",
       "id": "dataviewer_getrendermode",
-      "community": 15,
+      "community": 14,
       "norm_label": "getrendermode()"
     },
     {
@@ -2925,7 +2925,7 @@
       "source_file": "desktop-tauri/src/shared/components/DataViewer.tsx",
       "source_location": "L66",
       "id": "dataviewer_decodebase64text",
-      "community": 15,
+      "community": 14,
       "norm_label": "decodebase64text()"
     },
     {
@@ -2934,7 +2934,7 @@
       "source_file": "desktop-tauri/src/shared/components/DataViewer.tsx",
       "source_location": "L73",
       "id": "dataviewer_detectformat",
-      "community": 15,
+      "community": 14,
       "norm_label": "detectformat()"
     },
     {
@@ -2943,7 +2943,7 @@
       "source_file": "desktop-tauri/src/shared/components/DataViewer.tsx",
       "source_location": "L107",
       "id": "dataviewer_formatcontent",
-      "community": 15,
+      "community": 14,
       "norm_label": "formatcontent()"
     },
     {
@@ -2952,7 +2952,7 @@
       "source_file": "desktop-tauri/src/shared/components/DataViewer.tsx",
       "source_location": "L163",
       "id": "dataviewer_handlecopy",
-      "community": 15,
+      "community": 14,
       "norm_label": "handlecopy()"
     },
     {
@@ -2961,7 +2961,7 @@
       "source_file": "desktop-tauri/src/shared/components/EmptyState.tsx",
       "source_location": "L1",
       "id": "desktop_tauri_src_shared_components_emptystate_tsx",
-      "community": 35,
+      "community": 37,
       "norm_label": "emptystate.tsx"
     },
     {
@@ -2970,7 +2970,7 @@
       "source_file": "desktop-tauri/src/shared/components/EmptyState.tsx",
       "source_location": "L9",
       "id": "emptystate_emptystate",
-      "community": 35,
+      "community": 37,
       "norm_label": "emptystate()"
     },
     {
@@ -2979,7 +2979,7 @@
       "source_file": "desktop-tauri/src/shared/components/EngineOfflineBanner.tsx",
       "source_location": "L1",
       "id": "desktop_tauri_src_shared_components_engineofflinebanner_tsx",
-      "community": 36,
+      "community": 38,
       "norm_label": "engineofflinebanner.tsx"
     },
     {
@@ -2988,7 +2988,7 @@
       "source_file": "desktop-tauri/src/shared/components/EngineOfflineBanner.tsx",
       "source_location": "L7",
       "id": "engineofflinebanner_engineofflinebanner",
-      "community": 36,
+      "community": 38,
       "norm_label": "engineofflinebanner()"
     },
     {
@@ -2997,7 +2997,7 @@
       "source_file": "desktop-tauri/src/shared/components/ErrorBoundary.tsx",
       "source_location": "L1",
       "id": "desktop_tauri_src_shared_components_errorboundary_tsx",
-      "community": 28,
+      "community": 30,
       "norm_label": "errorboundary.tsx"
     },
     {
@@ -3006,7 +3006,7 @@
       "source_file": "desktop-tauri/src/shared/components/ErrorBoundary.tsx",
       "source_location": "L24",
       "id": "errorboundary_getderivedstatefromerror",
-      "community": 28,
+      "community": 30,
       "norm_label": "getderivedstatefromerror()"
     },
     {
@@ -3015,7 +3015,7 @@
       "source_file": "desktop-tauri/src/shared/components/ErrorBoundary.tsx",
       "source_location": "L28",
       "id": "errorboundary_componentdidcatch",
-      "community": 28,
+      "community": 30,
       "norm_label": "componentdidcatch()"
     },
     {
@@ -3024,7 +3024,7 @@
       "source_file": "desktop-tauri/src/shared/hooks/use-engine-status.ts",
       "source_location": "L1",
       "id": "desktop_tauri_src_shared_hooks_use_engine_status_ts",
-      "community": 37,
+      "community": 39,
       "norm_label": "use-engine-status.ts"
     },
     {
@@ -3033,7 +3033,7 @@
       "source_file": "desktop-tauri/src/shared/hooks/use-engine-status.ts",
       "source_location": "L6",
       "id": "use_engine_status_useenginestatus",
-      "community": 37,
+      "community": 39,
       "norm_label": "useenginestatus()"
     },
     {
@@ -3042,7 +3042,7 @@
       "source_file": "desktop-tauri/src/shared/hooks/use-engine-events.ts",
       "source_location": "L1",
       "id": "desktop_tauri_src_shared_hooks_use_engine_events_ts",
-      "community": 16,
+      "community": 15,
       "norm_label": "use-engine-events.ts"
     },
     {
@@ -3051,7 +3051,7 @@
       "source_file": "desktop-tauri/src/shared/hooks/use-engine-events.ts",
       "source_location": "L17",
       "id": "use_engine_events_useengineevents",
-      "community": 16,
+      "community": 15,
       "norm_label": "useengineevents()"
     },
     {
@@ -3060,7 +3060,7 @@
       "source_file": "desktop-tauri/src/shared/hooks/use-polling.ts",
       "source_location": "L1",
       "id": "desktop_tauri_src_shared_hooks_use_polling_ts",
-      "community": 16,
+      "community": 15,
       "norm_label": "use-polling.ts"
     },
     {
@@ -3069,7 +3069,7 @@
       "source_file": "desktop-tauri/src/shared/hooks/use-polling.ts",
       "source_location": "L10",
       "id": "use_polling_usepolling",
-      "community": 16,
+      "community": 15,
       "norm_label": "usepolling()"
     },
     {
@@ -3447,7 +3447,7 @@
       "source_file": "desktop-tauri/src/components/ui/alert-dialog.tsx",
       "source_location": "L1",
       "id": "desktop_tauri_src_components_ui_alert_dialog_tsx",
-      "community": 60,
+      "community": 62,
       "norm_label": "alert-dialog.tsx"
     },
     {
@@ -3456,7 +3456,7 @@
       "source_file": "desktop-tauri/src/components/ui/tabs.tsx",
       "source_location": "L1",
       "id": "desktop_tauri_src_components_ui_tabs_tsx",
-      "community": 61,
+      "community": 63,
       "norm_label": "tabs.tsx"
     },
     {
@@ -3465,7 +3465,7 @@
       "source_file": "desktop-tauri/src/components/ui/card.tsx",
       "source_location": "L1",
       "id": "desktop_tauri_src_components_ui_card_tsx",
-      "community": 62,
+      "community": 64,
       "norm_label": "card.tsx"
     },
     {
@@ -3474,7 +3474,7 @@
       "source_file": "desktop-tauri/src/components/ui/toaster.tsx",
       "source_location": "L1",
       "id": "desktop_tauri_src_components_ui_toaster_tsx",
-      "community": 63,
+      "community": 65,
       "norm_label": "toaster.tsx"
     },
     {
@@ -3483,7 +3483,7 @@
       "source_file": "desktop-tauri/src/components/ui/scroll-area.tsx",
       "source_location": "L1",
       "id": "desktop_tauri_src_components_ui_scroll_area_tsx",
-      "community": 64,
+      "community": 66,
       "norm_label": "scroll-area.tsx"
     },
     {
@@ -3492,7 +3492,7 @@
       "source_file": "desktop-tauri/src/components/ui/label.tsx",
       "source_location": "L1",
       "id": "desktop_tauri_src_components_ui_label_tsx",
-      "community": 65,
+      "community": 67,
       "norm_label": "label.tsx"
     },
     {
@@ -3501,7 +3501,7 @@
       "source_file": "desktop-tauri/src/components/ui/accordion.tsx",
       "source_location": "L1",
       "id": "desktop_tauri_src_components_ui_accordion_tsx",
-      "community": 66,
+      "community": 68,
       "norm_label": "accordion.tsx"
     },
     {
@@ -3510,7 +3510,7 @@
       "source_file": "desktop-tauri/src/components/ui/dialog.tsx",
       "source_location": "L1",
       "id": "desktop_tauri_src_components_ui_dialog_tsx",
-      "community": 67,
+      "community": 69,
       "norm_label": "dialog.tsx"
     },
     {
@@ -3519,7 +3519,7 @@
       "source_file": "desktop-tauri/src/components/ui/badge.tsx",
       "source_location": "L1",
       "id": "desktop_tauri_src_components_ui_badge_tsx",
-      "community": 38,
+      "community": 40,
       "norm_label": "badge.tsx"
     },
     {
@@ -3528,7 +3528,7 @@
       "source_file": "desktop-tauri/src/components/ui/badge.tsx",
       "source_location": "L30",
       "id": "badge_badge",
-      "community": 38,
+      "community": 40,
       "norm_label": "badge()"
     },
     {
@@ -3537,7 +3537,7 @@
       "source_file": "desktop-tauri/src/components/ui/table.tsx",
       "source_location": "L1",
       "id": "desktop_tauri_src_components_ui_table_tsx",
-      "community": 68,
+      "community": 70,
       "norm_label": "table.tsx"
     },
     {
@@ -3546,7 +3546,7 @@
       "source_file": "desktop-tauri/src/components/ui/separator.tsx",
       "source_location": "L1",
       "id": "desktop_tauri_src_components_ui_separator_tsx",
-      "community": 69,
+      "community": 71,
       "norm_label": "separator.tsx"
     },
     {
@@ -3555,7 +3555,7 @@
       "source_file": "desktop-tauri/src/components/ui/button.tsx",
       "source_location": "L1",
       "id": "desktop_tauri_src_components_ui_button_tsx",
-      "community": 70,
+      "community": 72,
       "norm_label": "button.tsx"
     },
     {
@@ -3564,7 +3564,7 @@
       "source_file": "desktop-tauri/src/components/ui/toast.tsx",
       "source_location": "L1",
       "id": "desktop_tauri_src_components_ui_toast_tsx",
-      "community": 71,
+      "community": 73,
       "norm_label": "toast.tsx"
     },
     {
@@ -3573,7 +3573,7 @@
       "source_file": "desktop-tauri/src/components/ui/select.tsx",
       "source_location": "L1",
       "id": "desktop_tauri_src_components_ui_select_tsx",
-      "community": 72,
+      "community": 74,
       "norm_label": "select.tsx"
     },
     {
@@ -3582,7 +3582,7 @@
       "source_file": "desktop-tauri/src/components/ui/textarea.tsx",
       "source_location": "L1",
       "id": "desktop_tauri_src_components_ui_textarea_tsx",
-      "community": 73,
+      "community": 75,
       "norm_label": "textarea.tsx"
     },
     {
@@ -3591,7 +3591,7 @@
       "source_file": "desktop-tauri/src/components/ui/input.tsx",
       "source_location": "L1",
       "id": "desktop_tauri_src_components_ui_input_tsx",
-      "community": 74,
+      "community": 76,
       "norm_label": "input.tsx"
     },
     {
@@ -3600,7 +3600,7 @@
       "source_file": "desktop-tauri/src/components/ui/skeleton.tsx",
       "source_location": "L1",
       "id": "desktop_tauri_src_components_ui_skeleton_tsx",
-      "community": 39,
+      "community": 41,
       "norm_label": "skeleton.tsx"
     },
     {
@@ -3609,7 +3609,7 @@
       "source_file": "desktop-tauri/src/components/ui/skeleton.tsx",
       "source_location": "L3",
       "id": "skeleton_skeleton",
-      "community": 39,
+      "community": 41,
       "norm_label": "skeleton()"
     },
     {
@@ -3672,7 +3672,7 @@
       "source_file": "desktop-tauri/src/hooks/use-toast.ts",
       "source_location": "L174",
       "id": "use_toast_usetoast",
-      "community": 16,
+      "community": 15,
       "norm_label": "usetoast()"
     },
     {
@@ -3681,7 +3681,7 @@
       "source_file": "desktop-tauri/src/lib/utils.ts",
       "source_location": "L1",
       "id": "desktop_tauri_src_lib_utils_ts",
-      "community": 40,
+      "community": 42,
       "norm_label": "utils.ts"
     },
     {
@@ -3690,7 +3690,7 @@
       "source_file": "desktop-tauri/src/lib/utils.ts",
       "source_location": "L4",
       "id": "utils_cn",
-      "community": 40,
+      "community": 42,
       "norm_label": "cn()"
     },
     {
@@ -3699,7 +3699,7 @@
       "source_file": "fuzz/fuzz_targets/fuzz_history_diff.rs",
       "source_location": "L1",
       "id": "fuzz_fuzz_targets_fuzz_history_diff_rs",
-      "community": 5,
+      "community": 4,
       "norm_label": "fuzz_history_diff.rs"
     },
     {
@@ -3708,7 +3708,7 @@
       "source_file": "fuzz/fuzz_targets/fuzz_history_diff.rs",
       "source_location": "L24",
       "id": "fuzz_history_diff_arb_value",
-      "community": 5,
+      "community": 4,
       "norm_label": "arb_value()"
     },
     {
@@ -3717,7 +3717,7 @@
       "source_file": "fuzz/fuzz_targets/fuzz_history_diff.rs",
       "source_location": "L100",
       "id": "fuzz_history_diff_arb_variables",
-      "community": 5,
+      "community": 4,
       "norm_label": "arb_variables()"
     },
     {
@@ -3726,7 +3726,7 @@
       "source_file": "fuzz/fuzz_targets/fuzz_history_diff.rs",
       "source_location": "L112",
       "id": "fuzz_history_diff_arb_instance_state",
-      "community": 5,
+      "community": 4,
       "norm_label": "arb_instance_state()"
     },
     {
@@ -3735,7 +3735,7 @@
       "source_file": "fuzz/fuzz_targets/fuzz_iso8601_duration.rs",
       "source_location": "L1",
       "id": "fuzz_fuzz_targets_fuzz_iso8601_duration_rs",
-      "community": 75,
+      "community": 77,
       "norm_label": "fuzz_iso8601_duration.rs"
     },
     {
@@ -3933,7 +3933,7 @@
       "source_file": "fuzz/fuzz_targets/fuzz_condition.rs",
       "source_location": "L1",
       "id": "fuzz_fuzz_targets_fuzz_condition_rs",
-      "community": 29,
+      "community": 31,
       "norm_label": "fuzz_condition.rs"
     },
     {
@@ -3942,7 +3942,7 @@
       "source_file": "fuzz/fuzz_targets/fuzz_condition.rs",
       "source_location": "L17",
       "id": "fuzz_condition_conditioninput",
-      "community": 29,
+      "community": 31,
       "norm_label": "conditioninput"
     },
     {
@@ -3951,7 +3951,7 @@
       "source_file": "fuzz/fuzz_targets/fuzz_condition.rs",
       "source_location": "L25",
       "id": "fuzz_condition_fuzzvalue",
-      "community": 29,
+      "community": 31,
       "norm_label": "fuzzvalue"
     },
     {
@@ -3978,7 +3978,7 @@
       "source_file": "fuzz/fuzz_targets/fuzz_cron_expression.rs",
       "source_location": "L1",
       "id": "fuzz_fuzz_targets_fuzz_cron_expression_rs",
-      "community": 76,
+      "community": 78,
       "norm_label": "fuzz_cron_expression.rs"
     },
     {
@@ -3987,7 +3987,7 @@
       "source_file": "fuzz/fuzz_targets/fuzz_rhai_script.rs",
       "source_location": "L1",
       "id": "fuzz_fuzz_targets_fuzz_rhai_script_rs",
-      "community": 77,
+      "community": 79,
       "norm_label": "fuzz_rhai_script.rs"
     },
     {
@@ -3996,7 +3996,7 @@
       "source_file": "fuzz/fuzz_targets/fuzz_bpmn_parser.rs",
       "source_location": "L1",
       "id": "fuzz_fuzz_targets_fuzz_bpmn_parser_rs",
-      "community": 78,
+      "community": 80,
       "norm_label": "fuzz_bpmn_parser.rs"
     },
     {
@@ -4005,7 +4005,7 @@
       "source_file": "fuzz/fuzz_targets/fuzz_deploy_roundtrip.rs",
       "source_location": "L1",
       "id": "fuzz_fuzz_targets_fuzz_deploy_roundtrip_rs",
-      "community": 79,
+      "community": 81,
       "norm_label": "fuzz_deploy_roundtrip.rs"
     },
     {
@@ -4014,7 +4014,7 @@
       "source_file": "engine-core/fix_tests.py",
       "source_location": "L1",
       "id": "engine_core_fix_tests_py",
-      "community": 41,
+      "community": 43,
       "norm_label": "fix_tests.py"
     },
     {
@@ -4023,7 +4023,7 @@
       "source_file": "engine-core/fix_tests.py",
       "source_location": "L3",
       "id": "fix_tests_fix_tests",
-      "community": 41,
+      "community": 43,
       "norm_label": "fix_tests()"
     },
     {
@@ -4149,7 +4149,7 @@
       "source_file": "engine-core/src/lib.rs",
       "source_location": "L1",
       "id": "engine_core_src_lib_rs",
-      "community": 80,
+      "community": 82,
       "norm_label": "lib.rs"
     },
     {
@@ -4158,7 +4158,7 @@
       "source_file": "engine-core/src/condition.rs",
       "source_location": "L1",
       "id": "engine_core_src_condition_rs",
-      "community": 5,
+      "community": 4,
       "norm_label": "condition.rs"
     },
     {
@@ -4176,7 +4176,7 @@
       "source_file": "engine-core/src/condition.rs",
       "source_location": "L63",
       "id": "condition_parse_rhs",
-      "community": 5,
+      "community": 4,
       "norm_label": "parse_rhs()"
     },
     {
@@ -4185,7 +4185,7 @@
       "source_file": "engine-core/src/condition.rs",
       "source_location": "L106",
       "id": "condition_values_eq",
-      "community": 5,
+      "community": 4,
       "norm_label": "values_eq()"
     },
     {
@@ -4194,7 +4194,7 @@
       "source_file": "engine-core/src/condition.rs",
       "source_location": "L117",
       "id": "condition_values_cmp",
-      "community": 5,
+      "community": 4,
       "norm_label": "values_cmp()"
     },
     {
@@ -4203,7 +4203,7 @@
       "source_file": "engine-core/src/condition.rs",
       "source_location": "L134",
       "id": "condition_test_equality",
-      "community": 5,
+      "community": 4,
       "norm_label": "test_equality()"
     },
     {
@@ -4212,7 +4212,7 @@
       "source_file": "engine-core/src/condition.rs",
       "source_location": "L149",
       "id": "condition_test_numeric_comparisons",
-      "community": 5,
+      "community": 4,
       "norm_label": "test_numeric_comparisons()"
     },
     {
@@ -4221,7 +4221,7 @@
       "source_file": "engine-core/src/condition.rs",
       "source_location": "L165",
       "id": "condition_test_values_eq_numbers_vs_default",
-      "community": 15,
+      "community": 14,
       "norm_label": "test_values_eq_numbers_vs_default()"
     },
     {
@@ -4230,7 +4230,7 @@
       "source_file": "engine-core/src/condition.rs",
       "source_location": "L195",
       "id": "condition_test_parse_rhs_quoted_strings",
-      "community": 5,
+      "community": 4,
       "norm_label": "test_parse_rhs_quoted_strings()"
     },
     {
@@ -4239,7 +4239,7 @@
       "source_file": "engine-core/src/condition.rs",
       "source_location": "L213",
       "id": "condition_test_truthy",
-      "community": 5,
+      "community": 4,
       "norm_label": "test_truthy()"
     },
     {
@@ -4248,7 +4248,7 @@
       "source_file": "engine-core/src/scripting/runner.rs",
       "source_location": "L1",
       "id": "engine_core_src_scripting_runner_rs",
-      "community": 18,
+      "community": 19,
       "norm_label": "runner.rs"
     },
     {
@@ -4257,7 +4257,7 @@
       "source_file": "engine-core/src/scripting/runner.rs",
       "source_location": "L23",
       "id": "runner_scriptconfig",
-      "community": 18,
+      "community": 19,
       "norm_label": "scriptconfig"
     },
     {
@@ -4266,7 +4266,7 @@
       "source_file": "engine-core/src/scripting/runner.rs",
       "source_location": "L33",
       "id": "runner_scriptconfig_default",
-      "community": 18,
+      "community": 19,
       "norm_label": ".default()"
     },
     {
@@ -4275,7 +4275,7 @@
       "source_file": "engine-core/src/scripting/runner.rs",
       "source_location": "L50",
       "id": "runner_scriptconfig_from_env",
-      "community": 18,
+      "community": 19,
       "norm_label": ".from_env()"
     },
     {
@@ -4284,7 +4284,7 @@
       "source_file": "engine-core/src/scripting/runner.rs",
       "source_location": "L71",
       "id": "runner_scriptconfig_build_engine",
-      "community": 18,
+      "community": 19,
       "norm_label": ".build_engine()"
     },
     {
@@ -4293,7 +4293,7 @@
       "source_file": "engine-core/src/scripting/runner.rs",
       "source_location": "L96",
       "id": "runner_execute_script_safe",
-      "community": 18,
+      "community": 19,
       "norm_label": "execute_script_safe()"
     },
     {
@@ -4302,7 +4302,7 @@
       "source_file": "engine-core/src/scripting/runner.rs",
       "source_location": "L152",
       "id": "runner_run_node_scripts",
-      "community": 18,
+      "community": 19,
       "norm_label": "run_node_scripts()"
     },
     {
@@ -4311,7 +4311,7 @@
       "source_file": "engine-core/src/scripting/runner.rs",
       "source_location": "L199",
       "id": "runner_run_end_scripts",
-      "community": 18,
+      "community": 19,
       "norm_label": "run_end_scripts()"
     },
     {
@@ -4320,7 +4320,7 @@
       "source_file": "engine-core/src/scripting/mod.rs",
       "source_location": "L1",
       "id": "engine_core_src_scripting_mod_rs",
-      "community": 81,
+      "community": 83,
       "norm_label": "mod.rs"
     },
     {
@@ -4329,7 +4329,7 @@
       "source_file": "engine-core/src/runtime/pending.rs",
       "source_location": "L1",
       "id": "engine_core_src_runtime_pending_rs",
-      "community": 24,
+      "community": 26,
       "norm_label": "pending.rs"
     },
     {
@@ -4338,7 +4338,7 @@
       "source_file": "engine-core/src/runtime/pending.rs",
       "source_location": "L10",
       "id": "pending_pendingusertask",
-      "community": 24,
+      "community": 26,
       "norm_label": "pendingusertask"
     },
     {
@@ -4347,7 +4347,7 @@
       "source_file": "engine-core/src/runtime/pending.rs",
       "source_location": "L28",
       "id": "pending_pendingservicetask",
-      "community": 24,
+      "community": 26,
       "norm_label": "pendingservicetask"
     },
     {
@@ -4356,7 +4356,7 @@
       "source_file": "engine-core/src/runtime/pending.rs",
       "source_location": "L59",
       "id": "pending_pendingtimer",
-      "community": 24,
+      "community": 26,
       "norm_label": "pendingtimer"
     },
     {
@@ -4365,7 +4365,7 @@
       "source_file": "engine-core/src/runtime/pending.rs",
       "source_location": "L77",
       "id": "pending_pendingmessagecatch",
-      "community": 24,
+      "community": 26,
       "norm_label": "pendingmessagecatch"
     },
     {
@@ -4374,7 +4374,7 @@
       "source_file": "engine-core/src/runtime/constants.rs",
       "source_location": "L1",
       "id": "engine_core_src_runtime_constants_rs",
-      "community": 82,
+      "community": 84,
       "norm_label": "constants.rs"
     },
     {
@@ -4599,7 +4599,7 @@
       "source_file": "engine-core/src/runtime/mod.rs",
       "source_location": "L1",
       "id": "engine_core_src_runtime_mod_rs",
-      "community": 83,
+      "community": 85,
       "norm_label": "mod.rs"
     },
     {
@@ -4608,7 +4608,7 @@
       "source_file": "engine-core/src/runtime/stats.rs",
       "source_location": "L1",
       "id": "engine_core_src_runtime_stats_rs",
-      "community": 42,
+      "community": 44,
       "norm_label": "stats.rs"
     },
     {
@@ -4617,7 +4617,7 @@
       "source_file": "engine-core/src/runtime/stats.rs",
       "source_location": "L4",
       "id": "stats_enginestats",
-      "community": 42,
+      "community": 44,
       "norm_label": "enginestats"
     },
     {
@@ -4626,7 +4626,7 @@
       "source_file": "engine-core/src/adapter/in_memory.rs",
       "source_location": "L1",
       "id": "engine_core_src_adapter_in_memory_rs",
-      "community": 5,
+      "community": 4,
       "norm_label": "in_memory.rs"
     },
     {
@@ -4635,7 +4635,7 @@
       "source_file": "engine-core/src/adapter/in_memory.rs",
       "source_location": "L18",
       "id": "in_memory_inmemorypersistence",
-      "community": 5,
+      "community": 4,
       "norm_label": "inmemorypersistence"
     },
     {
@@ -4644,7 +4644,7 @@
       "source_file": "engine-core/src/adapter/in_memory.rs",
       "source_location": "L33",
       "id": "in_memory_inmemorypersistence_new",
-      "community": 5,
+      "community": 4,
       "norm_label": ".new()"
     },
     {
@@ -4653,7 +4653,7 @@
       "source_file": "engine-core/src/adapter/in_memory.rs",
       "source_location": "L40",
       "id": "in_memory_inmemorypersistence_save_token",
-      "community": 5,
+      "community": 4,
       "norm_label": ".save_token()"
     },
     {
@@ -4662,7 +4662,7 @@
       "source_file": "engine-core/src/adapter/in_memory.rs",
       "source_location": "L56",
       "id": "in_memory_inmemorypersistence_load_tokens",
-      "community": 5,
+      "community": 4,
       "norm_label": ".load_tokens()"
     },
     {
@@ -4671,7 +4671,7 @@
       "source_file": "engine-core/src/adapter/in_memory.rs",
       "source_location": "L62",
       "id": "in_memory_inmemorypersistence_save_instance",
-      "community": 5,
+      "community": 4,
       "norm_label": ".save_instance()"
     },
     {
@@ -4680,7 +4680,7 @@
       "source_file": "engine-core/src/adapter/in_memory.rs",
       "source_location": "L68",
       "id": "in_memory_inmemorypersistence_list_instances",
-      "community": 5,
+      "community": 4,
       "norm_label": ".list_instances()"
     },
     {
@@ -4689,7 +4689,7 @@
       "source_file": "engine-core/src/adapter/in_memory.rs",
       "source_location": "L73",
       "id": "in_memory_inmemorypersistence_delete_instance",
-      "community": 5,
+      "community": 4,
       "norm_label": ".delete_instance()"
     },
     {
@@ -4698,7 +4698,7 @@
       "source_file": "engine-core/src/adapter/in_memory.rs",
       "source_location": "L81",
       "id": "in_memory_inmemorypersistence_save_definition",
-      "community": 5,
+      "community": 4,
       "norm_label": ".save_definition()"
     },
     {
@@ -4707,7 +4707,7 @@
       "source_file": "engine-core/src/adapter/in_memory.rs",
       "source_location": "L87",
       "id": "in_memory_inmemorypersistence_list_definitions",
-      "community": 5,
+      "community": 4,
       "norm_label": ".list_definitions()"
     },
     {
@@ -4716,7 +4716,7 @@
       "source_file": "engine-core/src/adapter/in_memory.rs",
       "source_location": "L92",
       "id": "in_memory_inmemorypersistence_delete_definition",
-      "community": 5,
+      "community": 4,
       "norm_label": ".delete_definition()"
     },
     {
@@ -4725,7 +4725,7 @@
       "source_file": "engine-core/src/adapter/in_memory.rs",
       "source_location": "L100",
       "id": "in_memory_inmemorypersistence_save_user_task",
-      "community": 5,
+      "community": 4,
       "norm_label": ".save_user_task()"
     },
     {
@@ -4734,7 +4734,7 @@
       "source_file": "engine-core/src/adapter/in_memory.rs",
       "source_location": "L106",
       "id": "in_memory_inmemorypersistence_delete_user_task",
-      "community": 5,
+      "community": 4,
       "norm_label": ".delete_user_task()"
     },
     {
@@ -4743,7 +4743,7 @@
       "source_file": "engine-core/src/adapter/in_memory.rs",
       "source_location": "L112",
       "id": "in_memory_inmemorypersistence_list_user_tasks",
-      "community": 5,
+      "community": 4,
       "norm_label": ".list_user_tasks()"
     },
     {
@@ -4752,7 +4752,7 @@
       "source_file": "engine-core/src/adapter/in_memory.rs",
       "source_location": "L117",
       "id": "in_memory_inmemorypersistence_save_service_task",
-      "community": 5,
+      "community": 4,
       "norm_label": ".save_service_task()"
     },
     {
@@ -4761,7 +4761,7 @@
       "source_file": "engine-core/src/adapter/in_memory.rs",
       "source_location": "L123",
       "id": "in_memory_inmemorypersistence_delete_service_task",
-      "community": 5,
+      "community": 4,
       "norm_label": ".delete_service_task()"
     },
     {
@@ -4770,7 +4770,7 @@
       "source_file": "engine-core/src/adapter/in_memory.rs",
       "source_location": "L129",
       "id": "in_memory_inmemorypersistence_list_service_tasks",
-      "community": 5,
+      "community": 4,
       "norm_label": ".list_service_tasks()"
     },
     {
@@ -4779,7 +4779,7 @@
       "source_file": "engine-core/src/adapter/in_memory.rs",
       "source_location": "L134",
       "id": "in_memory_inmemorypersistence_save_timer",
-      "community": 5,
+      "community": 4,
       "norm_label": ".save_timer()"
     },
     {
@@ -4788,7 +4788,7 @@
       "source_file": "engine-core/src/adapter/in_memory.rs",
       "source_location": "L140",
       "id": "in_memory_inmemorypersistence_delete_timer",
-      "community": 5,
+      "community": 4,
       "norm_label": ".delete_timer()"
     },
     {
@@ -4797,7 +4797,7 @@
       "source_file": "engine-core/src/adapter/in_memory.rs",
       "source_location": "L146",
       "id": "in_memory_inmemorypersistence_list_timers",
-      "community": 5,
+      "community": 4,
       "norm_label": ".list_timers()"
     },
     {
@@ -4806,7 +4806,7 @@
       "source_file": "engine-core/src/adapter/in_memory.rs",
       "source_location": "L151",
       "id": "in_memory_inmemorypersistence_save_message_catch",
-      "community": 5,
+      "community": 4,
       "norm_label": ".save_message_catch()"
     },
     {
@@ -4815,7 +4815,7 @@
       "source_file": "engine-core/src/adapter/in_memory.rs",
       "source_location": "L157",
       "id": "in_memory_inmemorypersistence_delete_message_catch",
-      "community": 5,
+      "community": 4,
       "norm_label": ".delete_message_catch()"
     },
     {
@@ -4824,7 +4824,7 @@
       "source_file": "engine-core/src/adapter/in_memory.rs",
       "source_location": "L163",
       "id": "in_memory_inmemorypersistence_list_message_catches",
-      "community": 5,
+      "community": 4,
       "norm_label": ".list_message_catches()"
     },
     {
@@ -4833,7 +4833,7 @@
       "source_file": "engine-core/src/adapter/in_memory.rs",
       "source_location": "L168",
       "id": "in_memory_inmemorypersistence_save_file",
-      "community": 5,
+      "community": 4,
       "norm_label": ".save_file()"
     },
     {
@@ -4842,7 +4842,7 @@
       "source_file": "engine-core/src/adapter/in_memory.rs",
       "source_location": "L174",
       "id": "in_memory_inmemorypersistence_load_file",
-      "community": 5,
+      "community": 4,
       "norm_label": ".load_file()"
     },
     {
@@ -4851,7 +4851,7 @@
       "source_file": "engine-core/src/adapter/in_memory.rs",
       "source_location": "L181",
       "id": "in_memory_inmemorypersistence_delete_file",
-      "community": 5,
+      "community": 4,
       "norm_label": ".delete_file()"
     },
     {
@@ -4860,7 +4860,7 @@
       "source_file": "engine-core/src/adapter/in_memory.rs",
       "source_location": "L187",
       "id": "in_memory_inmemorypersistence_save_bpmn_xml",
-      "community": 5,
+      "community": 4,
       "norm_label": ".save_bpmn_xml()"
     },
     {
@@ -4869,7 +4869,7 @@
       "source_file": "engine-core/src/adapter/in_memory.rs",
       "source_location": "L193",
       "id": "in_memory_inmemorypersistence_load_bpmn_xml",
-      "community": 5,
+      "community": 4,
       "norm_label": ".load_bpmn_xml()"
     },
     {
@@ -4878,7 +4878,7 @@
       "source_file": "engine-core/src/adapter/in_memory.rs",
       "source_location": "L202",
       "id": "in_memory_inmemorypersistence_list_bpmn_xml_ids",
-      "community": 5,
+      "community": 4,
       "norm_label": ".list_bpmn_xml_ids()"
     },
     {
@@ -4887,7 +4887,7 @@
       "source_file": "engine-core/src/adapter/in_memory.rs",
       "source_location": "L207",
       "id": "in_memory_inmemorypersistence_get_storage_info",
-      "community": 5,
+      "community": 4,
       "norm_label": ".get_storage_info()"
     },
     {
@@ -4896,7 +4896,7 @@
       "source_file": "engine-core/src/adapter/in_memory.rs",
       "source_location": "L288",
       "id": "in_memory_inmemorypersistence_append_history_entry",
-      "community": 5,
+      "community": 4,
       "norm_label": ".append_history_entry()"
     },
     {
@@ -4905,7 +4905,7 @@
       "source_file": "engine-core/src/adapter/in_memory.rs",
       "source_location": "L296",
       "id": "in_memory_inmemorypersistence_query_history",
-      "community": 5,
+      "community": 4,
       "norm_label": ".query_history()"
     },
     {
@@ -4914,7 +4914,7 @@
       "source_file": "engine-core/src/adapter/in_memory.rs",
       "source_location": "L332",
       "id": "in_memory_inmemorypersistence_save_completed_instance",
-      "community": 5,
+      "community": 4,
       "norm_label": ".save_completed_instance()"
     },
     {
@@ -4923,7 +4923,7 @@
       "source_file": "engine-core/src/adapter/in_memory.rs",
       "source_location": "L338",
       "id": "in_memory_inmemorypersistence_query_completed_instances",
-      "community": 5,
+      "community": 4,
       "norm_label": ".query_completed_instances()"
     },
     {
@@ -4932,7 +4932,7 @@
       "source_file": "engine-core/src/adapter/in_memory.rs",
       "source_location": "L405",
       "id": "in_memory_inmemorypersistence_get_completed_instance",
-      "community": 5,
+      "community": 4,
       "norm_label": ".get_completed_instance()"
     },
     {
@@ -4941,7 +4941,7 @@
       "source_file": "engine-core/src/adapter/in_memory.rs",
       "source_location": "L413",
       "id": "in_memory_inmemorypersistence_get_bucket_entries",
-      "community": 5,
+      "community": 4,
       "norm_label": ".get_bucket_entries()"
     },
     {
@@ -4950,7 +4950,7 @@
       "source_file": "engine-core/src/adapter/in_memory.rs",
       "source_location": "L425",
       "id": "in_memory_inmemorypersistence_get_bucket_entry_detail",
-      "community": 5,
+      "community": 4,
       "norm_label": ".get_bucket_entry_detail()"
     },
     {
@@ -4959,7 +4959,7 @@
       "source_file": "engine-core/src/adapter/in_memory.rs",
       "source_location": "L443",
       "id": "in_memory_test_query_history_filters",
-      "community": 5,
+      "community": 4,
       "norm_label": "test_query_history_filters()"
     },
     {
@@ -4968,7 +4968,7 @@
       "source_file": "engine-core/src/adapter/in_memory.rs",
       "source_location": "L619",
       "id": "in_memory_test_get_storage_info_arithmetic",
-      "community": 5,
+      "community": 4,
       "norm_label": "test_get_storage_info_arithmetic()"
     },
     {
@@ -4977,7 +4977,7 @@
       "source_file": "engine-core/src/adapter/in_memory.rs",
       "source_location": "L663",
       "id": "in_memory_make_completed_instance",
-      "community": 5,
+      "community": 4,
       "norm_label": "make_completed_instance()"
     },
     {
@@ -4986,7 +4986,7 @@
       "source_file": "engine-core/src/adapter/in_memory.rs",
       "source_location": "L689",
       "id": "in_memory_test_save_and_query_completed_instances",
-      "community": 5,
+      "community": 4,
       "norm_label": "test_save_and_query_completed_instances()"
     },
     {
@@ -4995,7 +4995,7 @@
       "source_file": "engine-core/src/adapter/in_memory.rs",
       "source_location": "L730",
       "id": "in_memory_test_query_completed_pagination",
-      "community": 5,
+      "community": 4,
       "norm_label": "test_query_completed_pagination()"
     },
     {
@@ -5004,7 +5004,7 @@
       "source_file": "engine-core/src/adapter/in_memory.rs",
       "source_location": "L757",
       "id": "in_memory_test_query_completed_date_range",
-      "community": 5,
+      "community": 4,
       "norm_label": "test_query_completed_date_range()"
     },
     {
@@ -5013,7 +5013,7 @@
       "source_file": "engine-core/src/adapter/in_memory.rs",
       "source_location": "L785",
       "id": "in_memory_test_query_completed_business_key",
-      "community": 5,
+      "community": 4,
       "norm_label": "test_query_completed_business_key()"
     },
     {
@@ -5022,7 +5022,7 @@
       "source_file": "engine-core/src/adapter/in_memory.rs",
       "source_location": "L817",
       "id": "in_memory_test_query_completed_state_filter",
-      "community": 5,
+      "community": 4,
       "norm_label": "test_query_completed_state_filter()"
     },
     {
@@ -5031,7 +5031,7 @@
       "source_file": "engine-core/src/adapter/in_memory.rs",
       "source_location": "L856",
       "id": "in_memory_test_get_completed_instance",
-      "community": 5,
+      "community": 4,
       "norm_label": "test_get_completed_instance()"
     },
     {
@@ -5040,7 +5040,7 @@
       "source_file": "engine-core/src/adapter/mod.rs",
       "source_location": "L1",
       "id": "engine_core_src_adapter_mod_rs",
-      "community": 84,
+      "community": 86,
       "norm_label": "mod.rs"
     },
     {
@@ -5445,7 +5445,7 @@
       "source_file": "engine-core/src/port/persistence.rs",
       "source_location": "L1",
       "id": "engine_core_src_port_persistence_rs",
-      "community": 19,
+      "community": 20,
       "norm_label": "persistence.rs"
     },
     {
@@ -5454,7 +5454,7 @@
       "source_file": "engine-core/src/port/persistence.rs",
       "source_location": "L12",
       "id": "persistence_completedinstancequery",
-      "community": 19,
+      "community": 20,
       "norm_label": "completedinstancequery"
     },
     {
@@ -5463,7 +5463,7 @@
       "source_file": "engine-core/src/port/persistence.rs",
       "source_location": "L24",
       "id": "persistence_historyquery",
-      "community": 19,
+      "community": 20,
       "norm_label": "historyquery"
     },
     {
@@ -5472,7 +5472,7 @@
       "source_file": "engine-core/src/port/persistence.rs",
       "source_location": "L37",
       "id": "persistence_bucketentry",
-      "community": 19,
+      "community": 20,
       "norm_label": "bucketentry"
     },
     {
@@ -5481,7 +5481,7 @@
       "source_file": "engine-core/src/port/persistence.rs",
       "source_location": "L45",
       "id": "persistence_bucketentrydetail",
-      "community": 19,
+      "community": 20,
       "norm_label": "bucketentrydetail"
     },
     {
@@ -5490,7 +5490,7 @@
       "source_file": "engine-core/src/port/persistence.rs",
       "source_location": "L54",
       "id": "persistence_bucketentrydetail_default_encoding",
-      "community": 19,
+      "community": 20,
       "norm_label": ".default_encoding()"
     },
     {
@@ -5499,7 +5499,7 @@
       "source_file": "engine-core/src/port/persistence.rs",
       "source_location": "L61",
       "id": "persistence_bucketinfo",
-      "community": 19,
+      "community": 20,
       "norm_label": "bucketinfo"
     },
     {
@@ -5508,7 +5508,7 @@
       "source_file": "engine-core/src/port/persistence.rs",
       "source_location": "L74",
       "id": "persistence_storageinfo",
-      "community": 19,
+      "community": 20,
       "norm_label": "storageinfo"
     },
     {
@@ -5517,7 +5517,7 @@
       "source_file": "engine-core/src/port/persistence.rs",
       "source_location": "L90",
       "id": "persistence_workflowpersistence",
-      "community": 19,
+      "community": 20,
       "norm_label": "workflowpersistence"
     },
     {
@@ -5526,7 +5526,7 @@
       "source_file": "engine-core/src/port/mod.rs",
       "source_location": "L1",
       "id": "engine_core_src_port_mod_rs",
-      "community": 85,
+      "community": 87,
       "norm_label": "mod.rs"
     },
     {
@@ -5535,7 +5535,7 @@
       "source_file": "engine-core/src/engine/user_task.rs",
       "source_location": "L1",
       "id": "engine_core_src_engine_user_task_rs",
-      "community": 86,
+      "community": 88,
       "norm_label": "user_task.rs"
     },
     {
@@ -5562,7 +5562,7 @@
       "source_file": "engine-core/src/engine/events.rs",
       "source_location": "L1",
       "id": "engine_core_src_engine_events_rs",
-      "community": 43,
+      "community": 45,
       "norm_label": "events.rs"
     },
     {
@@ -5571,7 +5571,7 @@
       "source_file": "engine-core/src/engine/events.rs",
       "source_location": "L12",
       "id": "events_engineevent",
-      "community": 43,
+      "community": 45,
       "norm_label": "engineevent"
     },
     {
@@ -5688,7 +5688,7 @@
       "source_file": "engine-core/src/engine/registry.rs",
       "source_location": "L95",
       "id": "registry_definitionregistry_find_latest_by_bpmn_id",
-      "community": 1,
+      "community": 11,
       "norm_label": ".find_latest_by_bpmn_id()"
     },
     {
@@ -5715,7 +5715,7 @@
       "source_file": "engine-core/src/engine/process_start.rs",
       "source_location": "L1",
       "id": "engine_core_src_engine_process_start_rs",
-      "community": 87,
+      "community": 89,
       "norm_label": "process_start.rs"
     },
     {
@@ -5751,7 +5751,7 @@
       "source_file": "engine-core/src/engine/process_start.rs",
       "source_location": "L42",
       "id": "process_start_workflowengine_start_instance_latest",
-      "community": 1,
+      "community": 11,
       "norm_label": ".start_instance_latest()"
     },
     {
@@ -5814,7 +5814,7 @@
       "source_file": "engine-core/src/engine/definition_ops.rs",
       "source_location": "L1",
       "id": "engine_core_src_engine_definition_ops_rs",
-      "community": 88,
+      "community": 90,
       "norm_label": "definition_ops.rs"
     },
     {
@@ -5886,7 +5886,7 @@
       "source_file": "engine-core/src/engine/instance_ops.rs",
       "source_location": "L1",
       "id": "engine_core_src_engine_instance_ops_rs",
-      "community": 89,
+      "community": 91,
       "norm_label": "instance_ops.rs"
     },
     {
@@ -6210,7 +6210,7 @@
       "source_file": "engine-core/src/engine/boundary.rs",
       "source_location": "L1",
       "id": "engine_core_src_engine_boundary_rs",
-      "community": 14,
+      "community": 0,
       "norm_label": "boundary.rs"
     },
     {
@@ -6219,7 +6219,7 @@
       "source_file": "engine-core/src/engine/boundary.rs",
       "source_location": "L9",
       "id": "boundary_setup_boundary_events",
-      "community": 14,
+      "community": 0,
       "norm_label": "setup_boundary_events()"
     },
     {
@@ -6228,7 +6228,7 @@
       "source_file": "engine-core/src/engine/boundary.rs",
       "source_location": "L80",
       "id": "boundary_test_setup_boundary_no_events",
-      "community": 14,
+      "community": 0,
       "norm_label": "test_setup_boundary_no_events()"
     },
     {
@@ -6237,7 +6237,7 @@
       "source_file": "engine-core/src/engine/boundary.rs",
       "source_location": "L97",
       "id": "boundary_test_setup_boundary_timer_event",
-      "community": 14,
+      "community": 0,
       "norm_label": "test_setup_boundary_timer_event()"
     },
     {
@@ -6246,7 +6246,7 @@
       "source_file": "engine-core/src/engine/boundary.rs",
       "source_location": "L130",
       "id": "boundary_test_setup_boundary_message_event",
-      "community": 14,
+      "community": 0,
       "norm_label": "test_setup_boundary_message_event()"
     },
     {
@@ -6255,7 +6255,7 @@
       "source_file": "engine-core/src/engine/timer_processor.rs",
       "source_location": "L1",
       "id": "engine_core_src_engine_timer_processor_rs",
-      "community": 90,
+      "community": 92,
       "norm_label": "timer_processor.rs"
     },
     {
@@ -6282,7 +6282,7 @@
       "source_file": "engine-core/src/engine/persistence_ops.rs",
       "source_location": "L1",
       "id": "engine_core_src_engine_persistence_ops_rs",
-      "community": 91,
+      "community": 93,
       "norm_label": "persistence_ops.rs"
     },
     {
@@ -6588,7 +6588,7 @@
       "source_file": "engine-core/src/engine/mod.rs",
       "source_location": "L396",
       "id": "mod_workflowengine_default",
-      "community": 5,
+      "community": 4,
       "norm_label": ".default()"
     },
     {
@@ -6678,7 +6678,7 @@
       "source_file": "engine-core/src/engine/message_processor.rs",
       "source_location": "L1",
       "id": "engine_core_src_engine_message_processor_rs",
-      "community": 92,
+      "community": 94,
       "norm_label": "message_processor.rs"
     },
     {
@@ -6723,7 +6723,7 @@
       "source_file": "engine-core/src/engine/instance_store.rs",
       "source_location": "L19",
       "id": "instance_store_instancestore_new",
-      "community": 5,
+      "community": 4,
       "norm_label": ".new()"
     },
     {
@@ -6732,7 +6732,7 @@
       "source_file": "engine-core/src/engine/instance_store.rs",
       "source_location": "L26",
       "id": "instance_store_instancestore_insert",
-      "community": 5,
+      "community": 4,
       "norm_label": ".insert()"
     },
     {
@@ -6795,7 +6795,7 @@
       "source_file": "engine-core/src/engine/tests/mod.rs",
       "source_location": "L1",
       "id": "engine_core_src_engine_tests_mod_rs",
-      "community": 93,
+      "community": 95,
       "norm_label": "mod.rs"
     },
     {
@@ -7821,7 +7821,7 @@
       "source_file": "engine-core/src/engine/tests/unit_tests.rs",
       "source_location": "L3646",
       "id": "unit_tests_test_instance_store_is_empty_and_clear",
-      "community": 5,
+      "community": 4,
       "norm_label": "test_instance_store_is_empty_and_clear()"
     },
     {
@@ -7893,7 +7893,7 @@
       "source_file": "engine-core/src/engine/tests/unit_tests.rs",
       "source_location": "L4005",
       "id": "unit_tests_test_script_config_defaults_and_build",
-      "community": 18,
+      "community": 19,
       "norm_label": "test_script_config_defaults_and_build()"
     },
     {
@@ -8109,7 +8109,7 @@
       "source_file": "engine-core/src/engine/tests/unit_tests.rs",
       "source_location": "L5047",
       "id": "unit_tests_migrate_instance_suspended_rejected",
-      "community": 3,
+      "community": 0,
       "norm_label": "migrate_instance_suspended_rejected()"
     },
     {
@@ -8127,7 +8127,7 @@
       "source_file": "engine-core/src/engine/executor/completion.rs",
       "source_location": "L1",
       "id": "engine_core_src_engine_executor_completion_rs",
-      "community": 94,
+      "community": 96,
       "norm_label": "completion.rs"
     },
     {
@@ -8244,7 +8244,7 @@
       "source_file": "engine-core/src/engine/executor/mod.rs",
       "source_location": "L1",
       "id": "engine_core_src_engine_executor_mod_rs",
-      "community": 95,
+      "community": 97,
       "norm_label": "mod.rs"
     },
     {
@@ -8271,7 +8271,7 @@
       "source_file": "engine-core/src/engine/executor/next_action.rs",
       "source_location": "L1",
       "id": "engine_core_src_engine_executor_next_action_rs",
-      "community": 96,
+      "community": 98,
       "norm_label": "next_action.rs"
     },
     {
@@ -8298,7 +8298,7 @@
       "source_file": "engine-core/src/engine/executor/parallel.rs",
       "source_location": "L1",
       "id": "engine_core_src_engine_executor_parallel_rs",
-      "community": 97,
+      "community": 99,
       "norm_label": "parallel.rs"
     },
     {
@@ -8343,7 +8343,7 @@
       "source_file": "engine-core/src/engine/handlers/events.rs",
       "source_location": "L1",
       "id": "engine_core_src_engine_handlers_events_rs",
-      "community": 98,
+      "community": 100,
       "norm_label": "events.rs"
     },
     {
@@ -8460,7 +8460,7 @@
       "source_file": "engine-core/src/engine/handlers/tasks.rs",
       "source_location": "L1",
       "id": "engine_core_src_engine_handlers_tasks_rs",
-      "community": 99,
+      "community": 101,
       "norm_label": "tasks.rs"
     },
     {
@@ -8514,7 +8514,7 @@
       "source_file": "engine-core/src/engine/handlers/mod.rs",
       "source_location": "L1",
       "id": "engine_core_src_engine_handlers_mod_rs",
-      "community": 100,
+      "community": 102,
       "norm_label": "mod.rs"
     },
     {
@@ -8523,7 +8523,7 @@
       "source_file": "engine-core/src/engine/handlers/sub_processes.rs",
       "source_location": "L1",
       "id": "engine_core_src_engine_handlers_sub_processes_rs",
-      "community": 101,
+      "community": 103,
       "norm_label": "sub_processes.rs"
     },
     {
@@ -8568,7 +8568,7 @@
       "source_file": "engine-core/src/engine/handlers/gateways.rs",
       "source_location": "L1",
       "id": "engine_core_src_engine_handlers_gateways_rs",
-      "community": 102,
+      "community": 104,
       "norm_label": "gateways.rs"
     },
     {
@@ -8631,7 +8631,7 @@
       "source_file": "engine-core/src/domain/flow.rs",
       "source_location": "L1",
       "id": "engine_core_src_domain_flow_rs",
-      "community": 25,
+      "community": 27,
       "norm_label": "flow.rs"
     },
     {
@@ -8640,7 +8640,7 @@
       "source_file": "engine-core/src/domain/flow.rs",
       "source_location": "L4",
       "id": "flow_sequenceflow",
-      "community": 25,
+      "community": 27,
       "norm_label": "sequenceflow"
     },
     {
@@ -8649,7 +8649,7 @@
       "source_file": "engine-core/src/domain/flow.rs",
       "source_location": "L13",
       "id": "flow_sequenceflow_simple",
-      "community": 25,
+      "community": 27,
       "norm_label": ".simple()"
     },
     {
@@ -8658,7 +8658,7 @@
       "source_file": "engine-core/src/domain/flow.rs",
       "source_location": "L21",
       "id": "flow_sequenceflow_conditional",
-      "community": 25,
+      "community": 27,
       "norm_label": ".conditional()"
     },
     {
@@ -8667,7 +8667,7 @@
       "source_file": "engine-core/src/domain/element.rs",
       "source_location": "L1",
       "id": "engine_core_src_domain_element_rs",
-      "community": 44,
+      "community": 46,
       "norm_label": "element.rs"
     },
     {
@@ -8676,7 +8676,7 @@
       "source_file": "engine-core/src/domain/element.rs",
       "source_location": "L5",
       "id": "element_bpmnelement",
-      "community": 44,
+      "community": 46,
       "norm_label": "bpmnelement"
     },
     {
@@ -8685,7 +8685,7 @@
       "source_file": "engine-core/src/domain/timer.rs",
       "source_location": "L1",
       "id": "engine_core_src_domain_timer_rs",
-      "community": 14,
+      "community": 17,
       "norm_label": "timer.rs"
     },
     {
@@ -8694,7 +8694,7 @@
       "source_file": "engine-core/src/domain/timer.rs",
       "source_location": "L12",
       "id": "timer_timerdefinition",
-      "community": 14,
+      "community": 1,
       "norm_label": "timerdefinition"
     },
     {
@@ -8703,7 +8703,7 @@
       "source_file": "engine-core/src/domain/timer.rs",
       "source_location": "L43",
       "id": "timer_timerdefinition_next_expiry",
-      "community": 14,
+      "community": 1,
       "norm_label": ".next_expiry()"
     },
     {
@@ -8712,7 +8712,7 @@
       "source_file": "engine-core/src/domain/timer.rs",
       "source_location": "L69",
       "id": "timer_timerdefinition_is_recurring",
-      "community": 14,
+      "community": 1,
       "norm_label": ".is_recurring()"
     },
     {
@@ -8721,7 +8721,7 @@
       "source_file": "engine-core/src/domain/timer.rs",
       "source_location": "L83",
       "id": "timer_next_expiry_duration_adds_to_now",
-      "community": 14,
+      "community": 17,
       "norm_label": "next_expiry_duration_adds_to_now()"
     },
     {
@@ -8730,7 +8730,7 @@
       "source_file": "engine-core/src/domain/timer.rs",
       "source_location": "L93",
       "id": "timer_next_expiry_absolute_date_future_returns_some",
-      "community": 14,
+      "community": 17,
       "norm_label": "next_expiry_absolute_date_future_returns_some()"
     },
     {
@@ -8739,7 +8739,7 @@
       "source_file": "engine-core/src/domain/timer.rs",
       "source_location": "L101",
       "id": "timer_next_expiry_absolute_date_past_returns_none",
-      "community": 14,
+      "community": 17,
       "norm_label": "next_expiry_absolute_date_past_returns_none()"
     },
     {
@@ -8748,7 +8748,7 @@
       "source_file": "engine-core/src/domain/timer.rs",
       "source_location": "L110",
       "id": "timer_next_expiry_absolute_date_exact_now_returns_none",
-      "community": 14,
+      "community": 17,
       "norm_label": "next_expiry_absolute_date_exact_now_returns_none()"
     },
     {
@@ -8757,7 +8757,7 @@
       "source_file": "engine-core/src/domain/timer.rs",
       "source_location": "L118",
       "id": "timer_next_expiry_repeating_interval",
-      "community": 14,
+      "community": 17,
       "norm_label": "next_expiry_repeating_interval()"
     },
     {
@@ -8766,7 +8766,7 @@
       "source_file": "engine-core/src/domain/timer.rs",
       "source_location": "L130",
       "id": "timer_is_recurring_duration_false",
-      "community": 14,
+      "community": 17,
       "norm_label": "is_recurring_duration_false()"
     },
     {
@@ -8775,7 +8775,7 @@
       "source_file": "engine-core/src/domain/timer.rs",
       "source_location": "L136",
       "id": "timer_is_recurring_absolute_false",
-      "community": 14,
+      "community": 17,
       "norm_label": "is_recurring_absolute_false()"
     },
     {
@@ -8784,7 +8784,7 @@
       "source_file": "engine-core/src/domain/timer.rs",
       "source_location": "L142",
       "id": "timer_is_recurring_cron_true",
-      "community": 14,
+      "community": 17,
       "norm_label": "is_recurring_cron_true()"
     },
     {
@@ -8793,7 +8793,7 @@
       "source_file": "engine-core/src/domain/timer.rs",
       "source_location": "L152",
       "id": "timer_is_recurring_repeating_interval_true",
-      "community": 14,
+      "community": 17,
       "norm_label": "is_recurring_repeating_interval_true()"
     },
     {
@@ -8802,7 +8802,7 @@
       "source_file": "engine-core/src/domain/multi_instance.rs",
       "source_location": "L1",
       "id": "engine_core_src_domain_multi_instance_rs",
-      "community": 45,
+      "community": 47,
       "norm_label": "multi_instance.rs"
     },
     {
@@ -8811,7 +8811,7 @@
       "source_file": "engine-core/src/domain/multi_instance.rs",
       "source_location": "L4",
       "id": "multi_instance_multiinstancedef",
-      "community": 45,
+      "community": 47,
       "norm_label": "multiinstancedef"
     },
     {
@@ -8865,7 +8865,7 @@
       "source_file": "engine-core/src/domain/error.rs",
       "source_location": "L1",
       "id": "engine_core_src_domain_error_rs",
-      "community": 46,
+      "community": 48,
       "norm_label": "error.rs"
     },
     {
@@ -8874,7 +8874,7 @@
       "source_file": "engine-core/src/domain/error.rs",
       "source_location": "L10",
       "id": "error_engineerror",
-      "community": 46,
+      "community": 48,
       "norm_label": "engineerror"
     },
     {
@@ -8883,7 +8883,7 @@
       "source_file": "engine-core/src/domain/mod.rs",
       "source_location": "L1",
       "id": "engine_core_src_domain_mod_rs",
-      "community": 103,
+      "community": 105,
       "norm_label": "mod.rs"
     },
     {
@@ -8892,7 +8892,7 @@
       "source_file": "engine-core/src/domain/listener.rs",
       "source_location": "L1",
       "id": "engine_core_src_domain_listener_rs",
-      "community": 26,
+      "community": 28,
       "norm_label": "listener.rs"
     },
     {
@@ -8901,7 +8901,7 @@
       "source_file": "engine-core/src/domain/listener.rs",
       "source_location": "L5",
       "id": "listener_listenerevent",
-      "community": 26,
+      "community": 28,
       "norm_label": "listenerevent"
     },
     {
@@ -8910,7 +8910,7 @@
       "source_file": "engine-core/src/domain/listener.rs",
       "source_location": "L11",
       "id": "listener_executionlistener",
-      "community": 26,
+      "community": 28,
       "norm_label": "executionlistener"
     },
     {
@@ -8919,7 +8919,7 @@
       "source_file": "engine-core/src/domain/listener.rs",
       "source_location": "L25",
       "id": "listener_scopeeventlistener",
-      "community": 26,
+      "community": 28,
       "norm_label": "scopeeventlistener"
     },
     {
@@ -9126,7 +9126,7 @@
       "source_file": "engine-core/src/domain/definition.rs",
       "source_location": "L1",
       "id": "engine_core_src_domain_definition_rs",
-      "community": 21,
+      "community": 23,
       "norm_label": "definition.rs"
     },
     {
@@ -9216,7 +9216,7 @@
       "source_file": "engine-core/src/domain/definition.rs",
       "source_location": "L280",
       "id": "definition_processdefinitionbuilder",
-      "community": 21,
+      "community": 23,
       "norm_label": "processdefinitionbuilder"
     },
     {
@@ -9225,7 +9225,7 @@
       "source_file": "engine-core/src/domain/definition.rs",
       "source_location": "L292",
       "id": "definition_processdefinitionbuilder_new",
-      "community": 21,
+      "community": 23,
       "norm_label": ".new()"
     },
     {
@@ -9234,7 +9234,7 @@
       "source_file": "engine-core/src/domain/definition.rs",
       "source_location": "L306",
       "id": "definition_processdefinitionbuilder_with_key",
-      "community": 21,
+      "community": 23,
       "norm_label": ".with_key()"
     },
     {
@@ -9243,7 +9243,7 @@
       "source_file": "engine-core/src/domain/definition.rs",
       "source_location": "L312",
       "id": "definition_processdefinitionbuilder_with_version",
-      "community": 21,
+      "community": 23,
       "norm_label": ".with_version()"
     },
     {
@@ -9288,7 +9288,7 @@
       "source_file": "engine-core/src/domain/definition.rs",
       "source_location": "L364",
       "id": "definition_processdefinitionbuilder_scope_event",
-      "community": 21,
+      "community": 23,
       "norm_label": ".scope_event()"
     },
     {
@@ -9297,7 +9297,7 @@
       "source_file": "engine-core/src/domain/definition.rs",
       "source_location": "L370",
       "id": "definition_processdefinitionbuilder_sub_process",
-      "community": 21,
+      "community": 23,
       "norm_label": ".sub_process()"
     },
     {
@@ -9324,7 +9324,7 @@
       "source_file": "persistence-nats/src/trait_impl.rs",
       "source_location": "L1",
       "id": "persistence_nats_src_trait_impl_rs",
-      "community": 104,
+      "community": 106,
       "norm_label": "trait_impl.rs"
     },
     {
@@ -9342,7 +9342,7 @@
       "source_file": "persistence-nats/src/trait_impl.rs",
       "source_location": "L14",
       "id": "trait_impl_natspersistence_save_token",
-      "community": 5,
+      "community": 4,
       "norm_label": ".save_token()"
     },
     {
@@ -9351,7 +9351,7 @@
       "source_file": "persistence-nats/src/trait_impl.rs",
       "source_location": "L30",
       "id": "trait_impl_natspersistence_load_tokens",
-      "community": 5,
+      "community": 4,
       "norm_label": ".load_tokens()"
     },
     {
@@ -9648,7 +9648,7 @@
       "source_file": "persistence-nats/src/client.rs",
       "source_location": "L1",
       "id": "persistence_nats_src_client_rs",
-      "community": 6,
+      "community": 4,
       "norm_label": "client.rs"
     },
     {
@@ -9657,7 +9657,7 @@
       "source_file": "persistence-nats/src/client.rs",
       "source_location": "L8",
       "id": "client_natspersistence",
-      "community": 6,
+      "community": 4,
       "norm_label": "natspersistence"
     },
     {
@@ -9666,7 +9666,7 @@
       "source_file": "persistence-nats/src/client.rs",
       "source_location": "L15",
       "id": "client_natspersistence_connect",
-      "community": 6,
+      "community": 4,
       "norm_label": ".connect()"
     },
     {
@@ -9684,7 +9684,7 @@
       "source_file": "persistence-nats/src/lib.rs",
       "source_location": "L1",
       "id": "persistence_nats_src_lib_rs",
-      "community": 105,
+      "community": 107,
       "norm_label": "lib.rs"
     },
     {
@@ -9693,7 +9693,7 @@
       "source_file": "persistence-nats/src/models.rs",
       "source_location": "L1",
       "id": "persistence_nats_src_models_rs",
-      "community": 47,
+      "community": 49,
       "norm_label": "models.rs"
     },
     {
@@ -9702,7 +9702,7 @@
       "source_file": "persistence-nats/src/models.rs",
       "source_location": "L5",
       "id": "models_natsinfo",
-      "community": 47,
+      "community": 49,
       "norm_label": "natsinfo"
     },
     {
@@ -9711,7 +9711,7 @@
       "source_file": "persistence-nats/src/tests.rs",
       "source_location": "L1",
       "id": "persistence_nats_src_tests_rs",
-      "community": 5,
+      "community": 4,
       "norm_label": "tests.rs"
     },
     {
@@ -9720,7 +9720,7 @@
       "source_file": "persistence-nats/src/tests.rs",
       "source_location": "L8",
       "id": "tests_setup_nats_test",
-      "community": 5,
+      "community": 4,
       "norm_label": "setup_nats_test()"
     },
     {
@@ -9729,7 +9729,7 @@
       "source_file": "persistence-nats/src/tests.rs",
       "source_location": "L22",
       "id": "tests_test_save_and_load_token",
-      "community": 5,
+      "community": 4,
       "norm_label": "test_save_and_load_token()"
     },
     {
@@ -9738,8 +9738,89 @@
       "source_file": "persistence-nats/src/tests.rs",
       "source_location": "L59",
       "id": "tests_test_history_append_and_load",
-      "community": 5,
+      "community": 4,
       "norm_label": "test_history_append_and_load()"
+    },
+    {
+      "label": "e2e_migration.rs",
+      "file_type": "code",
+      "source_file": "engine-server/tests/e2e_migration.rs",
+      "source_location": "L1",
+      "id": "engine_server_tests_e2e_migration_rs",
+      "community": 5,
+      "norm_label": "e2e_migration.rs"
+    },
+    {
+      "label": "start_server()",
+      "file_type": "code",
+      "source_file": "engine-server/tests/e2e_migration.rs",
+      "source_location": "L44",
+      "id": "e2e_migration_start_server",
+      "community": 5,
+      "norm_label": "start_server()"
+    },
+    {
+      "label": "deploy()",
+      "file_type": "code",
+      "source_file": "engine-server/tests/e2e_migration.rs",
+      "source_location": "L56",
+      "id": "e2e_migration_deploy",
+      "community": 5,
+      "norm_label": "deploy()"
+    },
+    {
+      "label": "deploy_and_start()",
+      "file_type": "code",
+      "source_file": "engine-server/tests/e2e_migration.rs",
+      "source_location": "L71",
+      "id": "e2e_migration_deploy_and_start",
+      "community": 5,
+      "norm_label": "deploy_and_start()"
+    },
+    {
+      "label": "migrate_instance_same_node_ids_returns_204()",
+      "file_type": "code",
+      "source_file": "engine-server/tests/e2e_migration.rs",
+      "source_location": "L92",
+      "id": "e2e_migration_migrate_instance_same_node_ids_returns_204",
+      "community": 5,
+      "norm_label": "migrate_instance_same_node_ids_returns_204()"
+    },
+    {
+      "label": "migrate_instance_updates_definition_key()",
+      "file_type": "code",
+      "source_file": "engine-server/tests/e2e_migration.rs",
+      "source_location": "L113",
+      "id": "e2e_migration_migrate_instance_updates_definition_key",
+      "community": 5,
+      "norm_label": "migrate_instance_updates_definition_key()"
+    },
+    {
+      "label": "migrate_instance_with_node_mapping_returns_204()",
+      "file_type": "code",
+      "source_file": "engine-server/tests/e2e_migration.rs",
+      "source_location": "L149",
+      "id": "e2e_migration_migrate_instance_with_node_mapping_returns_204",
+      "community": 5,
+      "norm_label": "migrate_instance_with_node_mapping_returns_204()"
+    },
+    {
+      "label": "migrate_orphaned_token_without_mapping_returns_422()",
+      "file_type": "code",
+      "source_file": "engine-server/tests/e2e_migration.rs",
+      "source_location": "L187",
+      "id": "e2e_migration_migrate_orphaned_token_without_mapping_returns_422",
+      "community": 5,
+      "norm_label": "migrate_orphaned_token_without_mapping_returns_422()"
+    },
+    {
+      "label": "migrate_instance_unknown_target_returns_404()",
+      "file_type": "code",
+      "source_file": "engine-server/tests/e2e_migration.rs",
+      "source_location": "L219",
+      "id": "e2e_migration_migrate_instance_unknown_target_returns_404",
+      "community": 5,
+      "norm_label": "migrate_instance_unknown_target_returns_404()"
     },
     {
       "label": "e2e_service_tasks.rs",
@@ -9747,7 +9828,7 @@
       "source_file": "engine-server/tests/e2e_service_tasks.rs",
       "source_location": "L1",
       "id": "engine_server_tests_e2e_service_tasks_rs",
-      "community": 4,
+      "community": 18,
       "norm_label": "e2e_service_tasks.rs"
     },
     {
@@ -9756,7 +9837,7 @@
       "source_file": "engine-server/tests/e2e_service_tasks.rs",
       "source_location": "L38",
       "id": "e2e_service_tasks_start_server",
-      "community": 4,
+      "community": 18,
       "norm_label": "start_server()"
     },
     {
@@ -9765,7 +9846,7 @@
       "source_file": "engine-server/tests/e2e_service_tasks.rs",
       "source_location": "L52",
       "id": "e2e_service_tasks_setup_locked_task",
-      "community": 4,
+      "community": 18,
       "norm_label": "setup_locked_task()"
     },
     {
@@ -9774,7 +9855,7 @@
       "source_file": "engine-server/tests/e2e_service_tasks.rs",
       "source_location": "L95",
       "id": "e2e_service_tasks_get_service_tasks_returns_list",
-      "community": 4,
+      "community": 18,
       "norm_label": "get_service_tasks_returns_list()"
     },
     {
@@ -9783,7 +9864,7 @@
       "source_file": "engine-server/tests/e2e_service_tasks.rs",
       "source_location": "L129",
       "id": "e2e_service_tasks_fail_service_task_decrements_retries",
-      "community": 4,
+      "community": 18,
       "norm_label": "fail_service_task_decrements_retries()"
     },
     {
@@ -9792,7 +9873,7 @@
       "source_file": "engine-server/tests/e2e_service_tasks.rs",
       "source_location": "L164",
       "id": "e2e_service_tasks_extend_lock_succeeds",
-      "community": 4,
+      "community": 18,
       "norm_label": "extend_lock_succeeds()"
     },
     {
@@ -9801,7 +9882,7 @@
       "source_file": "engine-server/tests/e2e_service_tasks.rs",
       "source_location": "L181",
       "id": "e2e_service_tasks_extend_lock_wrong_worker_returns_conflict",
-      "community": 4,
+      "community": 18,
       "norm_label": "extend_lock_wrong_worker_returns_conflict()"
     },
     {
@@ -9810,7 +9891,7 @@
       "source_file": "engine-server/tests/e2e_service_tasks.rs",
       "source_location": "L198",
       "id": "e2e_service_tasks_complete_wrong_worker_returns_conflict",
-      "community": 4,
+      "community": 18,
       "norm_label": "complete_wrong_worker_returns_conflict()"
     },
     {
@@ -9819,7 +9900,7 @@
       "source_file": "engine-server/tests/e2e_service_tasks.rs",
       "source_location": "L212",
       "id": "e2e_service_tasks_bpmn_error_routes_to_boundary_event",
-      "community": 4,
+      "community": 18,
       "norm_label": "bpmn_error_routes_to_boundary_event()"
     },
     {
@@ -9828,8 +9909,80 @@
       "source_file": "engine-server/tests/e2e_service_tasks.rs",
       "source_location": "L242",
       "id": "e2e_service_tasks_complete_nonexistent_task_returns_404",
-      "community": 4,
+      "community": 18,
       "norm_label": "complete_nonexistent_task_returns_404()"
+    },
+    {
+      "label": "e2e_suspend_resume.rs",
+      "file_type": "code",
+      "source_file": "engine-server/tests/e2e_suspend_resume.rs",
+      "source_location": "L1",
+      "id": "engine_server_tests_e2e_suspend_resume_rs",
+      "community": 5,
+      "norm_label": "e2e_suspend_resume.rs"
+    },
+    {
+      "label": "start_server()",
+      "file_type": "code",
+      "source_file": "engine-server/tests/e2e_suspend_resume.rs",
+      "source_location": "L22",
+      "id": "e2e_suspend_resume_start_server",
+      "community": 5,
+      "norm_label": "start_server()"
+    },
+    {
+      "label": "deploy_and_start()",
+      "file_type": "code",
+      "source_file": "engine-server/tests/e2e_suspend_resume.rs",
+      "source_location": "L34",
+      "id": "e2e_suspend_resume_deploy_and_start",
+      "community": 5,
+      "norm_label": "deploy_and_start()"
+    },
+    {
+      "label": "suspend_instance_returns_204()",
+      "file_type": "code",
+      "source_file": "engine-server/tests/e2e_suspend_resume.rs",
+      "source_location": "L64",
+      "id": "e2e_suspend_resume_suspend_instance_returns_204",
+      "community": 5,
+      "norm_label": "suspend_instance_returns_204()"
+    },
+    {
+      "label": "suspend_reflects_suspended_state()",
+      "file_type": "code",
+      "source_file": "engine-server/tests/e2e_suspend_resume.rs",
+      "source_location": "L79",
+      "id": "e2e_suspend_resume_suspend_reflects_suspended_state",
+      "community": 5,
+      "norm_label": "suspend_reflects_suspended_state()"
+    },
+    {
+      "label": "resume_suspended_instance_returns_204()",
+      "file_type": "code",
+      "source_file": "engine-server/tests/e2e_suspend_resume.rs",
+      "source_location": "L109",
+      "id": "e2e_suspend_resume_resume_suspended_instance_returns_204",
+      "community": 5,
+      "norm_label": "resume_suspended_instance_returns_204()"
+    },
+    {
+      "label": "move_token_to_existing_node_returns_204()",
+      "file_type": "code",
+      "source_file": "engine-server/tests/e2e_suspend_resume.rs",
+      "source_location": "L149",
+      "id": "e2e_suspend_resume_move_token_to_existing_node_returns_204",
+      "community": 5,
+      "norm_label": "move_token_to_existing_node_returns_204()"
+    },
+    {
+      "label": "move_token_to_nonexistent_node_returns_404()",
+      "file_type": "code",
+      "source_file": "engine-server/tests/e2e_suspend_resume.rs",
+      "source_location": "L184",
+      "id": "e2e_suspend_resume_move_token_to_nonexistent_node_returns_404",
+      "community": 5,
+      "norm_label": "move_token_to_nonexistent_node_returns_404()"
     },
     {
       "label": "e2e_gateways.rs",
@@ -9837,7 +9990,7 @@
       "source_file": "engine-server/tests/e2e_gateways.rs",
       "source_location": "L1",
       "id": "engine_server_tests_e2e_gateways_rs",
-      "community": 4,
+      "community": 5,
       "norm_label": "e2e_gateways.rs"
     },
     {
@@ -9846,7 +9999,7 @@
       "source_file": "engine-server/tests/e2e_gateways.rs",
       "source_location": "L3",
       "id": "e2e_gateways_start_server",
-      "community": 4,
+      "community": 5,
       "norm_label": "start_server()"
     },
     {
@@ -9855,7 +10008,7 @@
       "source_file": "engine-server/tests/e2e_gateways.rs",
       "source_location": "L38",
       "id": "e2e_gateways_deploy_and_execute_parallel_gateway",
-      "community": 4,
+      "community": 5,
       "norm_label": "deploy_and_execute_parallel_gateway()"
     },
     {
@@ -9864,7 +10017,7 @@
       "source_file": "engine-server/tests/e2e_monitoring.rs",
       "source_location": "L1",
       "id": "engine_server_tests_e2e_monitoring_rs",
-      "community": 4,
+      "community": 5,
       "norm_label": "e2e_monitoring.rs"
     },
     {
@@ -9873,7 +10026,7 @@
       "source_file": "engine-server/tests/e2e_monitoring.rs",
       "source_location": "L9",
       "id": "e2e_monitoring_start_server",
-      "community": 4,
+      "community": 5,
       "norm_label": "start_server()"
     },
     {
@@ -9882,7 +10035,7 @@
       "source_file": "engine-server/tests/e2e_monitoring.rs",
       "source_location": "L23",
       "id": "e2e_monitoring_health_endpoint_returns_200",
-      "community": 4,
+      "community": 5,
       "norm_label": "health_endpoint_returns_200()"
     },
     {
@@ -9891,7 +10044,7 @@
       "source_file": "engine-server/tests/e2e_monitoring.rs",
       "source_location": "L34",
       "id": "e2e_monitoring_ready_endpoint_returns_200_without_nats",
-      "community": 4,
+      "community": 5,
       "norm_label": "ready_endpoint_returns_200_without_nats()"
     },
     {
@@ -9900,7 +10053,7 @@
       "source_file": "engine-server/tests/e2e_monitoring.rs",
       "source_location": "L42",
       "id": "e2e_monitoring_info_endpoint_returns_backend_type",
-      "community": 4,
+      "community": 5,
       "norm_label": "info_endpoint_returns_backend_type()"
     },
     {
@@ -9909,7 +10062,7 @@
       "source_file": "engine-server/tests/e2e_monitoring.rs",
       "source_location": "L55",
       "id": "e2e_monitoring_monitoring_endpoint_returns_stats",
-      "community": 4,
+      "community": 5,
       "norm_label": "monitoring_endpoint_returns_stats()"
     },
     {
@@ -9918,7 +10071,7 @@
       "source_file": "engine-server/tests/e2e_deploy.rs",
       "source_location": "L1",
       "id": "engine_server_tests_e2e_deploy_rs",
-      "community": 4,
+      "community": 5,
       "norm_label": "e2e_deploy.rs"
     },
     {
@@ -9927,7 +10080,7 @@
       "source_file": "engine-server/tests/e2e_deploy.rs",
       "source_location": "L17",
       "id": "e2e_deploy_start_server",
-      "community": 4,
+      "community": 5,
       "norm_label": "start_server()"
     },
     {
@@ -9936,7 +10089,7 @@
       "source_file": "engine-server/tests/e2e_deploy.rs",
       "source_location": "L36",
       "id": "e2e_deploy_deploy_minimal_workflow_returns_definition_id",
-      "community": 4,
+      "community": 5,
       "norm_label": "deploy_minimal_workflow_returns_definition_id()"
     },
     {
@@ -9945,7 +10098,7 @@
       "source_file": "engine-server/tests/e2e_deploy.rs",
       "source_location": "L66",
       "id": "e2e_deploy_deploy_and_start_minimal_workflow_completes_immediately",
-      "community": 4,
+      "community": 5,
       "norm_label": "deploy_and_start_minimal_workflow_completes_immediately()"
     },
     {
@@ -9954,7 +10107,7 @@
       "source_file": "engine-server/tests/e2e_deploy.rs",
       "source_location": "L126",
       "id": "e2e_deploy_deploy_invalid_xml_returns_400",
-      "community": 4,
+      "community": 5,
       "norm_label": "deploy_invalid_xml_returns_400()"
     },
     {
@@ -9963,7 +10116,7 @@
       "source_file": "engine-server/tests/e2e_start_errors.rs",
       "source_location": "L1",
       "id": "engine_server_tests_e2e_start_errors_rs",
-      "community": 4,
+      "community": 5,
       "norm_label": "e2e_start_errors.rs"
     },
     {
@@ -9972,7 +10125,7 @@
       "source_file": "engine-server/tests/e2e_start_errors.rs",
       "source_location": "L20",
       "id": "e2e_start_errors_start_server",
-      "community": 4,
+      "community": 5,
       "norm_label": "start_server()"
     },
     {
@@ -9981,7 +10134,7 @@
       "source_file": "engine-server/tests/e2e_start_errors.rs",
       "source_location": "L38",
       "id": "e2e_start_errors_start_with_invalid_uuid_format_returns_400",
-      "community": 4,
+      "community": 5,
       "norm_label": "start_with_invalid_uuid_format_returns_400()"
     },
     {
@@ -9990,7 +10143,7 @@
       "source_file": "engine-server/tests/e2e_start_errors.rs",
       "source_location": "L62",
       "id": "e2e_start_errors_start_with_unknown_definition_uuid_returns_404",
-      "community": 4,
+      "community": 5,
       "norm_label": "start_with_unknown_definition_uuid_returns_404()"
     },
     {
@@ -9999,7 +10152,7 @@
       "source_file": "engine-server/tests/e2e_start_errors.rs",
       "source_location": "L92",
       "id": "e2e_start_errors_start_latest_with_unknown_bpmn_id_returns_400",
-      "community": 4,
+      "community": 5,
       "norm_label": "start_latest_with_unknown_bpmn_id_returns_400()"
     },
     {
@@ -10008,7 +10161,7 @@
       "source_file": "engine-server/tests/e2e_start_errors.rs",
       "source_location": "L122",
       "id": "e2e_start_errors_start_instance_with_timer_start_returns_400",
-      "community": 4,
+      "community": 5,
       "norm_label": "start_instance_with_timer_start_returns_400()"
     },
     {
@@ -10017,7 +10170,7 @@
       "source_file": "engine-server/tests/e2e_lifecycle.rs",
       "source_location": "L1",
       "id": "engine_server_tests_e2e_lifecycle_rs",
-      "community": 4,
+      "community": 5,
       "norm_label": "e2e_lifecycle.rs"
     },
     {
@@ -10026,7 +10179,7 @@
       "source_file": "engine-server/tests/e2e_lifecycle.rs",
       "source_location": "L44",
       "id": "e2e_lifecycle_start_server",
-      "community": 4,
+      "community": 5,
       "norm_label": "start_server()"
     },
     {
@@ -10035,7 +10188,7 @@
       "source_file": "engine-server/tests/e2e_lifecycle.rs",
       "source_location": "L58",
       "id": "e2e_lifecycle_deploy_and_start",
-      "community": 4,
+      "community": 5,
       "norm_label": "deploy_and_start()"
     },
     {
@@ -10044,7 +10197,7 @@
       "source_file": "engine-server/tests/e2e_lifecycle.rs",
       "source_location": "L81",
       "id": "e2e_lifecycle_delete_instance_returns_204",
-      "community": 4,
+      "community": 5,
       "norm_label": "delete_instance_returns_204()"
     },
     {
@@ -10053,7 +10206,7 @@
       "source_file": "engine-server/tests/e2e_lifecycle.rs",
       "source_location": "L103",
       "id": "e2e_lifecycle_get_unknown_instance_returns_404",
-      "community": 4,
+      "community": 5,
       "norm_label": "get_unknown_instance_returns_404()"
     },
     {
@@ -10062,7 +10215,7 @@
       "source_file": "engine-server/tests/e2e_lifecycle.rs",
       "source_location": "L117",
       "id": "e2e_lifecycle_delete_definition_without_cascade_with_instances_returns_409",
-      "community": 4,
+      "community": 5,
       "norm_label": "delete_definition_without_cascade_with_instances_returns_409()"
     },
     {
@@ -10071,7 +10224,7 @@
       "source_file": "engine-server/tests/e2e_lifecycle.rs",
       "source_location": "L137",
       "id": "e2e_lifecycle_delete_definition_cascade_removes_instances",
-      "community": 4,
+      "community": 5,
       "norm_label": "delete_definition_cascade_removes_instances()"
     },
     {
@@ -10080,7 +10233,7 @@
       "source_file": "engine-server/tests/e2e_lifecycle.rs",
       "source_location": "L169",
       "id": "e2e_lifecycle_process_timers_returns_count",
-      "community": 4,
+      "community": 5,
       "norm_label": "process_timers_returns_count()"
     },
     {
@@ -10089,7 +10242,7 @@
       "source_file": "engine-server/tests/e2e_lifecycle.rs",
       "source_location": "L185",
       "id": "e2e_lifecycle_correlate_message_with_no_match_returns_empty",
-      "community": 4,
+      "community": 5,
       "norm_label": "correlate_message_with_no_match_returns_empty()"
     },
     {
@@ -10098,7 +10251,7 @@
       "source_file": "engine-server/tests/e2e_variables.rs",
       "source_location": "L1",
       "id": "engine_server_tests_e2e_variables_rs",
-      "community": 4,
+      "community": 5,
       "norm_label": "e2e_variables.rs"
     },
     {
@@ -10107,7 +10260,7 @@
       "source_file": "engine-server/tests/e2e_variables.rs",
       "source_location": "L18",
       "id": "e2e_variables_start_server",
-      "community": 4,
+      "community": 5,
       "norm_label": "start_server()"
     },
     {
@@ -10116,7 +10269,7 @@
       "source_file": "engine-server/tests/e2e_variables.rs",
       "source_location": "L34",
       "id": "e2e_variables_test_update_variables_mid_execution_persists",
-      "community": 4,
+      "community": 5,
       "norm_label": "test_update_variables_mid_execution_persists()"
     },
     {
@@ -10125,7 +10278,7 @@
       "source_file": "engine-server/tests/e2e_file_variables.rs",
       "source_location": "L1",
       "id": "engine_server_tests_e2e_file_variables_rs",
-      "community": 4,
+      "community": 5,
       "norm_label": "e2e_file_variables.rs"
     },
     {
@@ -10134,7 +10287,7 @@
       "source_file": "engine-server/tests/e2e_file_variables.rs",
       "source_location": "L7",
       "id": "e2e_file_variables_start_server",
-      "community": 4,
+      "community": 5,
       "norm_label": "start_server()"
     },
     {
@@ -10143,7 +10296,7 @@
       "source_file": "engine-server/tests/e2e_file_variables.rs",
       "source_location": "L32",
       "id": "e2e_file_variables_deploy_and_start",
-      "community": 4,
+      "community": 5,
       "norm_label": "deploy_and_start()"
     },
     {
@@ -10152,7 +10305,7 @@
       "source_file": "engine-server/tests/e2e_file_variables.rs",
       "source_location": "L59",
       "id": "e2e_file_variables_upload_file",
-      "community": 4,
+      "community": 5,
       "norm_label": "upload_file()"
     },
     {
@@ -10161,7 +10314,7 @@
       "source_file": "engine-server/tests/e2e_file_variables.rs",
       "source_location": "L90",
       "id": "e2e_file_variables_file_variable_upload_creates_reference",
-      "community": 4,
+      "community": 5,
       "norm_label": "file_variable_upload_creates_reference()"
     },
     {
@@ -10170,7 +10323,7 @@
       "source_file": "engine-server/tests/e2e_file_variables.rs",
       "source_location": "L121",
       "id": "e2e_file_variables_file_variable_survives_task_completion",
-      "community": 4,
+      "community": 5,
       "norm_label": "file_variable_survives_task_completion()"
     },
     {
@@ -10179,7 +10332,7 @@
       "source_file": "engine-server/tests/e2e_file_variables.rs",
       "source_location": "L178",
       "id": "e2e_file_variables_multiple_file_variables_and_delete_one",
-      "community": 4,
+      "community": 5,
       "norm_label": "multiple_file_variables_and_delete_one()"
     },
     {
@@ -10242,7 +10395,7 @@
       "source_file": "engine-server/tests/e2e_call_activity.rs",
       "source_location": "L1",
       "id": "engine_server_tests_e2e_call_activity_rs",
-      "community": 4,
+      "community": 21,
       "norm_label": "e2e_call_activity.rs"
     },
     {
@@ -10251,7 +10404,7 @@
       "source_file": "engine-server/tests/e2e_call_activity.rs",
       "source_location": "L57",
       "id": "e2e_call_activity_start_server",
-      "community": 4,
+      "community": 21,
       "norm_label": "start_server()"
     },
     {
@@ -10260,7 +10413,7 @@
       "source_file": "engine-server/tests/e2e_call_activity.rs",
       "source_location": "L71",
       "id": "e2e_call_activity_deploy_and_start",
-      "community": 4,
+      "community": 21,
       "norm_label": "deploy_and_start()"
     },
     {
@@ -10269,7 +10422,7 @@
       "source_file": "engine-server/tests/e2e_call_activity.rs",
       "source_location": "L94",
       "id": "e2e_call_activity_deploy",
-      "community": 4,
+      "community": 21,
       "norm_label": "deploy()"
     },
     {
@@ -10278,7 +10431,7 @@
       "source_file": "engine-server/tests/e2e_call_activity.rs",
       "source_location": "L107",
       "id": "e2e_call_activity_call_activity_eltern_wartet_auf_kind",
-      "community": 4,
+      "community": 21,
       "norm_label": "call_activity_eltern_wartet_auf_kind()"
     },
     {
@@ -10287,7 +10440,7 @@
       "source_file": "engine-server/tests/e2e_call_activity.rs",
       "source_location": "L133",
       "id": "e2e_call_activity_call_activity_kind_ist_unterinstanz",
-      "community": 4,
+      "community": 21,
       "norm_label": "call_activity_kind_ist_unterinstanz()"
     },
     {
@@ -10296,7 +10449,7 @@
       "source_file": "engine-server/tests/e2e_call_activity.rs",
       "source_location": "L164",
       "id": "e2e_call_activity_call_activity_variablen_propagation",
-      "community": 4,
+      "community": 21,
       "norm_label": "call_activity_variablen_propagation()"
     },
     {
@@ -10305,7 +10458,7 @@
       "source_file": "engine-server/tests/e2e_call_activity.rs",
       "source_location": "L220",
       "id": "e2e_call_activity_call_activity_eltern_abschluss_nach_kind",
-      "community": 4,
+      "community": 21,
       "norm_label": "call_activity_eltern_abschluss_nach_kind()"
     },
     {
@@ -10314,7 +10467,7 @@
       "source_file": "engine-server/tests/e2e_call_activity.rs",
       "source_location": "L269",
       "id": "e2e_call_activity_call_activity_mit_kind_service_task",
-      "community": 4,
+      "community": 21,
       "norm_label": "call_activity_mit_kind_service_task()"
     },
     {
@@ -10323,7 +10476,7 @@
       "source_file": "engine-server/tests/e2e_files.rs",
       "source_location": "L1",
       "id": "engine_server_tests_e2e_files_rs",
-      "community": 4,
+      "community": 5,
       "norm_label": "e2e_files.rs"
     },
     {
@@ -10332,7 +10485,7 @@
       "source_file": "engine-server/tests/e2e_files.rs",
       "source_location": "L7",
       "id": "e2e_files_test_file_upload_download_delete",
-      "community": 4,
+      "community": 5,
       "norm_label": "test_file_upload_download_delete()"
     },
     {
@@ -10341,7 +10494,7 @@
       "source_file": "engine-server/tests/e2e_versioning.rs",
       "source_location": "L1",
       "id": "engine_server_tests_e2e_versioning_rs",
-      "community": 4,
+      "community": 5,
       "norm_label": "e2e_versioning.rs"
     },
     {
@@ -10350,7 +10503,7 @@
       "source_file": "engine-server/tests/e2e_versioning.rs",
       "source_location": "L5",
       "id": "e2e_versioning_start_server",
-      "community": 4,
+      "community": 5,
       "norm_label": "start_server()"
     },
     {
@@ -10359,7 +10512,7 @@
       "source_file": "engine-server/tests/e2e_versioning.rs",
       "source_location": "L41",
       "id": "e2e_versioning_deploy_same_bpmn_id_increments_version",
-      "community": 4,
+      "community": 5,
       "norm_label": "deploy_same_bpmn_id_increments_version()"
     },
     {
@@ -10368,7 +10521,7 @@
       "source_file": "engine-server/tests/e2e_versioning.rs",
       "source_location": "L88",
       "id": "e2e_versioning_instances_stay_on_original_version",
-      "community": 4,
+      "community": 5,
       "norm_label": "instances_stay_on_original_version()"
     },
     {
@@ -10377,7 +10530,7 @@
       "source_file": "engine-server/tests/e2e_versioning.rs",
       "source_location": "L140",
       "id": "e2e_versioning_start_latest_uses_newest_version",
-      "community": 4,
+      "community": 5,
       "norm_label": "start_latest_uses_newest_version()"
     },
     {
@@ -10386,7 +10539,7 @@
       "source_file": "engine-server/tests/e2e_stress.rs",
       "source_location": "L1",
       "id": "engine_server_tests_e2e_stress_rs",
-      "community": 4,
+      "community": 5,
       "norm_label": "e2e_stress.rs"
     },
     {
@@ -10395,7 +10548,7 @@
       "source_file": "engine-server/tests/e2e_stress.rs",
       "source_location": "L3",
       "id": "e2e_stress_start_server",
-      "community": 4,
+      "community": 5,
       "norm_label": "start_server()"
     },
     {
@@ -10404,7 +10557,7 @@
       "source_file": "engine-server/tests/e2e_stress.rs",
       "source_location": "L19",
       "id": "e2e_stress_stress_http_concurrent_deployments",
-      "community": 4,
+      "community": 5,
       "norm_label": "stress_http_concurrent_deployments()"
     },
     {
@@ -10413,7 +10566,7 @@
       "source_file": "engine-server/tests/e2e_stress.rs",
       "source_location": "L71",
       "id": "e2e_stress_stress_http_concurrent_starts",
-      "community": 4,
+      "community": 5,
       "norm_label": "stress_http_concurrent_starts()"
     },
     {
@@ -10422,7 +10575,7 @@
       "source_file": "engine-server/src/observability.rs",
       "source_location": "L1",
       "id": "engine_server_src_observability_rs",
-      "community": 5,
+      "community": 4,
       "norm_label": "observability.rs"
     },
     {
@@ -10431,7 +10584,7 @@
       "source_file": "engine-server/src/observability.rs",
       "source_location": "L32",
       "id": "observability_install_prometheus_recorder",
-      "community": 5,
+      "community": 4,
       "norm_label": "install_prometheus_recorder()"
     },
     {
@@ -10440,7 +10593,7 @@
       "source_file": "engine-server/src/observability.rs",
       "source_location": "L80",
       "id": "observability_metrics_handler",
-      "community": 5,
+      "community": 4,
       "norm_label": "metrics_handler()"
     },
     {
@@ -10449,7 +10602,7 @@
       "source_file": "engine-server/src/observability.rs",
       "source_location": "L100",
       "id": "observability_http_metrics_middleware",
-      "community": 5,
+      "community": 4,
       "norm_label": "http_metrics_middleware()"
     },
     {
@@ -10467,7 +10620,7 @@
       "source_file": "engine-server/src/observability.rs",
       "source_location": "L148",
       "id": "observability_test_normalize_path",
-      "community": 5,
+      "community": 4,
       "norm_label": "test_normalize_path()"
     },
     {
@@ -10476,7 +10629,7 @@
       "source_file": "engine-server/src/lib.rs",
       "source_location": "L1",
       "id": "engine_server_src_lib_rs",
-      "community": 106,
+      "community": 108,
       "norm_label": "lib.rs"
     },
     {
@@ -10980,7 +11133,7 @@
       "source_file": "engine-server/src/server/mod.rs",
       "source_location": "L1",
       "id": "engine_server_src_server_mod_rs",
-      "community": 4,
+      "community": 5,
       "norm_label": "mod.rs"
     },
     {
@@ -10989,7 +11142,7 @@
       "source_file": "engine-server/src/server/mod.rs",
       "source_location": "L33",
       "id": "mod_build_app",
-      "community": 4,
+      "community": 5,
       "norm_label": "build_app()"
     },
     {
@@ -10998,7 +11151,7 @@
       "source_file": "engine-server/src/server/mod.rs",
       "source_location": "L37",
       "id": "mod_build_app_with_engine",
-      "community": 4,
+      "community": 5,
       "norm_label": "build_app_with_engine()"
     },
     {
@@ -11088,7 +11241,7 @@
       "source_file": "engine-server/src/server/state.rs",
       "source_location": "L20",
       "id": "state_apperror_from",
-      "community": 15,
+      "community": 14,
       "norm_label": ".from()"
     },
     {
@@ -11115,7 +11268,7 @@
       "source_file": "engine-server/src/server/timers.rs",
       "source_location": "L1",
       "id": "engine_server_src_server_timers_rs",
-      "community": 30,
+      "community": 32,
       "norm_label": "timers.rs"
     },
     {
@@ -11124,7 +11277,7 @@
       "source_file": "engine-server/src/server/timers.rs",
       "source_location": "L9",
       "id": "timers_processtimersresponse",
-      "community": 30,
+      "community": 32,
       "norm_label": "processtimersresponse"
     },
     {
@@ -11142,7 +11295,7 @@
       "source_file": "engine-server/src/server/timers.rs",
       "source_location": "L22",
       "id": "timers_get_pending_timers",
-      "community": 30,
+      "community": 32,
       "norm_label": "get_pending_timers()"
     },
     {
@@ -13962,7 +14115,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "desktop-tauri/tests/e2e/app.spec.ts",
-      "source_location": "L98",
+      "source_location": "L104",
       "weight": 1.0,
       "_src": "desktop_tauri_tests_e2e_app_spec_ts",
       "_tgt": "app_spec_injecttaurimock",
@@ -13974,7 +14127,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "desktop-tauri/tests/e2e/app.spec.ts",
-      "source_location": "L481",
+      "source_location": "L558",
       "weight": 1.0,
       "_src": "desktop_tauri_tests_e2e_app_spec_ts",
       "_tgt": "app_spec_collecttoasts",
@@ -13986,7 +14139,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "desktop-tauri/tests/e2e/app.spec.ts",
-      "source_location": "L1592",
+      "source_location": "L1669",
       "weight": 1.0,
       "_src": "desktop_tauri_tests_e2e_app_spec_ts",
       "_tgt": "app_spec_loadxmlandclickelement",
@@ -13998,7 +14151,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "desktop-tauri/tests/e2e/app.spec.ts",
-      "source_location": "L1712",
+      "source_location": "L1789",
       "weight": 1.0,
       "_src": "desktop_tauri_tests_e2e_app_spec_ts",
       "_tgt": "app_spec_makecompleted",
@@ -14010,7 +14163,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "desktop-tauri/tests/e2e/app.spec.ts",
-      "source_location": "L1597",
+      "source_location": "L1674",
       "weight": 1.0,
       "_src": "app_spec_loadxmlandclickelement",
       "_tgt": "app_spec_injecttaurimock",
@@ -15018,6 +15171,18 @@
       "relation": "calls",
       "confidence": "INFERRED",
       "confidence_score": 0.8,
+      "source_file": "engine-server/tests/e2e_migration.rs",
+      "source_location": "L49",
+      "weight": 1.0,
+      "_src": "e2e_migration_start_server",
+      "_tgt": "sse_consumer_spawn",
+      "source": "sse_consumer_spawn",
+      "target": "e2e_migration_start_server"
+    },
+    {
+      "relation": "calls",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
       "source_file": "engine-server/tests/e2e_service_tasks.rs",
       "source_location": "L45",
       "weight": 1.0,
@@ -15025,6 +15190,18 @@
       "_tgt": "e2e_service_tasks_start_server",
       "source": "sse_consumer_spawn",
       "target": "e2e_service_tasks_start_server"
+    },
+    {
+      "relation": "calls",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "engine-server/tests/e2e_suspend_resume.rs",
+      "source_location": "L27",
+      "weight": 1.0,
+      "_src": "e2e_suspend_resume_start_server",
+      "_tgt": "sse_consumer_spawn",
+      "source": "sse_consumer_spawn",
+      "target": "e2e_suspend_resume_start_server"
     },
     {
       "relation": "calls",
@@ -38370,6 +38547,30 @@
       "relation": "calls",
       "confidence": "INFERRED",
       "confidence_score": 0.8,
+      "source_file": "engine-server/tests/e2e_migration.rs",
+      "source_location": "L130",
+      "weight": 1.0,
+      "_src": "e2e_migration_migrate_instance_updates_definition_key",
+      "_tgt": "instance_store_instancestore_get",
+      "source": "instance_store_instancestore_get",
+      "target": "e2e_migration_migrate_instance_updates_definition_key"
+    },
+    {
+      "relation": "calls",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "engine-server/tests/e2e_migration.rs",
+      "source_location": "L169",
+      "weight": 1.0,
+      "_src": "e2e_migration_migrate_instance_with_node_mapping_returns_204",
+      "_tgt": "instance_store_instancestore_get",
+      "source": "instance_store_instancestore_get",
+      "target": "e2e_migration_migrate_instance_with_node_mapping_returns_204"
+    },
+    {
+      "relation": "calls",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
       "source_file": "engine-server/tests/e2e_service_tasks.rs",
       "source_location": "L117",
       "weight": 1.0,
@@ -38401,6 +38602,42 @@
       "_tgt": "e2e_service_tasks_bpmn_error_routes_to_boundary_event",
       "source": "instance_store_instancestore_get",
       "target": "e2e_service_tasks_bpmn_error_routes_to_boundary_event"
+    },
+    {
+      "relation": "calls",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "engine-server/tests/e2e_suspend_resume.rs",
+      "source_location": "L90",
+      "weight": 1.0,
+      "_src": "e2e_suspend_resume_suspend_reflects_suspended_state",
+      "_tgt": "instance_store_instancestore_get",
+      "source": "instance_store_instancestore_get",
+      "target": "e2e_suspend_resume_suspend_reflects_suspended_state"
+    },
+    {
+      "relation": "calls",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "engine-server/tests/e2e_suspend_resume.rs",
+      "source_location": "L130",
+      "weight": 1.0,
+      "_src": "e2e_suspend_resume_resume_suspended_instance_returns_204",
+      "_tgt": "instance_store_instancestore_get",
+      "source": "instance_store_instancestore_get",
+      "target": "e2e_suspend_resume_resume_suspended_instance_returns_204"
+    },
+    {
+      "relation": "calls",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "engine-server/tests/e2e_suspend_resume.rs",
+      "source_location": "L167",
+      "weight": 1.0,
+      "_src": "e2e_suspend_resume_move_token_to_existing_node_returns_204",
+      "_tgt": "instance_store_instancestore_get",
+      "source": "instance_store_instancestore_get",
+      "target": "e2e_suspend_resume_move_token_to_existing_node_returns_204"
     },
     {
       "relation": "calls",
@@ -52181,6 +52418,354 @@
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
+      "source_file": "engine-server/tests/e2e_migration.rs",
+      "source_location": "L44",
+      "weight": 1.0,
+      "_src": "engine_server_tests_e2e_migration_rs",
+      "_tgt": "e2e_migration_start_server",
+      "source": "engine_server_tests_e2e_migration_rs",
+      "target": "e2e_migration_start_server",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "engine-server/tests/e2e_migration.rs",
+      "source_location": "L56",
+      "weight": 1.0,
+      "_src": "engine_server_tests_e2e_migration_rs",
+      "_tgt": "e2e_migration_deploy",
+      "source": "engine_server_tests_e2e_migration_rs",
+      "target": "e2e_migration_deploy",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "engine-server/tests/e2e_migration.rs",
+      "source_location": "L71",
+      "weight": 1.0,
+      "_src": "engine_server_tests_e2e_migration_rs",
+      "_tgt": "e2e_migration_deploy_and_start",
+      "source": "engine_server_tests_e2e_migration_rs",
+      "target": "e2e_migration_deploy_and_start",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "engine-server/tests/e2e_migration.rs",
+      "source_location": "L92",
+      "weight": 1.0,
+      "_src": "engine_server_tests_e2e_migration_rs",
+      "_tgt": "e2e_migration_migrate_instance_same_node_ids_returns_204",
+      "source": "engine_server_tests_e2e_migration_rs",
+      "target": "e2e_migration_migrate_instance_same_node_ids_returns_204",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "engine-server/tests/e2e_migration.rs",
+      "source_location": "L113",
+      "weight": 1.0,
+      "_src": "engine_server_tests_e2e_migration_rs",
+      "_tgt": "e2e_migration_migrate_instance_updates_definition_key",
+      "source": "engine_server_tests_e2e_migration_rs",
+      "target": "e2e_migration_migrate_instance_updates_definition_key",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "engine-server/tests/e2e_migration.rs",
+      "source_location": "L149",
+      "weight": 1.0,
+      "_src": "engine_server_tests_e2e_migration_rs",
+      "_tgt": "e2e_migration_migrate_instance_with_node_mapping_returns_204",
+      "source": "engine_server_tests_e2e_migration_rs",
+      "target": "e2e_migration_migrate_instance_with_node_mapping_returns_204",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "engine-server/tests/e2e_migration.rs",
+      "source_location": "L187",
+      "weight": 1.0,
+      "_src": "engine_server_tests_e2e_migration_rs",
+      "_tgt": "e2e_migration_migrate_orphaned_token_without_mapping_returns_422",
+      "source": "engine_server_tests_e2e_migration_rs",
+      "target": "e2e_migration_migrate_orphaned_token_without_mapping_returns_422",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "engine-server/tests/e2e_migration.rs",
+      "source_location": "L219",
+      "weight": 1.0,
+      "_src": "engine_server_tests_e2e_migration_rs",
+      "_tgt": "e2e_migration_migrate_instance_unknown_target_returns_404",
+      "source": "engine_server_tests_e2e_migration_rs",
+      "target": "e2e_migration_migrate_instance_unknown_target_returns_404",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "engine-server/tests/e2e_migration.rs",
+      "source_location": "L93",
+      "weight": 1.0,
+      "_src": "e2e_migration_migrate_instance_same_node_ids_returns_204",
+      "_tgt": "e2e_migration_start_server",
+      "source": "e2e_migration_start_server",
+      "target": "e2e_migration_migrate_instance_same_node_ids_returns_204",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "engine-server/tests/e2e_migration.rs",
+      "source_location": "L114",
+      "weight": 1.0,
+      "_src": "e2e_migration_migrate_instance_updates_definition_key",
+      "_tgt": "e2e_migration_start_server",
+      "source": "e2e_migration_start_server",
+      "target": "e2e_migration_migrate_instance_updates_definition_key",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "engine-server/tests/e2e_migration.rs",
+      "source_location": "L150",
+      "weight": 1.0,
+      "_src": "e2e_migration_migrate_instance_with_node_mapping_returns_204",
+      "_tgt": "e2e_migration_start_server",
+      "source": "e2e_migration_start_server",
+      "target": "e2e_migration_migrate_instance_with_node_mapping_returns_204",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "engine-server/tests/e2e_migration.rs",
+      "source_location": "L188",
+      "weight": 1.0,
+      "_src": "e2e_migration_migrate_orphaned_token_without_mapping_returns_422",
+      "_tgt": "e2e_migration_start_server",
+      "source": "e2e_migration_start_server",
+      "target": "e2e_migration_migrate_orphaned_token_without_mapping_returns_422",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "engine-server/tests/e2e_migration.rs",
+      "source_location": "L220",
+      "weight": 1.0,
+      "_src": "e2e_migration_migrate_instance_unknown_target_returns_404",
+      "_tgt": "e2e_migration_start_server",
+      "source": "e2e_migration_start_server",
+      "target": "e2e_migration_migrate_instance_unknown_target_returns_404",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "engine-server/tests/e2e_migration.rs",
+      "source_location": "L45",
+      "weight": 1.0,
+      "_src": "e2e_migration_start_server",
+      "_tgt": "mod_build_app",
+      "source": "e2e_migration_start_server",
+      "target": "mod_build_app"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "engine-server/tests/e2e_migration.rs",
+      "source_location": "L72",
+      "weight": 1.0,
+      "_src": "e2e_migration_deploy_and_start",
+      "_tgt": "e2e_migration_deploy",
+      "source": "e2e_migration_deploy",
+      "target": "e2e_migration_deploy_and_start",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "engine-server/tests/e2e_migration.rs",
+      "source_location": "L97",
+      "weight": 1.0,
+      "_src": "e2e_migration_migrate_instance_same_node_ids_returns_204",
+      "_tgt": "e2e_migration_deploy",
+      "source": "e2e_migration_deploy",
+      "target": "e2e_migration_migrate_instance_same_node_ids_returns_204",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "engine-server/tests/e2e_migration.rs",
+      "source_location": "L118",
+      "weight": 1.0,
+      "_src": "e2e_migration_migrate_instance_updates_definition_key",
+      "_tgt": "e2e_migration_deploy",
+      "source": "e2e_migration_deploy",
+      "target": "e2e_migration_migrate_instance_updates_definition_key",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "engine-server/tests/e2e_migration.rs",
+      "source_location": "L155",
+      "weight": 1.0,
+      "_src": "e2e_migration_migrate_instance_with_node_mapping_returns_204",
+      "_tgt": "e2e_migration_deploy",
+      "source": "e2e_migration_deploy",
+      "target": "e2e_migration_migrate_instance_with_node_mapping_returns_204",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "engine-server/tests/e2e_migration.rs",
+      "source_location": "L193",
+      "weight": 1.0,
+      "_src": "e2e_migration_migrate_orphaned_token_without_mapping_returns_422",
+      "_tgt": "e2e_migration_deploy",
+      "source": "e2e_migration_deploy",
+      "target": "e2e_migration_migrate_orphaned_token_without_mapping_returns_422",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "engine-server/tests/e2e_migration.rs",
+      "source_location": "L96",
+      "weight": 1.0,
+      "_src": "e2e_migration_migrate_instance_same_node_ids_returns_204",
+      "_tgt": "e2e_migration_deploy_and_start",
+      "source": "e2e_migration_deploy_and_start",
+      "target": "e2e_migration_migrate_instance_same_node_ids_returns_204",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "engine-server/tests/e2e_migration.rs",
+      "source_location": "L117",
+      "weight": 1.0,
+      "_src": "e2e_migration_migrate_instance_updates_definition_key",
+      "_tgt": "e2e_migration_deploy_and_start",
+      "source": "e2e_migration_deploy_and_start",
+      "target": "e2e_migration_migrate_instance_updates_definition_key",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "engine-server/tests/e2e_migration.rs",
+      "source_location": "L153",
+      "weight": 1.0,
+      "_src": "e2e_migration_migrate_instance_with_node_mapping_returns_204",
+      "_tgt": "e2e_migration_deploy_and_start",
+      "source": "e2e_migration_deploy_and_start",
+      "target": "e2e_migration_migrate_instance_with_node_mapping_returns_204",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "engine-server/tests/e2e_migration.rs",
+      "source_location": "L191",
+      "weight": 1.0,
+      "_src": "e2e_migration_migrate_orphaned_token_without_mapping_returns_422",
+      "_tgt": "e2e_migration_deploy_and_start",
+      "source": "e2e_migration_deploy_and_start",
+      "target": "e2e_migration_migrate_orphaned_token_without_mapping_returns_422",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "engine-server/tests/e2e_migration.rs",
+      "source_location": "L223",
+      "weight": 1.0,
+      "_src": "e2e_migration_migrate_instance_unknown_target_returns_404",
+      "_tgt": "e2e_migration_deploy_and_start",
+      "source": "e2e_migration_deploy_and_start",
+      "target": "e2e_migration_migrate_instance_unknown_target_returns_404",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "engine-server/tests/e2e_migration.rs",
+      "source_location": "L94",
+      "weight": 1.0,
+      "_src": "e2e_migration_migrate_instance_same_node_ids_returns_204",
+      "_tgt": "log_buffer_logbuffer_new",
+      "source": "e2e_migration_migrate_instance_same_node_ids_returns_204",
+      "target": "log_buffer_logbuffer_new"
+    },
+    {
+      "relation": "calls",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "engine-server/tests/e2e_migration.rs",
+      "source_location": "L115",
+      "weight": 1.0,
+      "_src": "e2e_migration_migrate_instance_updates_definition_key",
+      "_tgt": "log_buffer_logbuffer_new",
+      "source": "e2e_migration_migrate_instance_updates_definition_key",
+      "target": "log_buffer_logbuffer_new"
+    },
+    {
+      "relation": "calls",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "engine-server/tests/e2e_migration.rs",
+      "source_location": "L151",
+      "weight": 1.0,
+      "_src": "e2e_migration_migrate_instance_with_node_mapping_returns_204",
+      "_tgt": "log_buffer_logbuffer_new",
+      "source": "e2e_migration_migrate_instance_with_node_mapping_returns_204",
+      "target": "log_buffer_logbuffer_new"
+    },
+    {
+      "relation": "calls",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "engine-server/tests/e2e_migration.rs",
+      "source_location": "L189",
+      "weight": 1.0,
+      "_src": "e2e_migration_migrate_orphaned_token_without_mapping_returns_422",
+      "_tgt": "log_buffer_logbuffer_new",
+      "source": "e2e_migration_migrate_orphaned_token_without_mapping_returns_422",
+      "target": "log_buffer_logbuffer_new"
+    },
+    {
+      "relation": "calls",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "engine-server/tests/e2e_migration.rs",
+      "source_location": "L221",
+      "weight": 1.0,
+      "_src": "e2e_migration_migrate_instance_unknown_target_returns_404",
+      "_tgt": "log_buffer_logbuffer_new",
+      "source": "e2e_migration_migrate_instance_unknown_target_returns_404",
+      "target": "log_buffer_logbuffer_new"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
       "source_file": "engine-server/tests/e2e_service_tasks.rs",
       "source_location": "L38",
       "weight": 1.0,
@@ -52428,6 +53013,282 @@
       "_src": "e2e_service_tasks_complete_nonexistent_task_returns_404",
       "_tgt": "log_buffer_logbuffer_new",
       "source": "e2e_service_tasks_complete_nonexistent_task_returns_404",
+      "target": "log_buffer_logbuffer_new"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "engine-server/tests/e2e_suspend_resume.rs",
+      "source_location": "L22",
+      "weight": 1.0,
+      "_src": "engine_server_tests_e2e_suspend_resume_rs",
+      "_tgt": "e2e_suspend_resume_start_server",
+      "source": "engine_server_tests_e2e_suspend_resume_rs",
+      "target": "e2e_suspend_resume_start_server",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "engine-server/tests/e2e_suspend_resume.rs",
+      "source_location": "L34",
+      "weight": 1.0,
+      "_src": "engine_server_tests_e2e_suspend_resume_rs",
+      "_tgt": "e2e_suspend_resume_deploy_and_start",
+      "source": "engine_server_tests_e2e_suspend_resume_rs",
+      "target": "e2e_suspend_resume_deploy_and_start",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "engine-server/tests/e2e_suspend_resume.rs",
+      "source_location": "L64",
+      "weight": 1.0,
+      "_src": "engine_server_tests_e2e_suspend_resume_rs",
+      "_tgt": "e2e_suspend_resume_suspend_instance_returns_204",
+      "source": "engine_server_tests_e2e_suspend_resume_rs",
+      "target": "e2e_suspend_resume_suspend_instance_returns_204",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "engine-server/tests/e2e_suspend_resume.rs",
+      "source_location": "L79",
+      "weight": 1.0,
+      "_src": "engine_server_tests_e2e_suspend_resume_rs",
+      "_tgt": "e2e_suspend_resume_suspend_reflects_suspended_state",
+      "source": "engine_server_tests_e2e_suspend_resume_rs",
+      "target": "e2e_suspend_resume_suspend_reflects_suspended_state",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "engine-server/tests/e2e_suspend_resume.rs",
+      "source_location": "L109",
+      "weight": 1.0,
+      "_src": "engine_server_tests_e2e_suspend_resume_rs",
+      "_tgt": "e2e_suspend_resume_resume_suspended_instance_returns_204",
+      "source": "engine_server_tests_e2e_suspend_resume_rs",
+      "target": "e2e_suspend_resume_resume_suspended_instance_returns_204",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "engine-server/tests/e2e_suspend_resume.rs",
+      "source_location": "L149",
+      "weight": 1.0,
+      "_src": "engine_server_tests_e2e_suspend_resume_rs",
+      "_tgt": "e2e_suspend_resume_move_token_to_existing_node_returns_204",
+      "source": "engine_server_tests_e2e_suspend_resume_rs",
+      "target": "e2e_suspend_resume_move_token_to_existing_node_returns_204",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "engine-server/tests/e2e_suspend_resume.rs",
+      "source_location": "L184",
+      "weight": 1.0,
+      "_src": "engine_server_tests_e2e_suspend_resume_rs",
+      "_tgt": "e2e_suspend_resume_move_token_to_nonexistent_node_returns_404",
+      "source": "engine_server_tests_e2e_suspend_resume_rs",
+      "target": "e2e_suspend_resume_move_token_to_nonexistent_node_returns_404",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "engine-server/tests/e2e_suspend_resume.rs",
+      "source_location": "L65",
+      "weight": 1.0,
+      "_src": "e2e_suspend_resume_suspend_instance_returns_204",
+      "_tgt": "e2e_suspend_resume_start_server",
+      "source": "e2e_suspend_resume_start_server",
+      "target": "e2e_suspend_resume_suspend_instance_returns_204",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "engine-server/tests/e2e_suspend_resume.rs",
+      "source_location": "L80",
+      "weight": 1.0,
+      "_src": "e2e_suspend_resume_suspend_reflects_suspended_state",
+      "_tgt": "e2e_suspend_resume_start_server",
+      "source": "e2e_suspend_resume_start_server",
+      "target": "e2e_suspend_resume_suspend_reflects_suspended_state",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "engine-server/tests/e2e_suspend_resume.rs",
+      "source_location": "L110",
+      "weight": 1.0,
+      "_src": "e2e_suspend_resume_resume_suspended_instance_returns_204",
+      "_tgt": "e2e_suspend_resume_start_server",
+      "source": "e2e_suspend_resume_start_server",
+      "target": "e2e_suspend_resume_resume_suspended_instance_returns_204",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "engine-server/tests/e2e_suspend_resume.rs",
+      "source_location": "L150",
+      "weight": 1.0,
+      "_src": "e2e_suspend_resume_move_token_to_existing_node_returns_204",
+      "_tgt": "e2e_suspend_resume_start_server",
+      "source": "e2e_suspend_resume_start_server",
+      "target": "e2e_suspend_resume_move_token_to_existing_node_returns_204",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "engine-server/tests/e2e_suspend_resume.rs",
+      "source_location": "L185",
+      "weight": 1.0,
+      "_src": "e2e_suspend_resume_move_token_to_nonexistent_node_returns_404",
+      "_tgt": "e2e_suspend_resume_start_server",
+      "source": "e2e_suspend_resume_start_server",
+      "target": "e2e_suspend_resume_move_token_to_nonexistent_node_returns_404",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "engine-server/tests/e2e_suspend_resume.rs",
+      "source_location": "L23",
+      "weight": 1.0,
+      "_src": "e2e_suspend_resume_start_server",
+      "_tgt": "mod_build_app",
+      "source": "e2e_suspend_resume_start_server",
+      "target": "mod_build_app"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "engine-server/tests/e2e_suspend_resume.rs",
+      "source_location": "L67",
+      "weight": 1.0,
+      "_src": "e2e_suspend_resume_suspend_instance_returns_204",
+      "_tgt": "e2e_suspend_resume_deploy_and_start",
+      "source": "e2e_suspend_resume_deploy_and_start",
+      "target": "e2e_suspend_resume_suspend_instance_returns_204",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "engine-server/tests/e2e_suspend_resume.rs",
+      "source_location": "L82",
+      "weight": 1.0,
+      "_src": "e2e_suspend_resume_suspend_reflects_suspended_state",
+      "_tgt": "e2e_suspend_resume_deploy_and_start",
+      "source": "e2e_suspend_resume_deploy_and_start",
+      "target": "e2e_suspend_resume_suspend_reflects_suspended_state",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "engine-server/tests/e2e_suspend_resume.rs",
+      "source_location": "L112",
+      "weight": 1.0,
+      "_src": "e2e_suspend_resume_resume_suspended_instance_returns_204",
+      "_tgt": "e2e_suspend_resume_deploy_and_start",
+      "source": "e2e_suspend_resume_deploy_and_start",
+      "target": "e2e_suspend_resume_resume_suspended_instance_returns_204",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "engine-server/tests/e2e_suspend_resume.rs",
+      "source_location": "L152",
+      "weight": 1.0,
+      "_src": "e2e_suspend_resume_move_token_to_existing_node_returns_204",
+      "_tgt": "e2e_suspend_resume_deploy_and_start",
+      "source": "e2e_suspend_resume_deploy_and_start",
+      "target": "e2e_suspend_resume_move_token_to_existing_node_returns_204",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "engine-server/tests/e2e_suspend_resume.rs",
+      "source_location": "L187",
+      "weight": 1.0,
+      "_src": "e2e_suspend_resume_move_token_to_nonexistent_node_returns_404",
+      "_tgt": "e2e_suspend_resume_deploy_and_start",
+      "source": "e2e_suspend_resume_deploy_and_start",
+      "target": "e2e_suspend_resume_move_token_to_nonexistent_node_returns_404",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "engine-server/tests/e2e_suspend_resume.rs",
+      "source_location": "L66",
+      "weight": 1.0,
+      "_src": "e2e_suspend_resume_suspend_instance_returns_204",
+      "_tgt": "log_buffer_logbuffer_new",
+      "source": "e2e_suspend_resume_suspend_instance_returns_204",
+      "target": "log_buffer_logbuffer_new"
+    },
+    {
+      "relation": "calls",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "engine-server/tests/e2e_suspend_resume.rs",
+      "source_location": "L81",
+      "weight": 1.0,
+      "_src": "e2e_suspend_resume_suspend_reflects_suspended_state",
+      "_tgt": "log_buffer_logbuffer_new",
+      "source": "e2e_suspend_resume_suspend_reflects_suspended_state",
+      "target": "log_buffer_logbuffer_new"
+    },
+    {
+      "relation": "calls",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "engine-server/tests/e2e_suspend_resume.rs",
+      "source_location": "L111",
+      "weight": 1.0,
+      "_src": "e2e_suspend_resume_resume_suspended_instance_returns_204",
+      "_tgt": "log_buffer_logbuffer_new",
+      "source": "e2e_suspend_resume_resume_suspended_instance_returns_204",
+      "target": "log_buffer_logbuffer_new"
+    },
+    {
+      "relation": "calls",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "engine-server/tests/e2e_suspend_resume.rs",
+      "source_location": "L151",
+      "weight": 1.0,
+      "_src": "e2e_suspend_resume_move_token_to_existing_node_returns_204",
+      "_tgt": "log_buffer_logbuffer_new",
+      "source": "e2e_suspend_resume_move_token_to_existing_node_returns_204",
+      "target": "log_buffer_logbuffer_new"
+    },
+    {
+      "relation": "calls",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "engine-server/tests/e2e_suspend_resume.rs",
+      "source_location": "L186",
+      "weight": 1.0,
+      "_src": "e2e_suspend_resume_move_token_to_nonexistent_node_returns_404",
+      "_tgt": "log_buffer_logbuffer_new",
+      "source": "e2e_suspend_resume_move_token_to_nonexistent_node_returns_404",
       "target": "log_buffer_logbuffer_new"
     },
     {

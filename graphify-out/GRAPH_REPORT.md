@@ -1,12 +1,12 @@
 # Graph Report - .  (2026-04-16)
 
 ## Corpus Check
-- 190 files · ~299,324 words
+- 192 files · ~301,850 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 1245 nodes · 3685 edges · 107 communities detected
-- Extraction: 37% EXTRACTED · 63% INFERRED · 0% AMBIGUOUS · INFERRED: 2321 edges (avg confidence: 0.8)
+- 1262 nodes · 3744 edges · 109 communities detected
+- Extraction: 38% EXTRACTED · 62% INFERRED · 0% AMBIGUOUS · INFERRED: 2340 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
 ## Community Hubs (Navigation)
@@ -117,6 +117,8 @@
 - [[_COMMUNITY_Community 104|Community 104]]
 - [[_COMMUNITY_Community 105|Community 105]]
 - [[_COMMUNITY_Community 106|Community 106]]
+- [[_COMMUNITY_Community 107|Community 107]]
+- [[_COMMUNITY_Community 108|Community 108]]
 
 ## God Nodes (most connected - your core abstractions)
 1. `deploy_definition()` - 135 edges
@@ -124,9 +126,9 @@
 3. `parse_bpmn_xml()` - 46 edges
 4. `InMemoryPersistence` - 36 edges
 5. `NatsPersistence` - 34 edges
-6. `Value` - 25 edges
-7. `parse_uuid()` - 25 edges
-8. `spawn()` - 24 edges
+6. `spawn()` - 26 edges
+7. `Value` - 25 edges
+8. `parse_uuid()` - 25 edges
 9. `complete_all_service_tasks()` - 23 edges
 10. `fetch_and_lock_service_tasks()` - 21 edges
 
@@ -146,11 +148,11 @@
 
 ### Community 0 - "Community 0"
 Cohesion: 0.06
-Nodes (174): api_post(), complete_task_for_node(), compliance_complex_gateway_activation(), compliance_exclusive_gateway_routing(), compliance_parallel_gateway_sync(), create_engine(), test_complex_gateway_join_condition(), test_complex_gateway_split_and_default() (+166 more)
+Nodes (180): api_post(), setup_boundary_events(), test_setup_boundary_message_event(), test_setup_boundary_no_events(), test_setup_boundary_timer_event(), complete_task_for_node(), compliance_complex_gateway_activation(), compliance_exclusive_gateway_routing() (+172 more)
 
 ### Community 1 - "Community 1"
 Cohesion: 0.05
-Nodes (34): WorkflowEngine, evaluate_condition(), ProcessDefinition, groupByProcess(), WorkflowEngine, execute_complex_gateway(), execute_exclusive_gateway(), execute_inclusive_gateway() (+26 more)
+Nodes (35): WorkflowEngine, evaluate_condition(), ProcessDefinition, groupByProcess(), WorkflowEngine, execute_complex_gateway(), execute_exclusive_gateway(), execute_inclusive_gateway() (+27 more)
 
 ### Community 2 - "Community 2"
 Cohesion: 0.02
@@ -158,19 +160,19 @@ Nodes (66): handleDeploy(), handleStart(), confirmDelete(), handleDownload(), ha
 
 ### Community 3 - "Community 3"
 Cohesion: 0.03
-Nodes (77): api_delete(), api_get(), api_post_no_body(), api_put(), DefinitionInfo, delete_definition(), DeleteDefinitionQuery, DeployRequest (+69 more)
+Nodes (75): api_delete(), api_get(), api_post_no_body(), api_put(), DefinitionInfo, delete_definition(), DeleteDefinitionQuery, DeployRequest (+67 more)
 
 ### Community 4 - "Community 4"
 Cohesion: 0.05
-Nodes (63): call_activity_eltern_abschluss_nach_kind(), call_activity_eltern_wartet_auf_kind(), call_activity_kind_ist_unterinstanz(), call_activity_mit_kind_service_task(), call_activity_variablen_propagation(), deploy(), deploy_and_start(), start_server() (+55 more)
+Nodes (28): NatsPersistence, parse_rhs(), test_equality(), test_numeric_comparisons(), test_parse_rhs_quoted_strings(), test_truthy(), values_cmp(), values_eq() (+20 more)
 
 ### Community 5 - "Community 5"
 Cohesion: 0.05
-Nodes (27): parse_rhs(), test_equality(), test_numeric_comparisons(), test_parse_rhs_quoted_strings(), test_truthy(), values_cmp(), values_eq(), arb_instance_state() (+19 more)
+Nodes (61): deploy_and_start_minimal_workflow_completes_immediately(), deploy_invalid_xml_returns_400(), deploy_minimal_workflow_returns_definition_id(), start_server(), deploy_and_start(), file_variable_survives_task_completion(), file_variable_upload_creates_reference(), multiple_file_variables_and_delete_one() (+53 more)
 
 ### Community 6 - "Community 6"
 Cohesion: 0.06
-Nodes (16): NatsPersistence, list_completed_instances(), main(), restore_from_nats(), shutdown_signal(), create_retry_queue(), execute_job(), PersistJob (+8 more)
+Nodes (15): list_completed_instances(), main(), restore_from_nats(), shutdown_signal(), create_retry_queue(), execute_job(), PersistJob, spawn_retry_worker() (+7 more)
 
 ### Community 7 - "Community 7"
 Cohesion: 0.06
@@ -189,7 +191,7 @@ Cohesion: 0.06
 Nodes (34): BpmnBoundaryEvent, BpmnCallActivity, BpmnCompensateEventDefinition, BpmnComplexGateway, BpmnConditionExpression, BpmnDefinitions, BpmnEndEvent, BpmnErrorDef (+26 more)
 
 ### Community 11 - "Community 11"
-Cohesion: 0.09
+Cohesion: 0.08
 Nodes (8): WorkflowEngine, delete_all_definitions(), Value, start_instance_latest(), CorrelateMessageRequest, CorrelateMessageResponse, get_pending_messages(), DefinitionRegistry
 
 ### Community 12 - "Community 12"
@@ -201,80 +203,80 @@ Cohesion: 0.1
 Nodes (19): BpmnErrorRequest, BucketEntriesQuery, CompletedInstancesQuery, CompleteRequest, CompleteServiceTaskRequest, CorrelateMessageRequest, DeleteDefinitionQuery, DeployRequest (+11 more)
 
 ### Community 14 - "Community 14"
-Cohesion: 0.14
-Nodes (7): setup_boundary_events(), test_setup_boundary_message_event(), test_setup_boundary_no_events(), test_setup_boundary_timer_event(), next_expiry_duration_adds_to_now(), next_expiry_repeating_interval(), TimerDefinition
-
-### Community 15 - "Community 15"
 Cohesion: 0.13
 Nodes (7): injectTauriMock(), loadXmlAndClickElement(), makeCompleted(), test_values_eq_numbers_vs_default(), decodeBase64Text(), generateEmptyBpmn(), generateProcessId()
 
-### Community 16 - "Community 16"
+### Community 15 - "Community 15"
 Cohesion: 0.13
 Nodes (6): MessageDialog(), MonitoringPage(), ProcessDefinitionPage(), useEngineEvents(), usePolling(), useToast()
 
-### Community 17 - "Community 17"
+### Community 16 - "Community 16"
 Cohesion: 0.25
 Nodes (6): CustomPropertiesProvider, ExpressionEntry(), getConditionType(), isDefaultFlow(), ScriptBodyEntry(), ScriptLanguageEntry()
 
+### Community 17 - "Community 17"
+Cohesion: 0.2
+Nodes (2): next_expiry_duration_adds_to_now(), next_expiry_repeating_interval()
+
 ### Community 18 - "Community 18"
+Cohesion: 0.38
+Nodes (9): bpmn_error_routes_to_boundary_event(), complete_nonexistent_task_returns_404(), complete_wrong_worker_returns_conflict(), extend_lock_succeeds(), extend_lock_wrong_worker_returns_conflict(), fail_service_task_decrements_retries(), get_service_tasks_returns_list(), setup_locked_task() (+1 more)
+
+### Community 19 - "Community 19"
 Cohesion: 0.36
 Nodes (5): execute_script_safe(), run_end_scripts(), run_node_scripts(), ScriptConfig, test_script_config_defaults_and_build()
 
-### Community 19 - "Community 19"
+### Community 20 - "Community 20"
 Cohesion: 0.22
 Nodes (7): BucketEntry, BucketEntryDetail, BucketInfo, CompletedInstanceQuery, HistoryQuery, StorageInfo, WorkflowPersistence
 
-### Community 20 - "Community 20"
+### Community 21 - "Community 21"
+Cohesion: 0.64
+Nodes (8): call_activity_eltern_abschluss_nach_kind(), call_activity_eltern_wartet_auf_kind(), call_activity_kind_ist_unterinstanz(), call_activity_mit_kind_service_task(), call_activity_variablen_propagation(), deploy(), deploy_and_start(), start_server()
+
+### Community 22 - "Community 22"
 Cohesion: 0.29
 Nodes (1): ScriptPropertiesProvider
 
-### Community 21 - "Community 21"
+### Community 23 - "Community 23"
 Cohesion: 0.29
 Nodes (1): ProcessDefinitionBuilder
 
-### Community 22 - "Community 22"
+### Community 24 - "Community 24"
 Cohesion: 0.33
 Nodes (1): TopicPropertiesProvider
 
-### Community 23 - "Community 23"
+### Community 25 - "Community 25"
 Cohesion: 0.33
 Nodes (1): CalledElementPropertiesProvider
 
-### Community 24 - "Community 24"
+### Community 26 - "Community 26"
 Cohesion: 0.4
 Nodes (4): PendingMessageCatch, PendingServiceTask, PendingTimer, PendingUserTask
 
-### Community 25 - "Community 25"
+### Community 27 - "Community 27"
 Cohesion: 0.5
 Nodes (1): SequenceFlow
 
-### Community 26 - "Community 26"
+### Community 28 - "Community 28"
 Cohesion: 0.5
 Nodes (3): ExecutionListener, ListenerEvent, ScopeEventListener
 
-### Community 27 - "Community 27"
-Cohesion: 0.67
-Nodes (0): 
-
-### Community 28 - "Community 28"
-Cohesion: 0.67
-Nodes (0): 
-
 ### Community 29 - "Community 29"
 Cohesion: 0.67
-Nodes (2): ConditionInput, FuzzValue
+Nodes (0): 
 
 ### Community 30 - "Community 30"
 Cohesion: 0.67
-Nodes (1): ProcessTimersResponse
-
-### Community 31 - "Community 31"
-Cohesion: 1.0
 Nodes (0): 
 
+### Community 31 - "Community 31"
+Cohesion: 0.67
+Nodes (2): ConditionInput, FuzzValue
+
 ### Community 32 - "Community 32"
-Cohesion: 1.0
-Nodes (1): main()
+Cohesion: 0.67
+Nodes (1): ProcessTimersResponse
 
 ### Community 33 - "Community 33"
 Cohesion: 1.0
@@ -282,7 +284,7 @@ Nodes (0):
 
 ### Community 34 - "Community 34"
 Cohesion: 1.0
-Nodes (0): 
+Nodes (1): main()
 
 ### Community 35 - "Community 35"
 Cohesion: 1.0
@@ -314,35 +316,35 @@ Nodes (0):
 
 ### Community 42 - "Community 42"
 Cohesion: 1.0
-Nodes (1): EngineStats
+Nodes (0): 
 
 ### Community 43 - "Community 43"
 Cohesion: 1.0
-Nodes (1): EngineEvent
+Nodes (0): 
 
 ### Community 44 - "Community 44"
 Cohesion: 1.0
-Nodes (1): BpmnElement
+Nodes (1): EngineStats
 
 ### Community 45 - "Community 45"
 Cohesion: 1.0
-Nodes (1): MultiInstanceDef
+Nodes (1): EngineEvent
 
 ### Community 46 - "Community 46"
 Cohesion: 1.0
-Nodes (1): EngineError
+Nodes (1): BpmnElement
 
 ### Community 47 - "Community 47"
 Cohesion: 1.0
-Nodes (1): NatsInfo
+Nodes (1): MultiInstanceDef
 
 ### Community 48 - "Community 48"
 Cohesion: 1.0
-Nodes (0): 
+Nodes (1): EngineError
 
 ### Community 49 - "Community 49"
 Cohesion: 1.0
-Nodes (0): 
+Nodes (1): NatsInfo
 
 ### Community 50 - "Community 50"
 Cohesion: 1.0
@@ -572,168 +574,176 @@ Nodes (0):
 Cohesion: 1.0
 Nodes (0): 
 
+### Community 107 - "Community 107"
+Cohesion: 1.0
+Nodes (0): 
+
+### Community 108 - "Community 108"
+Cohesion: 1.0
+Nodes (0): 
+
 ## Knowledge Gaps
 - **119 isolated node(s):** `BpmnMultiInstanceLoopCharacteristics`, `BpmnLoopCardinality`, `BpmnExtensionElements`, `BpmnExecutionListener`, `BpmnScript` (+114 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **Thin community `Community 31`** (2 nodes): `main()`, `test_cron.rs`
+- **Thin community `Community 33`** (2 nodes): `main()`, `test_cron.rs`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 32`** (2 nodes): `main()`, `build.rs`
+- **Thin community `Community 34`** (2 nodes): `main()`, `build.rs`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 33`** (2 nodes): `LogStream.tsx`, `LogStream()`
+- **Thin community `Community 35`** (2 nodes): `LogStream.tsx`, `LogStream()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 34`** (2 nodes): `HistoryTimeline.tsx`, `HistoryTimeline()`
+- **Thin community `Community 36`** (2 nodes): `HistoryTimeline.tsx`, `HistoryTimeline()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 35`** (2 nodes): `EmptyState.tsx`, `EmptyState()`
+- **Thin community `Community 37`** (2 nodes): `EmptyState.tsx`, `EmptyState()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 36`** (2 nodes): `EngineOfflineBanner.tsx`, `EngineOfflineBanner()`
+- **Thin community `Community 38`** (2 nodes): `EngineOfflineBanner.tsx`, `EngineOfflineBanner()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 37`** (2 nodes): `use-engine-status.ts`, `useEngineStatus()`
+- **Thin community `Community 39`** (2 nodes): `use-engine-status.ts`, `useEngineStatus()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 38`** (2 nodes): `Badge()`, `badge.tsx`
+- **Thin community `Community 40`** (2 nodes): `Badge()`, `badge.tsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 39`** (2 nodes): `skeleton.tsx`, `Skeleton()`
+- **Thin community `Community 41`** (2 nodes): `skeleton.tsx`, `Skeleton()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 40`** (2 nodes): `utils.ts`, `cn()`
+- **Thin community `Community 42`** (2 nodes): `utils.ts`, `cn()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 41`** (2 nodes): `fix_tests.py`, `fix_tests()`
+- **Thin community `Community 43`** (2 nodes): `fix_tests.py`, `fix_tests()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 42`** (2 nodes): `stats.rs`, `EngineStats`
+- **Thin community `Community 44`** (2 nodes): `stats.rs`, `EngineStats`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 43`** (2 nodes): `events.rs`, `EngineEvent`
+- **Thin community `Community 45`** (2 nodes): `events.rs`, `EngineEvent`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 44`** (2 nodes): `BpmnElement`, `element.rs`
+- **Thin community `Community 46`** (2 nodes): `BpmnElement`, `element.rs`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 45`** (2 nodes): `multi_instance.rs`, `MultiInstanceDef`
+- **Thin community `Community 47`** (2 nodes): `multi_instance.rs`, `MultiInstanceDef`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 46`** (2 nodes): `error.rs`, `EngineError`
+- **Thin community `Community 48`** (2 nodes): `error.rs`, `EngineError`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 47`** (2 nodes): `NatsInfo`, `models.rs`
+- **Thin community `Community 49`** (2 nodes): `NatsInfo`, `models.rs`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 48`** (1 nodes): `lib.rs`
+- **Thin community `Community 50`** (1 nodes): `lib.rs`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 49`** (1 nodes): `vitest.config.ts`
+- **Thin community `Community 51`** (1 nodes): `vitest.config.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 50`** (1 nodes): `index.ts`
+- **Thin community `Community 52`** (1 nodes): `index.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 51`** (1 nodes): `tailwind.config.js`
+- **Thin community `Community 53`** (1 nodes): `tailwind.config.js`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 52`** (1 nodes): `playwright.config.ts`
+- **Thin community `Community 54`** (1 nodes): `playwright.config.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 53`** (1 nodes): `eslint.config.js`
+- **Thin community `Community 55`** (1 nodes): `eslint.config.js`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 54`** (1 nodes): `vite.config.ts`
+- **Thin community `Community 56`** (1 nodes): `vite.config.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 55`** (1 nodes): `mod.rs`
+- **Thin community `Community 57`** (1 nodes): `mod.rs`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 56`** (1 nodes): `vite-env.d.ts`
+- **Thin community `Community 58`** (1 nodes): `vite-env.d.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 57`** (1 nodes): `InstanceViewer.tsx`
+- **Thin community `Community 59`** (1 nodes): `InstanceViewer.tsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 58`** (1 nodes): `engine.ts`
+- **Thin community `Community 60`** (1 nodes): `engine.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 59`** (1 nodes): `PageHeader.tsx`
+- **Thin community `Community 61`** (1 nodes): `PageHeader.tsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 60`** (1 nodes): `alert-dialog.tsx`
+- **Thin community `Community 62`** (1 nodes): `alert-dialog.tsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 61`** (1 nodes): `tabs.tsx`
+- **Thin community `Community 63`** (1 nodes): `tabs.tsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 62`** (1 nodes): `card.tsx`
+- **Thin community `Community 64`** (1 nodes): `card.tsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 63`** (1 nodes): `toaster.tsx`
+- **Thin community `Community 65`** (1 nodes): `toaster.tsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 64`** (1 nodes): `scroll-area.tsx`
+- **Thin community `Community 66`** (1 nodes): `scroll-area.tsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 65`** (1 nodes): `label.tsx`
+- **Thin community `Community 67`** (1 nodes): `label.tsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 66`** (1 nodes): `accordion.tsx`
+- **Thin community `Community 68`** (1 nodes): `accordion.tsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 67`** (1 nodes): `dialog.tsx`
+- **Thin community `Community 69`** (1 nodes): `dialog.tsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 68`** (1 nodes): `table.tsx`
+- **Thin community `Community 70`** (1 nodes): `table.tsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 69`** (1 nodes): `separator.tsx`
+- **Thin community `Community 71`** (1 nodes): `separator.tsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 70`** (1 nodes): `button.tsx`
+- **Thin community `Community 72`** (1 nodes): `button.tsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 71`** (1 nodes): `toast.tsx`
+- **Thin community `Community 73`** (1 nodes): `toast.tsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 72`** (1 nodes): `select.tsx`
+- **Thin community `Community 74`** (1 nodes): `select.tsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 73`** (1 nodes): `textarea.tsx`
+- **Thin community `Community 75`** (1 nodes): `textarea.tsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 74`** (1 nodes): `input.tsx`
+- **Thin community `Community 76`** (1 nodes): `input.tsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 75`** (1 nodes): `fuzz_iso8601_duration.rs`
+- **Thin community `Community 77`** (1 nodes): `fuzz_iso8601_duration.rs`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 76`** (1 nodes): `fuzz_cron_expression.rs`
+- **Thin community `Community 78`** (1 nodes): `fuzz_cron_expression.rs`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 77`** (1 nodes): `fuzz_rhai_script.rs`
+- **Thin community `Community 79`** (1 nodes): `fuzz_rhai_script.rs`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 78`** (1 nodes): `fuzz_bpmn_parser.rs`
+- **Thin community `Community 80`** (1 nodes): `fuzz_bpmn_parser.rs`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 79`** (1 nodes): `fuzz_deploy_roundtrip.rs`
+- **Thin community `Community 81`** (1 nodes): `fuzz_deploy_roundtrip.rs`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 80`** (1 nodes): `lib.rs`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 81`** (1 nodes): `mod.rs`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 82`** (1 nodes): `constants.rs`
+- **Thin community `Community 82`** (1 nodes): `lib.rs`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
 - **Thin community `Community 83`** (1 nodes): `mod.rs`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 84`** (1 nodes): `mod.rs`
+- **Thin community `Community 84`** (1 nodes): `constants.rs`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
 - **Thin community `Community 85`** (1 nodes): `mod.rs`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 86`** (1 nodes): `user_task.rs`
+- **Thin community `Community 86`** (1 nodes): `mod.rs`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 87`** (1 nodes): `process_start.rs`
+- **Thin community `Community 87`** (1 nodes): `mod.rs`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 88`** (1 nodes): `definition_ops.rs`
+- **Thin community `Community 88`** (1 nodes): `user_task.rs`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 89`** (1 nodes): `instance_ops.rs`
+- **Thin community `Community 89`** (1 nodes): `process_start.rs`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 90`** (1 nodes): `timer_processor.rs`
+- **Thin community `Community 90`** (1 nodes): `definition_ops.rs`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 91`** (1 nodes): `persistence_ops.rs`
+- **Thin community `Community 91`** (1 nodes): `instance_ops.rs`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 92`** (1 nodes): `message_processor.rs`
+- **Thin community `Community 92`** (1 nodes): `timer_processor.rs`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 93`** (1 nodes): `mod.rs`
+- **Thin community `Community 93`** (1 nodes): `persistence_ops.rs`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 94`** (1 nodes): `completion.rs`
+- **Thin community `Community 94`** (1 nodes): `message_processor.rs`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
 - **Thin community `Community 95`** (1 nodes): `mod.rs`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 96`** (1 nodes): `next_action.rs`
+- **Thin community `Community 96`** (1 nodes): `completion.rs`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 97`** (1 nodes): `parallel.rs`
+- **Thin community `Community 97`** (1 nodes): `mod.rs`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 98`** (1 nodes): `events.rs`
+- **Thin community `Community 98`** (1 nodes): `next_action.rs`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 99`** (1 nodes): `tasks.rs`
+- **Thin community `Community 99`** (1 nodes): `parallel.rs`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 100`** (1 nodes): `mod.rs`
+- **Thin community `Community 100`** (1 nodes): `events.rs`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 101`** (1 nodes): `sub_processes.rs`
+- **Thin community `Community 101`** (1 nodes): `tasks.rs`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 102`** (1 nodes): `gateways.rs`
+- **Thin community `Community 102`** (1 nodes): `mod.rs`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 103`** (1 nodes): `mod.rs`
+- **Thin community `Community 103`** (1 nodes): `sub_processes.rs`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 104`** (1 nodes): `trait_impl.rs`
+- **Thin community `Community 104`** (1 nodes): `gateways.rs`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 105`** (1 nodes): `lib.rs`
+- **Thin community `Community 105`** (1 nodes): `mod.rs`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 106`** (1 nodes): `lib.rs`
+- **Thin community `Community 106`** (1 nodes): `trait_impl.rs`
+  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
+- **Thin community `Community 107`** (1 nodes): `lib.rs`
+  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
+- **Thin community `Community 108`** (1 nodes): `lib.rs`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `fetchData()` connect `Community 2` to `Community 1`?**
-  _High betweenness centrality (0.042) - this node is a cross-community bridge._
 - **Why does `fetchTasks()` connect `Community 2` to `Community 1`?**
+  _High betweenness centrality (0.052) - this node is a cross-community bridge._
+- **Why does `groupByProcess()` connect `Community 1` to `Community 2`?**
   _High betweenness centrality (0.039) - this node is a cross-community bridge._
 - **Are the 133 inferred relationships involving `deploy_definition()` (e.g. with `api_post()` and `compliance_exclusive_gateway_routing()`) actually correct?**
   _`deploy_definition()` has 133 INFERRED edges - model-reasoned connections that need verification._
