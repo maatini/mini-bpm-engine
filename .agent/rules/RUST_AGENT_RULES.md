@@ -3,6 +3,8 @@ trigger: file_match
 file_patterns: ["**/*.rs", "**/Cargo.toml"]
 ---
 
+> **Hinweis:** Diese Datei enthält workspace-weite Rust-Regeln. Für engine-core-spezifische Regeln (Hexagonal Architecture, EvoSkills-Loop, DashMap-Concurrency) siehe `RUST_ENGINE_AGENT.md`. Bei Konflikten hat `RUST_ENGINE_AGENT.md` Vorrang für `engine-core/**`.
+
 # Rust Best Practices for BPMNinja
 
 **Core Rules:**

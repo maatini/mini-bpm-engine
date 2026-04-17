@@ -32,4 +32,4 @@ Refer to specific rules based on the crate you are working in.
 ## Model Guidelines
 - The architecture and conventions are designed to work with Claude Opus 4.6 and Gemini 3.1 Pro via Google Antigravity.
 - Always use the `/verify` workflow after Rust changes. Use `/verify-ui` after frontend changes.
-- Code comments in English. All other documentation in English.
+- **Sprache:** Deutsch — Commits, Kommentare, Dokumentation, Kommunikation. Einzige Ausnahme: öffentliche API-Bezeichner und technische Identifier im Code (snake_case Funktionsnamen etc.) bleiben englisch.

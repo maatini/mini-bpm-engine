@@ -5,7 +5,7 @@ file_patterns: ["engine-core/**"]
 
 # BPMN_WORKFLOW_ENGINE.md - Project Specification
 
-## Supported BPMN Elements (24 variants)
+## Supported BPMN Elements (23 variants)
 - **StartEvent** — plain start, process begins immediately
 - **TimerStartEvent(TimerDefinition)** — timer-triggered, fires after configured duration/date/cycle
 - **MessageStartEvent { message_name }** — start event triggered by a named message
@@ -25,10 +25,6 @@ file_patterns: ["engine-core/**"]
 - **MessageCatchEvent { message_name }** — intermediate catch event waiting for a message
 - **BoundaryTimerEvent { attached_to, timer, cancel_activity }** — boundary timer attached to an activity
 - **BoundaryMessageEvent { attached_to, message_name, cancel_activity }** — boundary message catching
-- **BoundaryErrorEvent { attached_to, error_code }** — boundary error event attached to an activity
-- **CallActivity { called_element }** — invokes another process definition as a sub-process
-- **EmbeddedSubProcess { start_node_id }** — embedded sub-process with flattened definition
-- **SubProcessEndEvent { sub_process_id }** — internal end event for scope completion
 - **BoundaryErrorEvent { attached_to, error_code }** — boundary error event attached to an activity
 - **CallActivity { called_element }** — invokes another process definition as a sub-process
 - **EmbeddedSubProcess { start_node_id }** — embedded sub-process with flattened definition

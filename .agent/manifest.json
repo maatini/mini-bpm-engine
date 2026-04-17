@@ -1,6 +1,6 @@
 {
   "project": "bpmninja",
-  "version": "0.7.5",
+  "version": "0.7.10",
   "agents": {
     "engine": {
       "path": "engine-core",
@@ -27,7 +27,7 @@
         "rules/NATS_MESSAGE_BROKER.md"
       ],
       "skills": [
-        "skills/bpmninja-server/SKILL.md"
+        "skills/bpmninja-engine/SKILL.md"
       ]
     },
     "server": {
