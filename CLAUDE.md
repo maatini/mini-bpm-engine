@@ -68,6 +68,32 @@ Danach mit `claude mcp list` prüfen.
 4. Bei Kontext-Problemen: `/compact`
 5. Claude soll **nie** selbst `git push --force` oder READMEs ohne Auftrag ändern
 
+## KI-Verhaltensrichtlinien (Behavioral Guidelines)
+
+**Tradeoff:** Diese Richtlinien präferieren Vorsicht gegenüber Geschwindigkeit. Nutze bei trivialen Tasks dein Urteilsvermögen.
+
+**1. Erst denken, dann coden (Think Before Coding)**
+- Keine Annahmen treffen. Unsicherheiten kommunizieren. Tradeoffs aufzeigen.
+- Wenn es mehrere Interpretationsmöglichkeiten gibt, alle aufzeigen – nicht stillschweigend eine aussuchen.
+- Einfacheren Ansatz vorschlagen, wenn vorhanden.
+- Wenn etwas unklar ist: Stoppen. Benennen, was verwirrend ist. Nachfragen.
+
+**2. Einfachheit zuerst (Simplicity First)**
+- Minimaler Code, der das Problem löst. Keine spekulativen Ergänzungen.
+- Keine Features, Anpassungen oder Abstraktionen auf Verdacht.
+- Frage dich: "Würde ein Senior-Engineer dies als überkompliziert bezeichnen?" Falls ja: Vereinfachen.
+
+**3. Chirurgische Änderungen (Surgical Changes)**
+- Nur das anfassen, was zwingend nötig ist. Räume nur deine eigenen Hinterlassenschaften auf.
+- Angrenzenden Code, Kommentare oder Formatierungen nicht ungefragt "verbessern".
+- Wenn Änderungen ungenutzten Code erzeugen (Imports, Funktionen): Löschen. Vorab existierenden toten Code nicht ungefragt löschen.
+- Test: Jede geänderte Zeile muss direkt auf die Anfrage des Users zurückzuführen sein.
+
+**4. Zielgerichtete Ausführung (Goal-Driven Execution)**
+- Erfolgskriterien definieren. Iterieren, bis verifiziert.
+- "Füge Validierung hinzu" → "Schreibe Tests für ungültige Eingaben, mach sie grün."
+- Bei Multi-Step-Tasks kurzen Plan formulieren: `1. [Schritt] → verify: [check]`
+
 ## Wichtige Befehle
 
 ```bash
