@@ -1,4 +1,4 @@
-import { RefreshCw, Trash, ArrowRightLeft, GitBranch, Pause, Play, Lock, Unlock, ChevronRight, Layers } from 'lucide-react';
+import { RefreshCw, Trash, ArrowRightLeft, GitBranch, Pause, Play, Lock, ChevronRight, Layers } from 'lucide-react';
 import { type ProcessInstance, type DefinitionInfo } from '../../shared/types/engine';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';

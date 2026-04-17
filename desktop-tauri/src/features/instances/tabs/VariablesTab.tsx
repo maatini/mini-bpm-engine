@@ -1,5 +1,5 @@
 import { type ProcessInstance } from '../../../shared/types/engine';
-import { VariableEditor, type VariableRow, parseVariables } from '../../../shared/components/VariableEditor';
+import { VariableEditor, type VariableRow } from '../../../shared/components/VariableEditor';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
