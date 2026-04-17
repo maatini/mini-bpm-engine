@@ -86,7 +86,9 @@ export function serializeVariables(
         return null;
       }
     } else if (v.type === 'Number') {
-      const num = Number(v.value);
+      const raw = String(v.value ?? '').trim();
+      if (raw === '') { result[v.name] = 0; continue; }
+      const num = Number(raw);
       if (isNaN(num)) {
         return null;
       }
@@ -145,7 +147,7 @@ export function VariableEditor({
     if (field === 'type') {
       row.type = newValue as VarType;
       if (row.type === 'String') row.value = '';
-      else if (row.type === 'Number') row.value = 0;
+      else if (row.type === 'Number') row.value = '0';
       else if (row.type === 'Boolean') row.value = false;
       else if (row.type === 'Null') row.value = null;
       else if (row.type === 'Object') row.value = '{}';
@@ -327,10 +329,13 @@ export function VariableEditor({
                   )}
                   {v.type === 'Number' && (
                     <Input
-                      type="number"
-                      value={v.value as number}
-                      onChange={(e: any) => handleChange(idx, 'value', parseFloat(e.target.value))}
-                      placeholder="Number value"
+                      type="text"
+                      inputMode="decimal"
+                      value={v.value == null || (typeof v.value === 'number' && isNaN(v.value as number)) ? '' : String(v.value)}
+                      onChange={(e: any) => handleChange(idx, 'value', e.target.value)}
+                      placeholder="z.B. 42 oder 3.14"
+                      autoComplete="off"
+                      spellCheck={false}
                     />
                   )}
                   {v.type === 'Boolean' && (

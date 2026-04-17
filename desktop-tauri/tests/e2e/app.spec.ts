@@ -843,27 +843,19 @@ test.describe('bpmninja Desktop App – E2E', () => {
     const detail = page.locator('.instance-detail');
     await expect(detail).toBeVisible({ timeout: 5_000 });
 
-    // Audit log entries inside the Timeline
-    await expect(detail.getByText('Instance Started')).toBeVisible();
+    // History-Tab öffnen und Einträge prüfen
+    await detail.locator('[role="tab"]', { hasText: 'History' }).click();
+    await expect(detail.getByText('Instance Started')).toBeVisible({ timeout: 5_000 });
     await expect(detail.getByText('Token Advanced')).toBeVisible();
 
-    // Variables Table
-    const varTable = detail.locator('.variables-table');
-    const tbody = varTable.locator('tbody');
-    await expect(tbody).toBeVisible();
-
-    // Check 'validated' (Boolean)
-    const validatedRow = tbody.locator('tr').nth(1);
-    await expect(validatedRow.locator('input').first()).toHaveValue('validated');
-    await expect(validatedRow.locator('.var-checkbox')).toBeChecked();
-
-    // Check 'score' (Number)
-    const scoreRow = tbody.locator('tr').nth(0);
-    await expect(scoreRow.locator('input').first()).toHaveValue('score');
-    await expect(scoreRow.locator('input[type="number"]')).toHaveValue('95');
+    // Variablen-Tab öffnen und Read-Only-Tabelle prüfen
+    await detail.locator('[role="tab"]', { hasText: 'Variablen' }).click();
+    await expect(detail.getByText('score')).toBeVisible({ timeout: 3_000 });
+    await expect(detail.getByText('95')).toBeVisible();
+    await expect(detail.getByText('validated')).toBeVisible();
 
     // Close button
-    await detail.locator('button.gap-1', { hasText: 'Close' }).click();
+    await detail.getByTestId('btn-close-details').click();
     await expect(detail).not.toBeVisible();
   });
 
@@ -942,7 +934,7 @@ test.describe('bpmninja Desktop App – E2E', () => {
     // 4. It should switch to the Instances tab and open the detailed view of "inst-mapped-001"
     const detailPanel = page.locator('.instance-detail');
     await expect(detailPanel).toBeVisible({ timeout: 5_000 });
-    await expect(detailPanel.getByText('Instance Details: inst-map')).toBeVisible();
+    await expect(detailPanel.getByText('#inst-map')).toBeVisible();
   });
 
   // ---- 14. Deployed Processes – download button ---------------------------
@@ -1180,7 +1172,7 @@ test.describe('bpmninja Desktop App – E2E', () => {
     const newRow2 = page.locator('[role="dialog"] tbody tr').last();
     await newRow2.locator('input').first().fill('amount');
     await newRow2.locator('select').selectOption('Number');
-    await newRow2.locator('input[type="number"]').fill('99.5');
+    await newRow2.locator('input[inputmode="decimal"]').fill('99.5');
 
     // Click Start
     await page.locator('[role="dialog"] button', { hasText: 'Start' }).click();
@@ -1216,23 +1208,26 @@ test.describe('bpmninja Desktop App – E2E', () => {
     const detail = page.locator('.instance-detail');
     await expect(detail).toBeVisible({ timeout: 5_000 });
 
-    // Verify current variables in table
+    // Variablen-Tab öffnen und Edit-Modus aktivieren
+    await detail.locator('[role="tab"]', { hasText: 'Variablen' }).click();
+    await detail.locator('button', { hasText: 'Edit-Modus' }).click();
+
     const varTable = detail.locator('.variables-table');
     const tbody = varTable.locator('tbody');
-    await expect(tbody).toBeVisible();
-    
+    await expect(tbody).toBeVisible({ timeout: 3_000 });
+
     // Check initial values
     const priorityRow = tbody.locator('tr').nth(0);
     await expect(priorityRow.locator('input').first()).toHaveValue('priority');
-    await expect(priorityRow.locator('input[type="number"]')).toHaveValue('1');
-    
+    await expect(priorityRow.locator('input[inputmode="decimal"]')).toHaveValue('1');
+
     const statusRow = tbody.locator('tr').nth(1);
     await expect(statusRow.locator('input').first()).toHaveValue('status');
     await expect(statusRow.locator('input').nth(1)).toHaveValue('new');
 
     // Edit variables: update status
     await statusRow.locator('input').nth(1).fill('in-progress');
-    
+
     // delete priority
     await priorityRow.locator('button[title="Delete Variable"]').click();
 
@@ -1245,10 +1240,10 @@ test.describe('bpmninja Desktop App – E2E', () => {
 
     // Click Save Variables
     const alerts = await collectToasts(page, async () => {
-      await detail.locator('button', { hasText: 'Save Variables' }).click();
+      await detail.locator('button', { hasText: 'Variablen speichern' }).click();
     });
     expect(alerts.length).toBeGreaterThanOrEqual(1);
-    expect(alerts[0]).toContain('Variables saved');
+    expect(alerts[0]).toContain('gespeichert');
 
     // After save, verify table state (assignee = 0, status = 1)
     await expect(tbody.locator('tr').nth(0).locator('input').first()).toHaveValue('assignee');
@@ -1257,6 +1252,163 @@ test.describe('bpmninja Desktop App – E2E', () => {
     await expect(tbody.locator('tr').nth(1).locator('input').nth(1)).toHaveValue('in-progress');
     await expect(tbody.locator('tr')).toHaveCount(2);
   });
+  // ---- 21. VariableEditor – Typen-Validierung --------------------------------
+
+  test('Number-Variable: Kommazahlen (positiv, negativ, wissenschaftlich)', async ({ page }) => {
+    await injectTauriMock(page, {
+      processInstances: [
+        {
+          id: 'inst-numvar-1',
+          definition_key: 'numvar-key',
+          business_key: null,
+          state: 'Running',
+          current_node: 'Task_1',
+          audit_log: [],
+          variables: { price: 9, ratio: 0 },
+        },
+      ],
+    });
+    await page.goto('/');
+    await page.locator('.nav-item', { hasText: 'Instances' }).click();
+    await expect(page.locator('.instance-list-item').first()).toBeVisible({ timeout: 5_000 });
+    await page.locator('.instance-list-item').first().click();
+
+    const detail = page.locator('.instance-detail');
+    await detail.locator('[role="tab"]', { hasText: 'Variablen' }).click();
+    await detail.locator('button', { hasText: 'Edit-Modus' }).click();
+
+    const tbody = detail.locator('.variables-table tbody');
+    await expect(tbody).toBeVisible({ timeout: 3_000 });
+
+    // price = 9 (Number) → auf 3.14 ändern
+    const priceRow = tbody.locator('tr').nth(0); // 'price' kommt vor 'ratio' (alphabetisch)
+    const priceInput = priceRow.locator('input[inputmode="decimal"]');
+    await expect(priceInput).toBeVisible();
+    await priceInput.clear();
+    await priceInput.fill('3.14');
+    await expect(priceInput).toHaveValue('3.14');
+
+    // ratio = 0 → auf -0.5 ändern
+    const ratioRow = tbody.locator('tr').nth(1);
+    const ratioInput = ratioRow.locator('input[inputmode="decimal"]');
+    await ratioInput.clear();
+    await ratioInput.fill('-0.5');
+    await expect(ratioInput).toHaveValue('-0.5');
+
+    // Speichern und prüfen dass der Toast korrekt feuert
+    const alerts = await collectToasts(page, async () => {
+      await detail.locator('button', { hasText: 'Variablen speichern' }).click();
+    });
+    expect(alerts[0]).toContain('gespeichert');
+
+    // Nach Speichern: Werte bleiben erhalten
+    await expect(priceInput).toHaveValue('3.14');
+    await expect(ratioInput).toHaveValue('-0.5');
+  });
+
+  test('Number-Variable: Zwischenschritte beim Tippen bleiben erhalten', async ({ page }) => {
+    await injectTauriMock(page, {
+      processInstances: [
+        {
+          id: 'inst-numvar-2',
+          definition_key: 'numvar-key2',
+          business_key: null,
+          state: 'Running',
+          current_node: 'Task_1',
+          audit_log: [],
+          variables: { x: 1 },
+        },
+      ],
+    });
+    await page.goto('/');
+    await page.locator('.nav-item', { hasText: 'Instances' }).click();
+    await expect(page.locator('.instance-list-item').first()).toBeVisible({ timeout: 5_000 });
+    await page.locator('.instance-list-item').first().click();
+
+    const detail = page.locator('.instance-detail');
+    await detail.locator('[role="tab"]', { hasText: 'Variablen' }).click();
+    await detail.locator('button', { hasText: 'Edit-Modus' }).click();
+
+    const tbody = detail.locator('.variables-table tbody');
+    await expect(tbody).toBeVisible({ timeout: 3_000 });
+
+    const xInput = tbody.locator('tr').first().locator('input[inputmode="decimal"]');
+
+    // Tipp-Simulation: "1" löschen, dann "3." eingeben — der Punkt darf nicht verschwinden
+    await xInput.clear();
+    await xInput.type('3.');
+    await expect(xInput).toHaveValue('3.');
+
+    // Weiterschreiben → "3.14"
+    await xInput.type('14');
+    await expect(xInput).toHaveValue('3.14');
+  });
+
+  test('Number-Variable: ungültige Eingabe wird beim Speichern abgelehnt', async ({ page }) => {
+    await injectTauriMock(page, {
+      processInstances: [
+        {
+          id: 'inst-numvar-3',
+          definition_key: 'numvar-key3',
+          business_key: null,
+          state: 'Running',
+          current_node: 'Task_1',
+          audit_log: [],
+          variables: { count: 5 },
+        },
+      ],
+    });
+    await page.goto('/');
+    await page.locator('.nav-item', { hasText: 'Instances' }).click();
+    await expect(page.locator('.instance-list-item').first()).toBeVisible({ timeout: 5_000 });
+    await page.locator('.instance-list-item').first().click();
+
+    const detail = page.locator('.instance-detail');
+    await detail.locator('[role="tab"]', { hasText: 'Variablen' }).click();
+    await detail.locator('button', { hasText: 'Edit-Modus' }).click();
+
+    const tbody = detail.locator('.variables-table tbody');
+    await expect(tbody).toBeVisible({ timeout: 3_000 });
+
+    const countInput = tbody.locator('tr').first().locator('input[inputmode="decimal"]');
+    await countInput.clear();
+    await countInput.fill('nicht-eine-zahl');
+
+    // Speichern → Fehler-Toast, kein Erfolg
+    const alerts = await collectToasts(page, async () => {
+      await detail.locator('button', { hasText: 'Variablen speichern' }).click();
+    });
+    expect(alerts[0]).not.toContain('gespeichert');
+    expect(alerts[0]).toMatch(/ungültig|invalid|format/i);
+  });
+
+  test('Number-Variable: neuer Typ-Wechsel zu Number erlaubt sofort Kommazahlen', async ({ page }) => {
+    await injectTauriMock(page);
+    await page.goto('/');
+    // Zum Modeler navigieren um den Start-Instance-Button zu erreichen
+    await page.locator('.nav-item', { hasText: 'BPMN Modeler' }).click();
+    await expect(page.locator('.bjs-container')).toBeVisible({ timeout: 10_000 });
+    await page.getByTestId('btn-start-instance').click();
+    await expect(page.locator('[role="dialog"]')).toBeVisible({ timeout: 3_000 });
+
+    // Neue Number-Variable hinzufügen
+    await page.locator('[role="dialog"] button', { hasText: '+ Add Variable' }).click();
+    const newRow = page.locator('[role="dialog"] tbody tr').last();
+    await newRow.locator('input').first().fill('temperature');
+    await newRow.locator('select').selectOption('Number');
+
+    // Sofort Kommazahl eingeben
+    const numInput = newRow.locator('input[inputmode="decimal"]');
+    await numInput.clear();
+    await numInput.fill('36.7');
+    await expect(numInput).toHaveValue('36.7');
+
+    // Negative Kommazahl
+    await numInput.clear();
+    await numInput.fill('-273.15');
+    await expect(numInput).toHaveValue('-273.15');
+  });
+
   // ---- 20. Complex Workflow: Script + XOR Gateway --------------------------
 
   test('complex workflow with rhai script and xor gateway', async ({ page }) => {
@@ -1326,20 +1478,24 @@ test.describe('bpmninja Desktop App – E2E', () => {
 
     // In the Instances view, details are shown by default now.
 
-    // 5. Prüfe Variables
+    // 5. Prüfe Variables (Variablen-Tab + Edit-Modus)
+    await detail.locator('[role="tab"]', { hasText: 'Variablen' }).click();
+    await detail.locator('button', { hasText: 'Edit-Modus' }).click();
     const varTableComplex = detail.locator('.variables-table');
     const tbodyComplex = varTableComplex.locator('tbody');
-    
+    await expect(tbodyComplex).toBeVisible({ timeout: 3_000 });
+
     const scoreRowComplex = tbodyComplex.locator('tr').nth(0); // 'score' is 0, 'status' is 1
     await expect(scoreRowComplex.locator('input').first()).toHaveValue('score');
-    await expect(scoreRowComplex.locator('input[type="number"]')).toHaveValue('85');
-    
+    await expect(scoreRowComplex.locator('input[inputmode="decimal"]')).toHaveValue('85');
+
     const statusRowComplex = tbodyComplex.locator('tr').nth(1);
     await expect(statusRowComplex.locator('input').first()).toHaveValue('status');
     await expect(statusRowComplex.locator('input').nth(1)).toHaveValue('processed');
 
-    // 6. Prüfe Audit-Log
-    await expect(detail.getByText('Instance Started')).toBeVisible();
+    // 6. Prüfe Audit-Log (History-Tab)
+    await detail.locator('[role="tab"]', { hasText: 'History' }).click();
+    await expect(detail.getByText('Instance Started')).toBeVisible({ timeout: 5_000 });
     await expect(detail.locator('td', { hasText: 'Token Advanced' }).first()).toBeVisible();
 
     // Close detail
@@ -1453,7 +1609,12 @@ test.describe('bpmninja Desktop App – E2E', () => {
     await page.locator('.nav-item', { hasText: 'Instances' }).click();
     await expect(page.locator('.instance-list-item').first()).toBeVisible({ timeout: 5_000 });
     await page.locator('.instance-list-item').first().click();
-    
+
+    // History-Tab öffnen
+    const detail = page.locator('.instance-detail');
+    await expect(detail).toBeVisible({ timeout: 5_000 });
+    await detail.locator('[role="tab"]', { hasText: 'History' }).click();
+
     const timeline = page.locator('.history-timeline-container');
     await expect(timeline).toBeVisible({ timeout: 5_000 });
     
@@ -1517,7 +1678,11 @@ test.describe('bpmninja Desktop App – E2E', () => {
     // Wait for detail pane
     const detail = page.locator('.instance-detail');
     await expect(detail).toBeVisible({ timeout: 5_000 });
-    
+
+    // Variablen-Tab öffnen und Edit-Modus aktivieren
+    await detail.locator('[role="tab"]', { hasText: 'Variablen' }).click();
+    await detail.locator('button', { hasText: 'Edit-Modus' }).click();
+
     await page.locator('button', { hasText: 'Attach File' }).click();
     
     // Interact with Shadcn UI dialog instead of window.prompt
