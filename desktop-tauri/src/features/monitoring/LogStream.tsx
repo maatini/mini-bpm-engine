@@ -4,7 +4,7 @@ import type { LogEntry } from '../../shared/lib/tauri';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Terminal, Pause, Play, Trash2 } from 'lucide-react';
+import { Terminal, Pause, Play, Trash2, ArrowDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const LEVEL_STYLES: Record<string, string> = {
@@ -29,6 +29,7 @@ export function LogStream() {
   const [search, setSearch] = useState('');
   const [paused, setPaused] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showScrollBtn, setShowScrollBtn] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const isAtBottomRef = useRef(true);
@@ -44,10 +45,10 @@ export function LogStream() {
     }
   }, [paused, levelFilter, search]);
 
-  // Auto-scroll nur wenn vorher unten
+  // Auto-scroll: instant (kein Animation-Flicker bei 2s-Polling), nur wenn User bereits am Ende war
   useEffect(() => {
     if (isAtBottomRef.current && !paused && bottomRef.current) {
-      bottomRef.current.scrollIntoView({ behavior: 'smooth' });
+      bottomRef.current.scrollIntoView({ behavior: 'instant' as ScrollBehavior });
     }
   }, [entries, paused]);
 
@@ -60,7 +61,15 @@ export function LogStream() {
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const el = e.currentTarget;
-    isAtBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 50;
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 50;
+    isAtBottomRef.current = atBottom;
+    setShowScrollBtn(!atBottom);
+  };
+
+  const scrollToBottom = () => {
+    bottomRef.current?.scrollIntoView({ behavior: 'instant' as ScrollBehavior });
+    isAtBottomRef.current = true;
+    setShowScrollBtn(false);
   };
 
   return (
@@ -120,6 +129,16 @@ export function LogStream() {
       )}
 
       {/* Log-Liste */}
+      <div className="relative flex-1 min-h-0 flex flex-col">
+        {showScrollBtn && (
+          <button
+            onClick={scrollToBottom}
+            className="absolute bottom-4 right-4 z-10 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium shadow-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-all animate-in fade-in slide-in-from-bottom-2"
+          >
+            <ArrowDown className="h-3 w-3" />
+            Neueste Logs
+          </button>
+        )}
       <div
         ref={scrollAreaRef}
         className="flex-1 overflow-y-auto font-mono text-xs"
@@ -132,7 +151,7 @@ export function LogStream() {
         ) : (
           <table className="w-full border-collapse">
             <tbody>
-              {entries.map((e, i) => (
+              {[...entries].reverse().map((e, i) => (
                 <tr
                   key={i}
                   className={cn(
@@ -163,6 +182,7 @@ export function LogStream() {
           </table>
         )}
         <div ref={bottomRef} />
+      </div>
       </div>
 
       {paused && (
