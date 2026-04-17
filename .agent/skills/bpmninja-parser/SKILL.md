@@ -48,7 +48,7 @@ The parser produces `ProcessDefinition` which engine-core's `domain/definition.r
 Every change MUST go through this loop before commit:
 
 ### Step 1 – Generate
-Analyze `parser.rs`, `models.rs`, and `tests.rs`. Produce concrete, diff-ready Rust code changes.
+Use the Graphify MCP Tools first to analyze the relevant Graph Communities (e.g. 8, 10). Only after understanding the graph boundaries, read specific parser files like `parser.rs`. Produce concrete, diff-ready Rust code changes.
 
 ### Step 2 – Surrogate Verification (Self-Critique)
 Evaluate changes against these criteria (score 0–10 each, **all must be ≥ 7**):

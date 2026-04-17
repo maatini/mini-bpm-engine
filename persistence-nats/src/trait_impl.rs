@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use futures::StreamExt;
-use std::collections::HashMap;
+use uuid::Uuid;
 
 use engine_core::error::{EngineError, EngineResult};
 use engine_core::model::{ProcessDefinition, Token};
@@ -11,57 +11,55 @@ use crate::client::NatsPersistence;
 
 #[async_trait]
 impl WorkflowPersistence for NatsPersistence {
-    async fn save_token(&self, token: &Token) -> EngineResult<()> {
-        let subject = format!("{}.{}", self.stream_name, token.id);
+    async fn save_token(&self, instance_id: Uuid, token: &Token) -> EngineResult<()> {
+        let store = self.js.get_key_value("tokens").await.map_err(|e| {
+            EngineError::PersistenceError(format!("Failed to get tokens KV: {}", e))
+        })?;
+        let key = format!("token-{instance_id}-{}", token.id);
         let payload = serde_json::to_vec(token).map_err(|e| {
             EngineError::PersistenceError(format!("Failed to serialize token: {}", e))
         })?;
-
-        self.js
-            .publish(subject, payload.into())
-            .await
-            .map_err(|e| {
-                EngineError::PersistenceError(format!("Failed to publish to JetStream: {}", e))
-            })?;
-
+        store.put(key, payload.into()).await.map_err(|e| {
+            EngineError::PersistenceError(format!("Failed to put token to KV: {}", e))
+        })?;
         Ok(())
     }
 
-    async fn load_tokens(&self, _process_id: &str) -> EngineResult<Vec<Token>> {
-        let stream =
-            self.js.get_stream(&self.stream_name).await.map_err(|e| {
-                EngineError::PersistenceError(format!("Failed to get stream: {}", e))
-            })?;
-
-        let consumer = stream
-            .create_consumer(async_nats::jetstream::consumer::pull::Config {
-                deliver_policy: async_nats::jetstream::consumer::DeliverPolicy::All,
-                ack_policy: async_nats::jetstream::consumer::AckPolicy::None,
-                ..Default::default()
-            })
-            .await
-            .map_err(|e| {
-                EngineError::PersistenceError(format!("Failed to create consumer: {}", e))
-            })?;
-
-        let mut messages = consumer
-            .messages()
-            .await
-            .map_err(|e| EngineError::PersistenceError(format!("Message stream error: {}", e)))?;
-
-        let mut token_map = HashMap::new();
-
-        while let Ok(Some(msg)) =
-            tokio::time::timeout(std::time::Duration::from_millis(500), messages.next()).await
-        {
-            if let Ok(msg) = msg
-                && let Ok(token) = serde_json::from_slice::<Token>(&msg.payload)
-            {
-                token_map.insert(token.id, token);
+    async fn load_tokens(&self, instance_id: Uuid) -> EngineResult<Vec<Token>> {
+        let store = self.js.get_key_value("tokens").await.map_err(|e| {
+            EngineError::PersistenceError(format!("Failed to get tokens KV: {}", e))
+        })?;
+        let prefix = format!("token-{instance_id}-");
+        let mut keys = store.keys().await.map_err(|e| {
+            EngineError::PersistenceError(format!("Failed to list token keys: {}", e))
+        })?;
+        let mut tokens = Vec::new();
+        while let Some(key_result) = keys.next().await {
+            match key_result {
+                Ok(key) if key.starts_with(&prefix) => match store.get(&key).await {
+                    Ok(Some(data)) => match serde_json::from_slice::<Token>(&data) {
+                        Ok(token) => tokens.push(token),
+                        Err(e) => tracing::warn!("Token '{}' deserialisieren fehlgeschlagen: {}", key, e),
+                    },
+                    Ok(None) => {}
+                    Err(e) => tracing::warn!("Token '{}' lesen fehlgeschlagen: {}", key, e),
+                },
+                Ok(_) => {}
+                Err(e) => tracing::warn!("Token-Key lesen fehlgeschlagen: {}", e),
             }
         }
+        Ok(tokens)
+    }
 
-        Ok(token_map.into_values().collect())
+    async fn delete_token(&self, instance_id: Uuid, token_id: Uuid) -> EngineResult<()> {
+        let store = self.js.get_key_value("tokens").await.map_err(|e| {
+            EngineError::PersistenceError(format!("Failed to get tokens KV: {}", e))
+        })?;
+        let key = format!("token-{instance_id}-{token_id}");
+        store.delete(key).await.map_err(|e| {
+            EngineError::PersistenceError(format!("Failed to delete token from KV: {}", e))
+        })?;
+        Ok(())
     }
 
     async fn save_instance(&self, instance: &ProcessInstance) -> EngineResult<()> {

@@ -79,7 +79,7 @@ desktop-tauri/
 Every change MUST go through this loop before commit:
 
 ### Step 1 – Generate
-Analyze relevant source files (Rust backend or React frontend). Produce diff-ready changes.
+Use the Graphify MCP Tools first to analyze the relevant Graph Communities (e.g., 2, 13, 14, 15). Only after understanding the graph dependencies, read the necessary source files. Produce diff-ready changes.
 
 ### Step 2 – Surrogate Verification (Self-Critique)
 Evaluate changes (score 0–10 each, **all must be ≥ 7**):

@@ -1,19 +1,16 @@
-// InMemoryPersistence steht in `engine-core` nur für Tests zur Verfügung.
-// Für externe Crates (fuzz, engine-server-tests etc.) steht `persistence-memory` bereit.
-
 use async_trait::async_trait;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-use crate::domain::EngineResult;
-use crate::domain::{ProcessDefinition, Token};
-use crate::history::HistoryEntry;
-use crate::persistence::{
+use engine_core::domain::EngineResult;
+use engine_core::domain::{ProcessDefinition, Token};
+use engine_core::history::HistoryEntry;
+use engine_core::persistence::{
     BucketEntry, BucketEntryDetail, CompletedInstanceQuery, HistoryQuery, StorageInfo,
     WorkflowPersistence,
 };
-use crate::runtime::{
+use engine_core::runtime::{
     PendingMessageCatch, PendingServiceTask, PendingTimer, PendingUserTask, ProcessInstance,
 };
 
@@ -181,9 +178,9 @@ impl WorkflowPersistence for InMemoryPersistence {
 
     async fn load_file(&self, object_key: &str) -> EngineResult<Vec<u8>> {
         let f = self.files.read().await;
-        f.get(object_key)
-            .cloned()
-            .ok_or_else(|| crate::domain::EngineError::PersistenceError("File not found".into()))
+        f.get(object_key).cloned().ok_or_else(|| {
+            engine_core::domain::EngineError::PersistenceError("File not found".into())
+        })
     }
 
     async fn delete_file(&self, object_key: &str) -> EngineResult<()> {
@@ -201,7 +198,7 @@ impl WorkflowPersistence for InMemoryPersistence {
     async fn load_bpmn_xml(&self, definition_key: &str) -> EngineResult<String> {
         let b = self.bpmn_xmls.read().await;
         b.get(definition_key).cloned().ok_or_else(|| {
-            crate::domain::EngineError::NoSuchDefinition(
+            engine_core::domain::EngineError::NoSuchDefinition(
                 uuid::Uuid::parse_str(definition_key).unwrap_or_default(),
             )
         })
@@ -224,55 +221,55 @@ impl WorkflowPersistence for InMemoryPersistence {
         let bpmn_len = self.bpmn_xmls.read().await.len();
 
         let buckets = vec![
-            crate::persistence::BucketInfo {
+            engine_core::persistence::BucketInfo {
                 name: "instances".into(),
                 bucket_type: "kv".into(),
                 entries: i_len as u64,
                 size_bytes: (i_len * 512) as u64,
             },
-            crate::persistence::BucketInfo {
+            engine_core::persistence::BucketInfo {
                 name: "definitions".into(),
                 bucket_type: "kv".into(),
                 entries: d_len as u64,
                 size_bytes: (d_len * 256) as u64,
             },
-            crate::persistence::BucketInfo {
+            engine_core::persistence::BucketInfo {
                 name: "user_tasks".into(),
                 bucket_type: "kv".into(),
                 entries: ut_len as u64,
                 size_bytes: (ut_len * 128) as u64,
             },
-            crate::persistence::BucketInfo {
+            engine_core::persistence::BucketInfo {
                 name: "service_tasks".into(),
                 bucket_type: "kv".into(),
                 entries: st_len as u64,
                 size_bytes: (st_len * 128) as u64,
             },
-            crate::persistence::BucketInfo {
+            engine_core::persistence::BucketInfo {
                 name: "timers".into(),
                 bucket_type: "kv".into(),
                 entries: t_len as u64,
                 size_bytes: (t_len * 128) as u64,
             },
-            crate::persistence::BucketInfo {
+            engine_core::persistence::BucketInfo {
                 name: "messages".into(),
                 bucket_type: "kv".into(),
                 entries: m_len as u64,
                 size_bytes: (m_len * 128) as u64,
             },
-            crate::persistence::BucketInfo {
+            engine_core::persistence::BucketInfo {
                 name: "bpmn_xml".into(),
                 bucket_type: "object_store".into(),
                 entries: bpmn_len as u64,
                 size_bytes: 0,
             },
-            crate::persistence::BucketInfo {
+            engine_core::persistence::BucketInfo {
                 name: "instance_files".into(),
                 bucket_type: "object_store".into(),
                 entries: f_len as u64,
                 size_bytes: 0,
             },
-            crate::persistence::BucketInfo {
+            engine_core::persistence::BucketInfo {
                 name: "history".into(),
                 bucket_type: "stream".into(),
                 entries: h_len as u64,
@@ -372,14 +369,17 @@ impl WorkflowPersistence for InMemoryPersistence {
                 if let Some(ref sf) = query.state_filter {
                     match sf.as_str() {
                         "completed" => {
-                            if !matches!(inst.state, crate::runtime::InstanceState::Completed) {
+                            if !matches!(
+                                inst.state,
+                                engine_core::runtime::InstanceState::Completed
+                            ) {
                                 return false;
                             }
                         }
                         "error" => {
                             if !matches!(
                                 inst.state,
-                                crate::runtime::InstanceState::CompletedWithError { .. }
+                                engine_core::runtime::InstanceState::CompletedWithError { .. }
                             ) {
                                 return false;
                             }
@@ -405,9 +405,9 @@ impl WorkflowPersistence for InMemoryPersistence {
     }
 
     async fn get_completed_instance(&self, id: &str) -> EngineResult<Option<ProcessInstance>> {
-        let uuid = id
-            .parse::<uuid::Uuid>()
-            .map_err(|e| crate::domain::EngineError::PersistenceError(e.to_string()))?;
+        let uuid = id.parse::<uuid::Uuid>().map_err(|e| {
+            engine_core::domain::EngineError::PersistenceError(e.to_string())
+        })?;
         let store = self.completed_instances.read().await;
         Ok(store.get(&uuid).cloned())
     }
@@ -419,7 +419,7 @@ impl WorkflowPersistence for InMemoryPersistence {
         limit: usize,
     ) -> EngineResult<Vec<BucketEntry>> {
         let _ = (bucket_name, offset, limit);
-        Err(crate::domain::EngineError::PersistenceError(
+        Err(engine_core::domain::EngineError::PersistenceError(
             "Bucket browsing not implemented for in-memory persistence".into(),
         ))
     }
@@ -430,122 +430,8 @@ impl WorkflowPersistence for InMemoryPersistence {
         key: &str,
     ) -> EngineResult<BucketEntryDetail> {
         let _ = (bucket_name, key);
-        Err(crate::domain::EngineError::PersistenceError(
+        Err(engine_core::domain::EngineError::PersistenceError(
             "Bucket detail browsing not implemented for in-memory persistence".into(),
         ))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::history::{ActorType, HistoryEventType};
-
-    #[tokio::test]
-    async fn test_query_history_filters() {
-        let p = InMemoryPersistence::new();
-        let inst_id = uuid::Uuid::new_v4();
-        let now = chrono::Utc::now();
-
-        let make_entry = |event_type, actor_type, node: &str, ts| HistoryEntry {
-            id: uuid::Uuid::new_v4(),
-            instance_id: inst_id,
-            event_type,
-            description: "test".into(),
-            actor_type,
-            actor_id: None,
-            node_id: Some(node.into()),
-            diff: None,
-            timestamp: ts,
-            context: HashMap::new(),
-            metadata: None,
-            definition_version: None,
-            is_snapshot: false,
-            full_state_snapshot: None,
-        };
-
-        let e1 = make_entry(
-            HistoryEventType::InstanceStarted,
-            ActorType::Engine,
-            "start",
-            now - chrono::Duration::hours(2),
-        );
-        let e2 = make_entry(
-            HistoryEventType::TaskCompleted,
-            ActorType::User,
-            "task1",
-            now - chrono::Duration::hours(1),
-        );
-        let e3 = make_entry(
-            HistoryEventType::InstanceCompleted,
-            ActorType::Engine,
-            "end",
-            now,
-        );
-
-        p.append_history_entry(&e1).await.unwrap();
-        p.append_history_entry(&e2).await.unwrap();
-        p.append_history_entry(&e3).await.unwrap();
-
-        let all = p
-            .query_history(HistoryQuery {
-                instance_id: inst_id,
-                ..Default::default()
-            })
-            .await
-            .unwrap();
-        assert_eq!(all.len(), 3);
-
-        let tasks_only = p
-            .query_history(HistoryQuery {
-                instance_id: inst_id,
-                event_types: Some(vec![HistoryEventType::TaskCompleted]),
-                ..Default::default()
-            })
-            .await
-            .unwrap();
-        assert_eq!(tasks_only.len(), 1);
-
-        let page = p
-            .query_history(HistoryQuery {
-                instance_id: inst_id,
-                offset: Some(1),
-                limit: Some(1),
-                ..Default::default()
-            })
-            .await
-            .unwrap();
-        assert_eq!(page.len(), 1);
-        assert_eq!(page[0].event_type, HistoryEventType::TaskCompleted);
-    }
-
-    #[tokio::test]
-    async fn test_get_storage_info_arithmetic() {
-        let p = InMemoryPersistence::new();
-        p.save_file("file1", &[0u8; 100]).await.unwrap();
-        p.save_file("file2", &[0u8; 200]).await.unwrap();
-
-        let inst = ProcessInstance {
-            id: uuid::Uuid::new_v4(),
-            definition_key: uuid::Uuid::new_v4(),
-            business_key: String::new(),
-            parent_instance_id: None,
-            state: crate::runtime::InstanceState::Running,
-            current_node: "x".into(),
-            audit_log: vec![],
-            variables: HashMap::new(),
-            tokens: HashMap::new(),
-            active_tokens: vec![],
-            join_barriers: HashMap::new(),
-            multi_instance_state: HashMap::new(),
-            compensation_log: Vec::new(),
-            started_at: None,
-            completed_at: None,
-        };
-        p.save_instance(&inst).await.unwrap();
-
-        let info = p.get_storage_info().await.unwrap().unwrap();
-        assert_eq!(info.backend_name, "InMemoryPersistence");
-        assert_eq!(info.memory_bytes, 2 * 1024 + 1 * 512);
     }
 }

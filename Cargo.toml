@@ -3,6 +3,7 @@ members = [
     "engine-core",
     "bpmn-parser",
     "persistence-nats",
+    "persistence-memory",
     "agent-orchestrator",
     "engine-server"
 ]

@@ -14,7 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 
 export function InstanceDetailDialog({ 
@@ -219,6 +219,7 @@ export function InstanceDetailDialog({
       <DialogContent className="instance-detail max-w-[70vw] w-full h-[90vh] flex flex-col p-0 overflow-hidden bg-background">
         <DialogHeader className="px-6 py-4 border-b flex flex-row items-center justify-between sticky top-0 bg-background/95 backdrop-blur z-10 shrink-0">
           <DialogTitle className="text-xl">Instance Details: {selected?.id.substring(0, 8) || instance?.id.substring(0, 8)}…</DialogTitle>
+          <DialogDescription className="sr-only">Details und Variablen der Prozessinstanz</DialogDescription>
           <div className="flex gap-2 items-center !m-0">
             {selected && !isCompleted && (
               <>

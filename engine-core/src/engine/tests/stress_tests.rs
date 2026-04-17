@@ -594,11 +594,14 @@ async fn persistence_error_counter_increments() {
 
     #[async_trait::async_trait]
     impl crate::persistence::WorkflowPersistence for FailingPersistence {
-        async fn save_token(&self, _: &crate::domain::Token) -> EngineResult<()> {
+        async fn save_token(&self, _: uuid::Uuid, _: &crate::domain::Token) -> EngineResult<()> {
             Ok(())
         }
-        async fn load_tokens(&self, _: &str) -> EngineResult<Vec<crate::domain::Token>> {
+        async fn load_tokens(&self, _: uuid::Uuid) -> EngineResult<Vec<crate::domain::Token>> {
             Ok(vec![])
+        }
+        async fn delete_token(&self, _: uuid::Uuid, _: uuid::Uuid) -> EngineResult<()> {
+            Ok(())
         }
         async fn save_instance(&self, _: &ProcessInstance) -> EngineResult<()> {
             Err(crate::domain::EngineError::PersistenceError(

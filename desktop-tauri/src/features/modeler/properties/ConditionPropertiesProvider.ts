@@ -286,6 +286,9 @@ function CustomConditionGroup(element: any, translate: any) {
     return null;
   }
 
+  // Camunda 7 Modeler Kompatibilität – Default-Flows haben keine Condition-Gruppe
+  if (isDefaultFlow(element)) return null;
+
   return {
     id: 'ConditionGroup',
     label: translate('Condition'),

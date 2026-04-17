@@ -5,7 +5,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Server, Settings2, Database, List, ExternalLink, Cloud, HardDrive } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { LogStream } from './LogStream'
@@ -311,6 +311,7 @@ export function MonitoringPage() {
             <DialogTitle className="flex items-center gap-2">
               <List className="h-5 w-5" /> Bucket Entries: {selectedBucket}
             </DialogTitle>
+            <DialogDescription className="sr-only">Einträge im Bucket {selectedBucket}</DialogDescription>
           </DialogHeader>
           <div className="flex-1 overflow-auto p-0">
             {loadingEntries ? (
@@ -361,6 +362,7 @@ export function MonitoringPage() {
             <DialogTitle className="flex items-center gap-2">
               <ExternalLink className="h-5 w-5" /> Detail: {selectedEntryKey}
             </DialogTitle>
+            <DialogDescription className="sr-only">Details für Eintrag {selectedEntryKey}</DialogDescription>
           </DialogHeader>
           <div className="flex-1 overflow-auto bg-muted/10 p-6">
             {loadingDetail ? (

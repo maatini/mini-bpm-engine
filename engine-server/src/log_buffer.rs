@@ -130,13 +130,36 @@ impl LogBuffer {
         }
     }
 
-    /// Aktiviert NATS-Persistenz und deaktiviert die Datei-Persistenz.
+    /// Verbindet den Buffer mit einem NATS-Sink.
     ///
-    /// Neue Log-Einträge werden über `tx` an den Hintergrund-Task (→ NATS) gesendet.
-    /// Die Datei-Persistenz wird entfernt, damit kein doppeltes Schreiben stattfindet.
+    /// Erstellt intern den unbounded Channel, registriert ihn (deaktiviert Datei-Persistenz)
+    /// und spawnt den Hintergrund-Task, der Einträge an NATS publiziert.
+    /// Gibt die Anzahl der vorab aus NATS geladenen Einträge zurück.
+    pub async fn attach_nats_sink(&self, sink: crate::log_nats::NatsLogSink) -> usize {
+        let recent = sink.load_recent(MAX_ENTRIES).await;
+        let restored = recent.len();
+        self.populate(recent);
+
+        let (tx, mut rx) = mpsc::unbounded_channel::<LogEntry>();
+        {
+            let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+            guard.persist = None;
+            guard.nats_tx = Some(tx);
+        }
+
+        tokio::spawn(async move {
+            while let Some(entry) = rx.recv().await {
+                sink.publish(&entry).await;
+            }
+        });
+
+        restored
+    }
+
+    /// Aktiviert NATS-Persistenz über einen externen Sender (low-level, für Tests).
     pub fn enable_nats(&self, tx: mpsc::UnboundedSender<LogEntry>) {
         let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.persist = None; // Datei-Persistenz deaktivieren
+        guard.persist = None;
         guard.nats_tx = Some(tx);
     }
 

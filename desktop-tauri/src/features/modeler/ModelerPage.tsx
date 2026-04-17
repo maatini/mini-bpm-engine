@@ -95,6 +95,10 @@ export const ModelerPage = memo(function ModelerPage({ onDeploy, onStart, onNewD
       });
       
       modelerRef.current = modeler;
+      // Expose modeler instance for E2E tests
+      if (import.meta.env.DEV) {
+        (window as any).__bpmnModeler__ = modeler;
+      }
       // Import the initial XML or a saved diagram, or a default empty diagram
       const savedXml = localStorage.getItem('minibpm_last_workflow');
       const xmlToLoad = initialXml || savedXml || generateEmptyBpmn();

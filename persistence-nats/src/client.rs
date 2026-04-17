@@ -8,7 +8,6 @@ use futures::StreamExt;
 pub struct NatsPersistence {
     pub(crate) client: Client,
     pub(crate) js: Context,
-    pub(crate) stream_name: String,
 }
 
 impl NatsPersistence {
@@ -45,6 +44,15 @@ impl NatsPersistence {
                 description: Some(
                     "Binary file attachments for process instance variables".to_string(),
                 ),
+                ..Default::default()
+            })
+            .await;
+
+        // Ensure the tokens KV bucket exists.
+        let _ = js
+            .create_key_value(async_nats::jetstream::kv::Config {
+                bucket: "tokens".to_string(),
+                description: "Token state per process instance (JSON)".to_string(),
                 ..Default::default()
             })
             .await;
@@ -119,11 +127,7 @@ impl NatsPersistence {
             })
             .await;
 
-        Ok(Self {
-            client,
-            js,
-            stream_name: stream_name.to_string(),
-        })
+        Ok(Self { client, js })
     }
 
     /// Gibt einen Klon des JetStream-Kontexts zurück, z. B. für den Log-Sink.

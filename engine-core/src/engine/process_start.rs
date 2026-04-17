@@ -59,13 +59,12 @@ impl WorkflowEngine {
         Ok((inst_id, def_key))
     }
 
-    /// Internal method to start an instance and link it to a parent call activity
-    pub(crate) async fn start_instance_with_variables_and_parent(
+    /// Validates that the definition exists and has a compatible start event.
+    /// Returns (definition, start_node_id).
+    pub(crate) fn validate_start_request(
         &self,
         definition_key: Uuid,
-        mut variables: HashMap<String, Value>,
-        parent_instance_id: Option<Uuid>,
-    ) -> EngineResult<Uuid> {
+    ) -> EngineResult<(Arc<crate::domain::ProcessDefinition>, String)> {
         let def = self
             .definitions
             .get(&definition_key)
@@ -80,16 +79,23 @@ impl WorkflowEngine {
                 "Use trigger_timer_start() for timer start events".into(),
             ));
         }
-        let instance_id = Uuid::new_v4();
-        let business_key = variables
-            .remove("business_key")
-            .and_then(|v| v.as_str().map(String::from))
-            .unwrap_or_else(|| Uuid::new_v4().to_string());
 
-        let instance = ProcessInstance {
+        let start_id = start_id.to_string();
+        Ok((def, start_id))
+    }
+
+    /// Builds a new ProcessInstance from validated parameters (pure, no I/O).
+    pub(crate) fn build_initial_instance(
+        definition_key: Uuid,
+        instance_id: Uuid,
+        start_id: &str,
+        variables: HashMap<String, Value>,
+        parent_instance_id: Option<Uuid>,
+    ) -> ProcessInstance {
+        ProcessInstance {
             id: instance_id,
             definition_key,
-            business_key,
+            business_key: Uuid::new_v4().to_string(),
             parent_instance_id,
             state: InstanceState::Running,
             current_node: start_id.to_string(),
@@ -97,7 +103,7 @@ impl WorkflowEngine {
                 "▶ Process started at node '{start_id}' with {} variable(s)",
                 variables.len()
             )],
-            variables: variables.clone(),
+            variables,
             tokens: HashMap::new(),
             active_tokens: Vec::new(),
             join_barriers: std::collections::HashMap::new(),
@@ -105,7 +111,27 @@ impl WorkflowEngine {
             compensation_log: Vec::new(),
             started_at: Some(chrono::Utc::now()),
             completed_at: None,
-        };
+        }
+    }
+
+    /// Internal method to start an instance and link it to a parent call activity
+    pub(crate) async fn start_instance_with_variables_and_parent(
+        &self,
+        definition_key: Uuid,
+        mut variables: HashMap<String, Value>,
+        parent_instance_id: Option<Uuid>,
+    ) -> EngineResult<Uuid> {
+        let (def, start_id) = self.validate_start_request(definition_key)?;
+
+        let instance_id = Uuid::new_v4();
+        let business_key = variables
+            .remove("business_key")
+            .and_then(|v| v.as_str().map(String::from))
+            .unwrap_or_else(|| Uuid::new_v4().to_string());
+
+        let mut instance =
+            Self::build_initial_instance(definition_key, instance_id, &start_id, variables.clone(), parent_instance_id);
+        instance.business_key = business_key;
 
         tracing::info!(
             "Started instance {instance_id} of def key {definition_key} at node '{start_id}' with {} vars",
@@ -128,7 +154,7 @@ impl WorkflowEngine {
         )
         .await;
 
-        let token = Token::with_variables(start_id, variables);
+        let token = Token::with_variables(&start_id, variables);
 
         // Register Scope Event Listeners (Event Sub-Processes)
         for listener in &def.event_listeners {

@@ -88,7 +88,7 @@ engine-core/src/
 Every change MUST go through this loop before commit:
 
 ### Step 1 – Generate
-Analyze the relevant source files listed in the File Map above. Produce concrete, diff-ready Rust code changes. Maintain persistent context from previous iterations (accumulated feedback from surrogate and oracle).
+Use the Graphify MCP Tools first to analyze the relevant Graph Communities (e.g., 0, 1, 4, 11, 17, 18, 19, 25). Only after understanding the graph boundaries, read the specific source files. Produce concrete, diff-ready Rust code changes. Maintain persistent context from previous iterations (accumulated feedback from surrogate and oracle).
 
 ### Step 2 – Surrogate Verification (Self-Critique)
 Before running the oracle, evaluate your changes against these criteria (score 0–10 each, **all must be ≥ 7**):

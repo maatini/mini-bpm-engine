@@ -10,7 +10,6 @@ pub mod scripting;
 pub use condition::evaluate_condition;
 
 // Backward-compatible re-exports (existing code doesn't break)
-pub use adapter::*;
 pub use domain::*;
 pub use engine::WorkflowEngine;
 pub use history::{HistoryDiff, HistoryEntry, HistoryEventType, VariableDiff};

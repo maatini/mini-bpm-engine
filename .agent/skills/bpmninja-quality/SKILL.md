@@ -78,7 +78,7 @@ docker-compose.yaml               # Local NATS setup
 Every change MUST go through this loop before commit:
 
 ### Step 1 – Generate
-Analyze relevant files (tests, workflows, docs). Produce concrete changes.
+Use the Graphify MCP Tools first to analyze the relevant Graph Communities. Only after understanding the graph boundaries, read the specific test or workflow files. Produce concrete changes.
 
 ### Step 2 – Surrogate Verification (Self-Critique)
 Evaluate changes (score 0–10 each, **all must be ≥ 7**):

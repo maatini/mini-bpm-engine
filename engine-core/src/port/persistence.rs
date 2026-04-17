@@ -88,10 +88,12 @@ pub struct StorageInfo {
 /// A trait for persisting workflow engine state.
 #[async_trait]
 pub trait WorkflowPersistence: Send + Sync {
-    /// Save a token's state for a given process instance.
-    async fn save_token(&self, token: &Token) -> EngineResult<()>;
-    /// Load all tokens for a given process instance.
-    async fn load_tokens(&self, process_id: &str) -> EngineResult<Vec<Token>>;
+    /// Save a token for a specific process instance.
+    async fn save_token(&self, instance_id: uuid::Uuid, token: &Token) -> EngineResult<()>;
+    /// Load all tokens belonging to a specific process instance.
+    async fn load_tokens(&self, instance_id: uuid::Uuid) -> EngineResult<Vec<Token>>;
+    /// Delete a single token of a process instance.
+    async fn delete_token(&self, instance_id: uuid::Uuid, token_id: uuid::Uuid) -> EngineResult<()>;
 
     /// Persist the current state of a process instance.
     async fn save_instance(&self, instance: &ProcessInstance) -> EngineResult<()>;

@@ -31,7 +31,8 @@ fuzz_target!(|data: &[u8]| {
     };
 
     rt.block_on(async {
-        let engine = engine_core::engine::WorkflowEngine::with_in_memory_persistence();
+        let engine = engine_core::engine::WorkflowEngine::new()
+            .with_persistence(std::sync::Arc::new(persistence_memory::InMemoryPersistence::new()));
 
         // Deploy — must not panic even on pathological definitions
         let (def_key, _version) = engine.deploy_definition(definition).await;

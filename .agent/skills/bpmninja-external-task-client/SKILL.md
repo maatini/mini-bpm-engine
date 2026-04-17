@@ -93,7 +93,7 @@ bpmn-ninja-external-task-client/
 Every change MUST go through this loop before commit:
 
 ### Step 1 – Generate
-Analyze relevant source files. Produce diff-ready TypeScript changes.
+Use the Graphify MCP Tools first to analyze the relevant Graph Communities. Only after understanding the graph boundaries, read the specific source files. Produce diff-ready TypeScript changes.
 
 ### Step 2 – Surrogate Verification (Self-Critique)
 Evaluate changes (score 0–10 each, **all must be ≥ 7**):

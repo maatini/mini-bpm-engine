@@ -5623,3 +5623,43 @@
 {"timestamp":"2026-04-16T21:03:38.323Z","level":"INFO","target":"engine_server","message":"Restored 1 pending service task(s)."}
 {"timestamp":"2026-04-16T21:03:38.325Z","level":"INFO","target":"engine_server","message":"Restored 0 pending timer(s)."}
 {"timestamp":"2026-04-16T21:03:38.326Z","level":"INFO","target":"engine_server","message":"Restored 0 pending message catch(es)."}
+{"timestamp":"2026-04-17T06:56:35.984Z","level":"INFO","target":"engine_server","message":"Starting bpmninja engine-server..."}
+{"timestamp":"2026-04-17T06:56:36.002Z","level":"INFO","target":"async_nats::connector","message":"connected successfully"}
+{"timestamp":"2026-04-17T06:56:36.003Z","level":"INFO","target":"async_nats","message":"event: connected"}
+{"timestamp":"2026-04-17T06:56:36.018Z","level":"INFO","target":"engine_server","message":"Connected to NATS at nats://localhost:4222"}
+{"timestamp":"2026-04-17T06:56:36.019Z","level":"INFO","target":"engine_core::engine","message":"WorkflowEngine initialized (script limits: ops=50000, timeout=1000ms)"}
+{"timestamp":"2026-04-17T06:56:36.019Z","level":"INFO","target":"engine_core::engine::retry_queue","message":"Persistence retry worker started"}
+{"timestamp":"2026-04-17T06:56:36.026Z","level":"INFO","target":"engine_core::engine::definition_ops","message":"Deployed definition 'historie-2' (v1, key: d72c9210-d31c-48d1-bbd1-f76b86f899b8)"}
+{"timestamp":"2026-04-17T06:56:36.029Z","level":"INFO","target":"engine_server::startup","message":"Definition wiederhergestellt (key: d72c9210-d31c-48d1-bbd1-f76b86f899b8)"}
+{"timestamp":"2026-04-17T06:56:36.032Z","level":"INFO","target":"engine_core::engine::definition_ops","message":"Deployed definition 'historie-2' (v2, key: 0f431922-6621-4619-8cf1-db797d209622)"}
+{"timestamp":"2026-04-17T06:56:36.033Z","level":"INFO","target":"engine_server::startup","message":"Definition wiederhergestellt (key: 0f431922-6621-4619-8cf1-db797d209622)"}
+{"timestamp":"2026-04-17T06:56:36.035Z","level":"INFO","target":"engine_core::engine::definition_ops","message":"Deployed definition 'historie-2' (v3, key: d6d59344-40c5-4c99-ac5a-c12e350b4566)"}
+{"timestamp":"2026-04-17T06:56:36.036Z","level":"INFO","target":"engine_server::startup","message":"Definition wiederhergestellt (key: d6d59344-40c5-4c99-ac5a-c12e350b4566)"}
+{"timestamp":"2026-04-17T06:56:36.039Z","level":"INFO","target":"engine_core::engine::definition_ops","message":"Deployed definition 'historie-2' (v4, key: 922e4e08-20e1-4a2a-8856-e604e32c63e4)"}
+{"timestamp":"2026-04-17T06:56:36.040Z","level":"INFO","target":"engine_server::startup","message":"Definition wiederhergestellt (key: 922e4e08-20e1-4a2a-8856-e604e32c63e4)"}
+{"timestamp":"2026-04-17T06:56:36.043Z","level":"INFO","target":"engine_core::engine::definition_ops","message":"Deployed definition 'HistoryProcess' (v1, key: 6469f08b-449d-4153-9ad6-fa09e5ef3682)"}
+{"timestamp":"2026-04-17T06:56:36.044Z","level":"INFO","target":"engine_server::startup","message":"Definition wiederhergestellt (key: 6469f08b-449d-4153-9ad6-fa09e5ef3682)"}
+{"timestamp":"2026-04-17T06:56:36.046Z","level":"INFO","target":"engine_core::engine::definition_ops","message":"Deployed definition 'HistoryProcess' (v2, key: fc3b14bd-29e5-4763-8ad5-b62fa643303a)"}
+{"timestamp":"2026-04-17T06:56:36.047Z","level":"INFO","target":"engine_server::startup","message":"Definition wiederhergestellt (key: fc3b14bd-29e5-4763-8ad5-b62fa643303a)"}
+{"timestamp":"2026-04-17T06:56:36.048Z","level":"INFO","target":"engine_core::engine::definition_ops","message":"Deployed definition 'HistoryProcess' (v3, key: 09a2a5f6-eaa3-488b-ab97-eeb116f1021f)"}
+{"timestamp":"2026-04-17T06:56:36.049Z","level":"INFO","target":"engine_server::startup","message":"Definition wiederhergestellt (key: 09a2a5f6-eaa3-488b-ab97-eeb116f1021f)"}
+{"timestamp":"2026-04-17T06:56:36.052Z","level":"INFO","target":"engine_core::engine::definition_ops","message":"Deployed definition 'HistoryProcess' (v4, key: 26db5f38-150d-45d0-b5e1-117f46b3b603)"}
+{"timestamp":"2026-04-17T06:56:36.053Z","level":"INFO","target":"engine_server::startup","message":"Definition wiederhergestellt (key: 26db5f38-150d-45d0-b5e1-117f46b3b603)"}
+{"timestamp":"2026-04-17T06:56:36.055Z","level":"INFO","target":"engine_core::engine::definition_ops","message":"Deployed definition 'HistoryProcess' (v5, key: cf536d00-d8a5-4cb4-8745-0fede67f5899)"}
+{"timestamp":"2026-04-17T06:56:36.056Z","level":"INFO","target":"engine_server::startup","message":"Definition wiederhergestellt (key: cf536d00-d8a5-4cb4-8745-0fede67f5899)"}
+{"timestamp":"2026-04-17T06:56:36.058Z","level":"INFO","target":"engine_core::engine::definition_ops","message":"Deployed definition 'HistoryProcess' (v6, key: 967dd67f-d626-4e1f-ad9b-35e57c363069)"}
+{"timestamp":"2026-04-17T06:56:36.059Z","level":"INFO","target":"engine_server::startup","message":"Definition wiederhergestellt (key: 967dd67f-d626-4e1f-ad9b-35e57c363069)"}
+{"timestamp":"2026-04-17T06:56:36.061Z","level":"INFO","target":"engine_core::engine::definition_ops","message":"Deployed definition 'HistoryProcess' (v7, key: 4e763810-a0c5-475f-832b-bf5a502d0cc0)"}
+{"timestamp":"2026-04-17T06:56:36.061Z","level":"INFO","target":"engine_server::startup","message":"Definition wiederhergestellt (key: 4e763810-a0c5-475f-832b-bf5a502d0cc0)"}
+{"timestamp":"2026-04-17T06:56:36.063Z","level":"INFO","target":"engine_core::engine::definition_ops","message":"Deployed definition 'HistoryProcess' (v8, key: 61958a94-5f4c-495e-a010-5ae292c88c92)"}
+{"timestamp":"2026-04-17T06:56:36.064Z","level":"INFO","target":"engine_server::startup","message":"Definition wiederhergestellt (key: 61958a94-5f4c-495e-a010-5ae292c88c92)"}
+{"timestamp":"2026-04-17T06:56:36.066Z","level":"INFO","target":"engine_core::engine::definition_ops","message":"Deployed definition 'historie-2' (v5, key: d3fd71a4-0e2c-4129-b699-13f5c0a34e48)"}
+{"timestamp":"2026-04-17T06:56:36.067Z","level":"INFO","target":"engine_server::startup","message":"Definition wiederhergestellt (key: d3fd71a4-0e2c-4129-b699-13f5c0a34e48)"}
+{"timestamp":"2026-04-17T06:56:36.067Z","level":"INFO","target":"engine_server::startup","message":"Restore abgeschlossen: 13 Definition(en)."}
+{"timestamp":"2026-04-17T06:56:36.070Z","level":"INFO","target":"engine_core::engine","message":"Restored instance e174462e-222e-4493-b0ae-f6e4405bcf75 (def: d3fd71a4-0e2c-4129-b699-13f5c0a34e48)"}
+{"timestamp":"2026-04-17T06:56:36.070Z","level":"INFO","target":"engine_server::startup","message":"1 Prozessinstanz(en) wiederhergestellt."}
+{"timestamp":"2026-04-17T06:56:36.072Z","level":"INFO","target":"engine_core::engine","message":"Restored user task f10fb898-97b1-4fa1-8cbc-adab999a5ebf (instance: e174462e-222e-4493-b0ae-f6e4405bcf75)"}
+{"timestamp":"2026-04-17T06:56:36.072Z","level":"INFO","target":"engine_server::startup","message":"1 User-Task(s) wiederhergestellt."}
+{"timestamp":"2026-04-17T06:56:36.074Z","level":"INFO","target":"engine_server::startup","message":"0 Service-Task(s) wiederhergestellt."}
+{"timestamp":"2026-04-17T06:56:36.075Z","level":"INFO","target":"engine_server::startup","message":"0 Timer wiederhergestellt."}
+{"timestamp":"2026-04-17T06:56:36.076Z","level":"INFO","target":"engine_server::startup","message":"0 Message-Catch(es) wiederhergestellt."}

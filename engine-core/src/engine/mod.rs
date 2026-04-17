@@ -95,7 +95,8 @@ impl WorkflowEngine {
         let _ = self.event_tx.send(event);
     }
 
-    /// Creates a new engine equipped with the InMemoryPersistence backend.
+    /// Creates a new engine equipped with the InMemoryPersistence backend (test-only).
+    #[cfg(test)]
     pub fn with_in_memory_persistence() -> Self {
         let p = Arc::new(crate::adapter::InMemoryPersistence::new());
         Self::new().with_persistence(p)
@@ -121,28 +122,6 @@ impl WorkflowEngine {
         self.retry_tx = Some(tx);
         self.retry_worker_handle = tokio::sync::Mutex::new(Some(handle));
         self
-    }
-
-    /// Sets the persistence layer (builder-style alternative to `with_persistence`).
-    pub fn set_persistence(&mut self, persistence: Arc<dyn WorkflowPersistence>) {
-        let (tx, rx) = retry_queue::create_retry_queue();
-
-        let handle = retry_queue::spawn_retry_worker(
-            rx,
-            Arc::clone(&persistence),
-            self.instances.clone(),
-            self.definitions.clone(),
-            Arc::clone(&self.pending_user_tasks),
-            Arc::clone(&self.pending_service_tasks),
-            Arc::clone(&self.pending_timers),
-            Arc::clone(&self.pending_message_catches),
-            Arc::clone(&self.persistence_error_count),
-        );
-
-        self.persistence = Some(persistence);
-        self.retry_tx = Some(tx);
-        // Note: this takes &mut self, so it's safe to directly assign.
-        *self.retry_worker_handle.get_mut() = Some(handle);
     }
 
     /// Shuts down the engine gracefully.

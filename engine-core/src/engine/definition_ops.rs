@@ -32,33 +32,43 @@ impl WorkflowEngine {
     /// Existing running instances continue on their original definition untouched.
     /// Returns (definition_key, version).
     pub async fn deploy_definition(&self, definition: ProcessDefinition) -> (Uuid, i32) {
-        // Find highest version of existing definitions with matching ID
-        let highest_version = self.definitions.highest_version(&definition.id);
+        let highest = self.definitions.highest_version(&definition.id);
+        let def = Self::normalize_definition(definition, highest);
+        let key = def.key;
+        let version = def.version;
 
-        let key = definition.key; // Always use a unique key
-        let version = highest_version.map(|v| v + 1).unwrap_or(definition.version);
+        let sub_processes = {
+            let mut d = def;
+            let subs = std::mem::take(&mut d.sub_processes);
+            self.definitions.insert(key, Arc::new(d));
+            subs
+        };
 
-        let mut def = definition;
-        def.key = key;
-        def.version = version;
-
-        let sub_processes = std::mem::take(&mut def.sub_processes);
         for mut sub in sub_processes {
-            // Assign a sub-process ID if needed, although it already has one.
             sub.version = version;
             Box::pin(self.deploy_definition(sub)).await;
         }
 
         tracing::info!(
             "Deployed definition '{}' (v{}, key: {})",
-            def.id,
-            def.version,
+            self.definitions.get(&key).map(|d| d.id.clone()).unwrap_or_default(),
+            version,
             key
         );
-        self.definitions.insert(key, Arc::new(def));
         self.persist_definition(key).await;
         self.emit_event(crate::engine::events::EngineEvent::DefinitionChanged);
         (key, version)
+    }
+
+    /// Assigns version and key to a definition without side effects (pure, testable).
+    pub(crate) fn normalize_definition(
+        mut definition: ProcessDefinition,
+        highest_version: Option<i32>,
+    ) -> ProcessDefinition {
+        definition.version = highest_version
+            .map(|v| v + 1)
+            .unwrap_or(definition.version);
+        definition
     }
 
     /// Deletes a process definition.

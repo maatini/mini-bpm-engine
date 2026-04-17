@@ -1,100 +1,12 @@
 use std::collections::HashMap;
 use std::env;
 use std::sync::Arc;
-use uuid::Uuid;
 
 use engine_core::WorkflowEngine;
 use engine_core::persistence::WorkflowPersistence;
-use engine_server::{LogBuffer, NatsLogSink, build_app_with_engine};
+use engine_server::{LogBuffer, NatsLogSink, StartupCoordinator, build_app_with_engine};
 use persistence_nats::NatsPersistence;
 use tracing_subscriber::prelude::*;
-
-async fn restore_from_nats(
-    nats: &NatsPersistence,
-    engine: &mut WorkflowEngine,
-    deployed_xml: &mut HashMap<String, String>,
-) {
-    let ids = match nats.list_bpmn_xml_ids().await {
-        Ok(ids) => ids,
-        Err(e) => {
-            tracing::error!("Failed to list definitions from NATS: {:?}", e);
-            return;
-        }
-    };
-    let count = ids.len();
-    for nats_key in ids {
-        match nats.load_bpmn_xml(&nats_key).await {
-            Ok(xml) => match bpmn_parser::parse_bpmn_xml(&xml) {
-                Ok(mut def) => {
-                    if let Ok(old_uuid) = Uuid::parse_str(&nats_key) {
-                        def.key = old_uuid;
-                    }
-                    let (key, _) = engine.deploy_definition(def).await;
-                    deployed_xml.insert(key.to_string(), xml);
-                    tracing::info!("Restored definition (key: {})", key);
-                }
-                Err(e) => tracing::error!("Failed to parse '{}': {:?}", nats_key, e),
-            },
-            Err(e) => tracing::error!("Failed to load XML for '{}': {:?}", nats_key, e),
-        }
-    }
-    tracing::info!("Restore complete: {count} definition(s) found.");
-
-    match nats.list_instances().await {
-        Ok(instances) => {
-            let num = instances.len();
-            for inst in instances {
-                engine.restore_instance(inst).await;
-            }
-            tracing::info!("Restored {} process instance(s).", num);
-        }
-        Err(e) => tracing::error!("Failed to list instances: {:?}", e),
-    }
-
-    match nats.list_user_tasks().await {
-        Ok(tasks) => {
-            let num = tasks.len();
-            for task in tasks {
-                engine.restore_user_task(task);
-            }
-            tracing::info!("Restored {} pending user task(s).", num);
-        }
-        Err(e) => tracing::error!("Failed to list user tasks: {:?}", e),
-    }
-
-    match nats.list_service_tasks().await {
-        Ok(tasks) => {
-            let num = tasks.len();
-            for task in tasks {
-                engine.restore_service_task(task);
-            }
-            tracing::info!("Restored {} pending service task(s).", num);
-        }
-        Err(e) => tracing::error!("Failed to list service tasks: {:?}", e),
-    }
-
-    match nats.list_timers().await {
-        Ok(timers) => {
-            let num = timers.len();
-            for timer in timers {
-                engine.restore_timer(timer);
-            }
-            tracing::info!("Restored {} pending timer(s).", num);
-        }
-        Err(e) => tracing::error!("Failed to list timers: {:?}", e),
-    }
-
-    match nats.list_message_catches().await {
-        Ok(catches) => {
-            let num = catches.len();
-            for catch in catches {
-                engine.restore_message_catch(catch);
-            }
-            tracing::info!("Restored {} pending message catch(es).", num);
-        }
-        Err(e) => tracing::error!("Failed to list message catches: {:?}", e),
-    }
-}
 
 async fn shutdown_signal() {
     let ctrl_c = async {
@@ -161,38 +73,24 @@ async fn main() -> anyhow::Result<()> {
 
     let nats_url = env::var("NATS_URL").unwrap_or_else(|_| "nats://localhost:4222".to_string());
 
-    let mut engine = WorkflowEngine::new();
     let mut xml_cache = HashMap::new();
 
-    let nats_persistence = match NatsPersistence::connect(&nats_url, "WORKFLOW_EVENTS").await {
+    let (engine, nats_persistence) = match NatsPersistence::connect(&nats_url, "WORKFLOW_EVENTS").await {
         Ok(p) => {
             tracing::info!("Connected to NATS at {}", nats_url);
             let p_arc = Arc::new(p);
-            engine.set_persistence(p_arc.clone() as Arc<dyn WorkflowPersistence>);
-            restore_from_nats(&p_arc, &mut engine, &mut xml_cache).await;
+            let mut engine = WorkflowEngine::new()
+                .with_persistence(p_arc.clone() as Arc<dyn WorkflowPersistence>);
+            StartupCoordinator::new(p_arc.clone())
+                .restore(&mut engine, &mut xml_cache)
+                .await;
 
             // Log-Persistenz in NATS einrichten
             let log_sink = NatsLogSink::new(p_arc.jetstream()).await;
-
-            // Letzte 5 000 Einträge aus NATS in den In-Memory-Buffer laden
-            let recent = log_sink.load_recent(5_000).await;
-            let restored = recent.len();
-            log_buffer.populate(recent);
-
-            // NATS-Sender im Buffer registrieren (deaktiviert Datei-Persistenz)
-            let (nats_tx, mut nats_rx) = tokio::sync::mpsc::unbounded_channel();
-            log_buffer.enable_nats(nats_tx);
-
-            // Hintergrund-Task: Einträge aus dem Channel an NATS publizieren
-            tokio::spawn(async move {
-                while let Some(entry) = nats_rx.recv().await {
-                    log_sink.publish(&entry).await;
-                }
-            });
-
+            let restored = log_buffer.attach_nats_sink(log_sink).await;
             tracing::info!("Log-Persistenz: {} Einträge aus NATS geladen.", restored);
 
-            Some(p_arc as Arc<dyn WorkflowPersistence>)
+            (engine, Some(p_arc as Arc<dyn WorkflowPersistence>))
         }
         Err(e) => {
             tracing::error!(
@@ -200,7 +98,7 @@ async fn main() -> anyhow::Result<()> {
                 nats_url,
                 e
             );
-            None
+            (WorkflowEngine::new(), None)
         }
     };
 

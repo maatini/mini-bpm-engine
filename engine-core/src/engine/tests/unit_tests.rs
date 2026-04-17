@@ -4350,21 +4350,21 @@ async fn test_shutdown_completes_without_panic() {
     );
 }
 
-/// Catches: replace set_persistence with ()
+/// Catches: with_persistence activates retry_tx
 #[tokio::test]
 async fn test_set_persistence_activates_retry_tx() {
-    let mut engine = WorkflowEngine::new();
+    let engine = WorkflowEngine::new();
     assert!(
         engine.retry_tx.is_none(),
-        "No retry_tx before set_persistence"
+        "No retry_tx before with_persistence"
     );
 
     let persistence = std::sync::Arc::new(crate::adapter::InMemoryPersistence::new());
-    engine.set_persistence(persistence);
+    let engine = engine.with_persistence(persistence);
 
     assert!(
         engine.retry_tx.is_some(),
-        "retry_tx should be set after set_persistence"
+        "retry_tx should be set after with_persistence"
     );
 }
 

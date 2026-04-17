@@ -1664,7 +1664,8 @@ test.describe('bpmninja Desktop App – E2E', () => {
 
   /**
    * Helper: navigate to Modeler, load custom XML via localStorage,
-   * then click the given BPMN element on the canvas.
+   * then programmatically select the given BPMN element via the bpmn-js API
+   * (exposed on window.__bpmnModeler__ in DEV mode).
    */
   async function loadXmlAndClickElement(page: Page, xml: string, elementId: string) {
     // Seed localStorage so modeler loads our XML
@@ -1676,10 +1677,24 @@ test.describe('bpmninja Desktop App – E2E', () => {
     await page.locator('.nav-item', { hasText: 'BPMN Modeler' }).click();
     await expect(page.locator('.bjs-container')).toBeVisible({ timeout: 10_000 });
 
-    // Click the element in the canvas via its data-element-id SVG group
-    const el = page.locator(`[data-element-id="${elementId}"]`);
-    await expect(el).toBeVisible({ timeout: 5_000 });
-    await el.click();
+    // Wait until the modeler instance is available on the window
+    await page.waitForFunction(
+      () => !!(window as any).__bpmnModeler__?.get,
+      undefined,
+      { timeout: 10_000 },
+    );
+
+    // Programmatically select the element via bpmn-js selection service
+    await page.evaluate((id: string) => {
+      const modeler = (window as any).__bpmnModeler__;
+      const elementRegistry = modeler.get('elementRegistry');
+      const selection = modeler.get('selection');
+      const el = elementRegistry.get(id);
+      if (el) selection.select(el);
+    }, elementId);
+
+    // Allow properties panel to update
+    await page.waitForTimeout(300);
   }
 
   test('condition group visible for ExclusiveGateway outgoing flow', async ({ page }) => {
@@ -1688,7 +1703,7 @@ test.describe('bpmninja Desktop App – E2E', () => {
 
     // The properties panel should show the Condition group with "Condition Type"
     const propsPanel = page.locator('.properties-panel-parent');
-    await expect(propsPanel.getByText('Condition')).toBeVisible({ timeout: 5_000 });
+    await expect(propsPanel.getByText('Condition', { exact: true })).toBeVisible({ timeout: 5_000 });
     await expect(propsPanel.locator('select')).toBeVisible({ timeout: 5_000 });
   });
 
@@ -1722,9 +1737,7 @@ test.describe('bpmninja Desktop App – E2E', () => {
 
     const propsPanel = page.locator('.properties-panel-parent');
 
-    // Open the Condition group (may be collapsed)
-    const conditionHeader = propsPanel.getByText('Condition');
-    await conditionHeader.click();
+    // Condition group starts open (shouldOpen: true) – no click needed
     await page.waitForTimeout(300);
 
     // Select "Expression" in the Condition Type dropdown
@@ -1742,7 +1755,7 @@ test.describe('bpmninja Desktop App – E2E', () => {
     // Export XML and verify
     const xml = await page.evaluate(() => localStorage.getItem('minibpm_last_workflow') || '');
     expect(xml).toContain('conditionExpression');
-    expect(xml).toContain('${amount > 100}');
+    expect(xml).toContain('${amount &gt; 100}');
     // Should NOT contain language attribute on this expression
     expect(xml).not.toMatch(/conditionExpression[^>]*language/);
   });
@@ -1753,9 +1766,7 @@ test.describe('bpmninja Desktop App – E2E', () => {
 
     const propsPanel = page.locator('.properties-panel-parent');
 
-    // Open the Condition group
-    const conditionHeader = propsPanel.getByText('Condition');
-    await conditionHeader.click();
+    // Condition group starts open (shouldOpen: true) – no click needed
     await page.waitForTimeout(300);
 
     // Select "Script" in the Condition Type dropdown
@@ -1777,7 +1788,7 @@ test.describe('bpmninja Desktop App – E2E', () => {
     // Export XML and verify
     const xml = await page.evaluate(() => localStorage.getItem('minibpm_last_workflow') || '');
     expect(xml).toContain('language="rhai"');
-    expect(xml).toContain('amount > 100');
+    expect(xml).toContain('amount &gt; 100');
   });
 
   // =====================================================================
@@ -2003,9 +2014,9 @@ test.describe('bpmninja Desktop App – E2E', () => {
       await page.goto('/');
       await page.locator('.nav-item', { hasText: 'Instances' }).click();
 
-      // Instanz-Zeile anklicken → Detail-Dialog öffnet sich
-      await expect(page.locator('table tbody tr').first()).toBeVisible({ timeout: 5_000 });
-      await page.locator('table tbody tr').first().click();
+      // Instanz-Karte anklicken → Detail-Dialog öffnet sich
+      await expect(page.locator('.instance-list-item').first()).toBeVisible({ timeout: 5_000 });
+      await page.locator('.instance-list-item').first().click();
 
       // Suspend-Button muss sichtbar sein
       const suspendBtn = page.locator('button', { hasText: 'Suspend' });
@@ -2032,8 +2043,8 @@ test.describe('bpmninja Desktop App – E2E', () => {
       await page.goto('/');
       await page.locator('.nav-item', { hasText: 'Instances' }).click();
 
-      await expect(page.locator('table tbody tr').first()).toBeVisible({ timeout: 5_000 });
-      await page.locator('table tbody tr').first().click();
+      await expect(page.locator('.instance-list-item').first()).toBeVisible({ timeout: 5_000 });
+      await page.locator('.instance-list-item').first().click();
 
       // Bei einer suspendierten Instanz zeigt der Button "Resume"
       const resumeBtn = page.locator('button', { hasText: 'Resume' });
@@ -2064,8 +2075,8 @@ test.describe('bpmninja Desktop App – E2E', () => {
       await page.goto('/');
       await page.locator('.nav-item', { hasText: 'Instances' }).click();
 
-      await expect(page.locator('table tbody tr').first()).toBeVisible({ timeout: 5_000 });
-      await page.locator('table tbody tr').first().click();
+      await expect(page.locator('.instance-list-item').first()).toBeVisible({ timeout: 5_000 });
+      await page.locator('.instance-list-item').first().click();
 
       // Migrate-Button öffnet den Dialog
       const migrateBtn = page.locator('button', { hasText: 'Migrate' });
@@ -2094,15 +2105,19 @@ test.describe('bpmninja Desktop App – E2E', () => {
       await page.goto('/');
       await page.locator('.nav-item', { hasText: 'Instances' }).click();
 
-      await expect(page.locator('table tbody tr').first()).toBeVisible({ timeout: 5_000 });
-      await page.locator('table tbody tr').first().click();
+      await expect(page.locator('.instance-list-item').first()).toBeVisible({ timeout: 5_000 });
+      await page.locator('.instance-list-item').first().click();
 
       const migrateBtn = page.locator('button', { hasText: 'Migrate' });
       await expect(migrateBtn).toBeVisible({ timeout: 5_000 });
       await migrateBtn.click();
 
+      // Shadcn Select rendert Optionen nur wenn Dropdown offen ist
+      await page.locator('[role="combobox"]').click();
       // Version v2 muss als Option erscheinen
       await expect(page.getByText(/v2/)).toBeVisible({ timeout: 5_000 });
+      // Dropdown schließen bevor Dialog-Buttons geklickt werden
+      await page.keyboard.press('Escape');
 
       // Dialog kann geschlossen werden
       await page.locator('button', { hasText: 'Schließen' }).click();
@@ -2127,8 +2142,8 @@ test.describe('bpmninja Desktop App – E2E', () => {
       await page.goto('/');
       await page.locator('.nav-item', { hasText: 'Instances' }).click();
 
-      await expect(page.locator('table tbody tr').first()).toBeVisible({ timeout: 5_000 });
-      await page.locator('table tbody tr').first().click();
+      await expect(page.locator('.instance-list-item').first()).toBeVisible({ timeout: 5_000 });
+      await page.locator('.instance-list-item').first().click();
 
       const migrateBtn = page.locator('button', { hasText: 'Migrate' });
       await migrateBtn.click();
@@ -2230,7 +2245,7 @@ test.describe('bpmninja Desktop App – E2E', () => {
 
       // Monaco-Editor soll erscheinen (kein img), Badge zeigt "JSON"
       await expect(page.locator('.monaco-editor')).toBeVisible({ timeout: 8_000 });
-      await expect(page.locator('[class*="badge"]', { hasText: 'JSON' }).first()).toBeVisible();
+      await expect(page.locator('div.font-mono', { hasText: 'JSON' }).first()).toBeVisible();
     });
   });
 
