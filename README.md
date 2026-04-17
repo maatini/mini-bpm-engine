@@ -1,7 +1,7 @@
 # BPMNinja
 
 [![Rust](https://img.shields.io/badge/Rust-stable-brightgreen.svg?style=flat-square)](https://www.rust-lang.org/)
-[![Tests](https://img.shields.io/badge/Tests-366_passing-success?style=flat-square)]()
+[![Tests](https://img.shields.io/badge/Tests-376_passing-success?style=flat-square)]()
 [![Mutation Score](https://img.shields.io/badge/Mutation_Score-72.4%25-blue?style=flat-square)]()
 [![License](https://img.shields.io/badge/License-MIT%20OR%20Apache--2.0-blue.svg?style=flat-square)](#license)
 
@@ -48,10 +48,10 @@ bpmninja is a BPMN 2.0 engine with the following core features:
 - **Incident management** — handle failed service tasks with retry/resolve directly from the UI
 - **Historical instance archival** — completed instances are automatically archived to a separate store with search by definition, business key, date range, status and pagination
 - **Push-based UI updates** — engine fires SSE events (`GET /api/events`) on every state change; Tauri desktop app subscribes via a background task and emits Tauri events to React components, replacing polling
-- **In-memory log buffer** — rolling 5000-entry log stream captured by a custom `tracing` layer; queryable via `GET /api/logs` with level and text filters
+- **Persistent log buffer** — rolling 5000-entry log stream captured by a custom `tracing` layer; queryable via `GET /api/logs` with level and text filters; automatically persisted to NATS JetStream (`ENGINE_LOGS` stream, 50 000 entries) when NATS is available, with a local JSON-Lines file as fallback (`engine_logs.jsonl`)
 - **Prometheus metrics** — all key engine metrics exported at `/metrics` via `metrics-exporter-prometheus`
 - **Multi-arch Docker images** — CI builds `linux/amd64` + `linux/arm64` images via GitHub Actions with layer cache
-- **Desktop UI** — Tauri app with bpmn-js modeler, live instance/definition tracking with push updates, log stream viewer, history page for archived instances (cross-platform releases via GitHub Actions CI)
+- **Desktop UI** — Tauri app with bpmn-js modeler, live instance/definition tracking with push updates, log stream viewer, history page for archived instances, storage mode badge (NATS / In-Memory), and DataViewer with automatic MIME/base64 detection (cross-platform releases via GitHub Actions CI)
 
 ---
 
@@ -238,6 +238,9 @@ The server runs at `http://localhost:8081`.
 | `NATS_URL` | `nats://localhost:4222` | NATS server URL |
 | `PORT` | `8081` | HTTP server port |
 | `TIMER_INTERVAL_MS` | `1000` | Timer scheduler polling interval (ms) |
+| `RUST_LOG` | `info` | Log level filter (e.g. `debug`, `warn`, `engine_server=trace`) |
+| `LOG_FORMAT` | `text` | Log output format: `text` (human-readable) or `json` (structured) |
+| `LOG_FILE` | `engine_logs.jsonl` | Path for the file-based log fallback; set to `off` to disable file persistence |
 
 ---
 
@@ -269,6 +272,7 @@ The server runs at `http://localhost:8081`.
 | `POST` | `/api/instances/:id/resume` | Resume a suspended instance |
 | `PUT` | `/api/instances/:id/variables` | Update variables |
 | `POST` | `/api/instances/:id/move-token` | Move a token to a different node (modify process instance) |
+| `POST` | `/api/instances/:id/migrate` | Migrate an instance to a different definition version (with optional node mapping) |
 
 ### User Tasks
 
@@ -447,7 +451,7 @@ The Tauri app connects to the `engine-server` via HTTP and receives real-time pu
 - **Pending Tasks** — user tasks and service task incidents with completion dialogs
 - **Overview** — pending timers, messages and service jobs
 - **History** — searchable archive of completed instances (by definition, business key, date range, status)
-- **Monitoring** — NATS storage info, KV bucket browser, engine statistics and live log stream (filterable by level and text)
+- **Monitoring** — NATS storage info, KV bucket browser, engine statistics, live log stream (filterable by level and text) and storage mode badge (NATS / In-Memory) in both the sidebar and the monitoring page header
 
 > **Prerequisite**: a running backend (NATS + engine server). By default, the app expects the backend at `http://localhost:8081` (configurable via `ENGINE_API_URL`).
 
@@ -516,11 +520,13 @@ docker compose up --build
 
 Services reachable at `localhost:8081` (API) and `localhost:4222` (NATS).
 
+The compose file includes a **cobra-nats** service (`natsio/nats-box`) which provides the NATS CLI inside the Docker network for ad-hoc inspection of streams, KV buckets and subjects without a local installation.
+
 ---
 
 ## Test Metrics
 
-> Measured via `cargo test --workspace` (Rust) and `npm run test` (TypeScript) on 2026-04-15 — **366 tests, 0 failures**
+> Measured via `cargo test --workspace` (Rust) and `npm run test` (TypeScript) on 2026-04-16 — **376 tests, 0 failures**
 
 ### Workspace Overview
 
@@ -529,9 +535,9 @@ Services reachable at `localhost:8081` (API) and `localhost:4222` (NATS).
 | **engine-core** | 214 | 5 | 219 |
 | **bpmn-parser** | 32 | — | 32 |
 | **persistence-nats** | 2 | — | 2 |
-| **engine-server** | 1 | 44 | 45 |
+| **engine-server** | 1 | 54 | 55 |
 | **bpmn-ninja-external-task-client** | 68 | — | 68 |
-| **Total** | **249** | **49** | **366** ✅ |
+| **Total** | **249** | **59** | **376** ✅ |
 
 ### engine-core Breakdown (219 tests)
 
@@ -563,7 +569,7 @@ Services reachable at `localhost:8081` (API) and `localhost:4222` (NATS).
 | Call Activity | 1 | `calledElement` attribute parsing and mapping to `CallActivity` element |
 | Namespace handling | 1 | Camunda namespace prefixes on execution listeners (`camunda:executionListener`) |
 
-### engine-server E2E Tests (45 tests, 13 files)
+### engine-server E2E Tests (55 tests, 15 files)
 
 | Test file | Tests | Coverage |
 |-----------|-------|----------|
@@ -574,10 +580,12 @@ Services reachable at `localhost:8081` (API) and `localhost:4222` (NATS).
 | `e2e_gateways.rs` | 1 | Parallel gateway over HTTP |
 | `e2e_history.rs` | 4 | History generation, querying, completed instances listing, business key filter, pagination |
 | `e2e_lifecycle.rs` | 6 | Delete instance, delete definition, unknown instances, process timers, correlate messages |
+| `e2e_migration.rs` | 5 | Instance migration to a new definition version (compatible, renamed nodes, incompatible, dry-run) |
 | `e2e_monitoring.rs` | 4 | Health, ready (connected/disconnected), info, monitoring stats |
 | `e2e_service_tasks.rs` | 7 | List service tasks, FetchAndLock, ExtendLock, Complete, Complete with Failure, BPMN error, lock conflict |
 | `e2e_start_errors.rs` | 4 | Invalid UUID, unknown definition, unknown BPMN ID, timer-start rejection |
 | `e2e_stress.rs` | 2 | Concurrent deployments, concurrent starts (multi-thread) |
+| `e2e_suspend_resume.rs` | 5 | Suspend/resume lifecycle, task blocking while suspended, token move |
 | `e2e_variables.rs` | 1 | Variable updates mid-execution |
 | `e2e_versioning.rs` | 3 | Version increment, start-latest, instance isolation |
 
@@ -599,8 +607,8 @@ Tests use `vi.useFakeTimers()` and `vi.stubGlobal('fetch', …)` — no real HTT
 | engine-core (tests) | 3 | ~6,800 |
 | bpmn-parser | 4 | ~2,500 |
 | persistence-nats | 5 | 1,282 |
-| engine-server (lib) | 16 | ~2,100 |
-| engine-server (E2E tests) | 13 | ~2,400 |
+| engine-server (lib) | 18 | ~2,400 |
+| engine-server (E2E tests) | 15 | ~2,700 |
 | desktop-tauri (TypeScript + CSS) | ~55 | ~7,800 |
 | desktop-tauri (Rust backend) | 11 | ~900 |
 | external-task-client (lib) | 11 | 1,997 |
@@ -649,7 +657,8 @@ Sanitizers (AddressSanitizer) are enabled by default and will cause a structured
 | In-memory log stream with filters (`GET /api/logs`) | ✅ Implemented |
 | Multi-arch Docker images (amd64 + arm64) | ✅ Implemented |
 | Batch operations on instances | 🔲 Planned |
-| Process instance migration | 🔲 Planned |
+| Process instance migration (`POST /api/instances/:id/migrate`) | ✅ Implemented |
+| NATS JetStream log persistence (`ENGINE_LOGS` stream + file fallback) | ✅ Implemented |
 | Token move (modify process instance) | ✅ Implemented |
 | Multi-node cluster (NATS-based token locking) | 🔲 Planned |
 | OIDC/OAuth2 middleware | 🔲 Planned |
