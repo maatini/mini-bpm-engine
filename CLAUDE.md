@@ -62,11 +62,12 @@ Danach mit `claude mcp list` prüfen.
 
 ## Claude Workflow (unbedingt einhalten)
 
-1. **Immer mit Plan Mode starten** (`/plan` oder Shift+Tab)
-2. Plan von mir prüfen lassen → erst dann implementieren
-3. Nach jeder großen Task: `/clear` oder neue Session
-4. Bei Kontext-Problemen: `/compact`
-5. Claude soll **nie** selbst `git push --force` oder READMEs ohne Auftrag ändern
+1. **Graphify Knowledge-Graph nutzen:** Vor jeder neuen Aufgabe den Graphen aus `/graphify-out` aktualisieren und einlesen. Bei größeren Code-Umbauten oder Erstellen/Löschen von Dateien: Den Graph zwingend aktualisieren und erneut lesen.
+2. **Immer mit Plan Mode starten** (`/plan` oder Shift+Tab)
+3. Plan von mir prüfen lassen → erst dann implementieren
+4. Nach jeder großen Task: `/clear` oder neue Session
+5. Bei Kontext-Problemen: `/compact`
+6. Claude soll **nie** selbst `git push --force` oder READMEs ohne Auftrag ändern
 
 ## KI-Verhaltensrichtlinien (Behavioral Guidelines)
 
