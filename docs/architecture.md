@@ -406,7 +406,7 @@ pub trait WorkflowPersistence: Send + Sync {
 
 | Backend | Crate | Storage |
 |---|---|---|
-| `InMemoryPersistence` | `engine-core` | `HashMap` + `Vec` (tests & dev) |
+| `InMemoryPersistence` | `persistence-memory` | `HashMap` + `Vec` (tests & dev) |
 | `NatsPersistence` | `persistence-nats` | NATS JetStream KV + ObjectStore |
 
 **NATS KV stores:**

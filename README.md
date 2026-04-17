@@ -62,6 +62,7 @@ bpmninja is a BPMN 2.0 engine with the following core features:
 | **`engine-core`** | Core library — state machine, token registry, gateway routing, condition evaluator, script engine |
 | **`bpmn-parser`** | Parses BPMN 2.0 XML (`quick-xml` + `serde`) into internal `ProcessDefinition` structs |
 | **`persistence-nats`** | NATS JetStream-based `WorkflowPersistence` implementation (KV, Object Store, Streams) |
+| **`persistence-memory`** | In-Memory `WorkflowPersistence` implementation for testing and development |
 | **`engine-server`** | Axum HTTP REST API with type-safe error handling (`AppError` → HTTP status codes) |
 | **`desktop-tauri`** | Tauri desktop app (React + bpmn-js) with modeler, instances dashboard, event history and historical instance search |
 | **`agent-orchestrator`** | Sample worker for external service task processing |
@@ -526,7 +527,7 @@ The compose file includes a **cobra-nats** service (`natsio/nats-box`) which pro
 
 ## Test Metrics
 
-> Measured via `cargo test --workspace` (Rust) and `npm run test` (TypeScript) on 2026-04-16 — **376 tests, 0 failures**
+> Measured via `cargo test --workspace` (Rust), `npm run test` and Playwright E2E on 2026-04-17 — **424 tests, 0 failures**
 
 ### Workspace Overview
 
@@ -536,8 +537,9 @@ The compose file includes a **cobra-nats** service (`natsio/nats-box`) which pro
 | **bpmn-parser** | 32 | — | 32 |
 | **persistence-nats** | 2 | — | 2 |
 | **engine-server** | 1 | 54 | 55 |
+| **desktop-tauri** | — | 48 | 48 |
 | **bpmn-ninja-external-task-client** | 68 | — | 68 |
-| **Total** | **249** | **59** | **376** ✅ |
+| **Total** | **249** | **107** | **424** ✅ |
 
 ### engine-core Breakdown (219 tests)
 
@@ -589,6 +591,12 @@ The compose file includes a **cobra-nats** service (`natsio/nats-box`) which pro
 | `e2e_variables.rs` | 1 | Variable updates mid-execution |
 | `e2e_versioning.rs` | 3 | Version increment, start-latest, instance isolation |
 
+### desktop-tauri E2E Tests (48 tests, 1 file)
+
+| Test file | Tests | Coverage |
+|-----------|-------|----------|
+| `app.spec.ts` | 48 | Modeler expressions/conditions, gateway configurations, instance lifecycle (suspend/resume), migration dialog, base64 payload monitoring |
+
 ### bpmn-ninja-external-task-client Tests (68 tests, 3 files)
 
 | Test file | Tests | Coverage |
@@ -607,6 +615,7 @@ Tests use `vi.useFakeTimers()` and `vi.stubGlobal('fetch', …)` — no real HTT
 | engine-core (tests) | 3 | ~6,800 |
 | bpmn-parser | 4 | ~2,500 |
 | persistence-nats | 5 | 1,282 |
+| persistence-memory | 2 | ~450 |
 | engine-server (lib) | 18 | ~2,400 |
 | engine-server (E2E tests) | 15 | ~2,700 |
 | desktop-tauri (TypeScript + CSS) | ~55 | ~7,800 |
@@ -614,8 +623,8 @@ Tests use `vi.useFakeTimers()` and `vi.stubGlobal('fetch', …)` — no real HTT
 | external-task-client (lib) | 11 | 1,997 |
 | external-task-client (tests) | 6 | 1,285 |
 | fuzz targets | 9 | 704 |
-| **Rust workspace** | **~110** | **~27,500** |
-| **Project total** | **~175** | **~38,300** |
+| **Rust workspace** | **~112** | **~27,950** |
+| **Project total** | **~177** | **~38,750** |
 
 ### Mutation Score
 A full workspace run via [`cargo-mutants`](https://mutants.rs) on the `engine-core` crate (CI workflow "Core Mutation Tests", 2026-04-13) produced a **mutation score of 72.4%** (359 caught, 137 missed, 552 unviable, 1 timeout out of 1049 mutants tested in ~3h). Top missed areas: `timer_processor.rs` (7 missed), `scripting/runner.rs` (4 missed), `handlers/events.rs` (1 missed). Results are stored as CI artifacts for 30 days.
