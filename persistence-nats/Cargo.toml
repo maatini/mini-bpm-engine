@@ -11,7 +11,7 @@ tokio = { workspace = true }
 serde_json = { workspace = true }
 serde = { version = "1", features = ["derive"] }
 futures = "0.3.32"
-uuid = "1.22.0"
+uuid = "1.23.1"
 tracing = { workspace = true }
 async-trait = "0.1.89"
 chrono = "0.4.44"
