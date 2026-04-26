@@ -51,6 +51,67 @@ jobs:
             mutants.out/unviable.txt
           retention-days: 30
 
+      - name: Build mutation metrics JSON
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from datetime import datetime, timezone
+
+          outcomes_path = "mutants.out/outcomes.json"
+          metrics = {
+              "source": "core-mutation-tests",
+              "generated_at": datetime.now(timezone.utc).isoformat(),
+              "status": "no-data",
+              "mutation_score": 0.0,
+              "caught": 0,
+              "missed": 0,
+              "timeout": 0,
+              "unviable": 0,
+              "total_tested": 0,
+          }
+
+          if os.path.exists(outcomes_path):
+              with open(outcomes_path, "r", encoding="utf-8") as f:
+                  data = json.load(f)
+
+              if isinstance(data, dict):
+                  entries = data.get("outcomes", [])
+              else:
+                  entries = data
+
+              caught = sum(1 for m in entries if m.get("status") == "caught")
+              missed = sum(1 for m in entries if m.get("status") == "missed")
+              timeout = sum(1 for m in entries if m.get("status") == "timeout")
+              unviable = sum(1 for m in entries if m.get("status") == "unviable")
+              total_tested = caught + missed + timeout
+              score = (caught / total_tested * 100.0) if total_tested else 0.0
+
+              metrics.update(
+                  {
+                      "status": "ok",
+                      "mutation_score": round(score, 1),
+                      "caught": caught,
+                      "missed": missed,
+                      "timeout": timeout,
+                      "unviable": unviable,
+                      "total_tested": total_tested,
+                  }
+              )
+
+          with open("mutation-metrics.json", "w", encoding="utf-8") as f:
+              json.dump(metrics, f, indent=2)
+          PY
+
+      - name: Upload mutation metrics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutation-metrics
+          path: mutation-metrics.json
+          retention-days: 30
+
       - name: Generate Job Summary
         if: always()
         run: |

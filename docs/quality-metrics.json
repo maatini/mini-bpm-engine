@@ -1,0 +1,19 @@
+{
+  "updated_at": "1970-01-01T00:00:00+00:00",
+  "mutation": {
+    "status": "no-data",
+    "mutation_score": 0.0,
+    "caught": 0,
+    "missed": 0,
+    "timeout": 0,
+    "unviable": 0,
+    "total_tested": 0
+  },
+  "fuzz": {
+    "status": "no-data",
+    "targets_total": 0,
+    "targets_passed": 0,
+    "targets_failed": 0,
+    "targets": []
+  }
+}

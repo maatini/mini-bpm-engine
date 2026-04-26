@@ -2,7 +2,7 @@
 
 [![Rust](https://img.shields.io/badge/Rust-stable-brightgreen.svg?style=flat-square)](https://www.rust-lang.org/)
 [![Tests](https://img.shields.io/badge/Tests-CI_required-blue?style=flat-square)](.github/workflows/ci.yml)
-[![Mutation Score](https://img.shields.io/badge/Mutation_Score-72.4%25-blue?style=flat-square)]()
+[![Mutation Score](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fmaatini%2Fbpmninja%2Fmain%2Fdocs%2Fquality-badges.json&style=flat-square)](https://github.com/maatini/bpmninja/actions/workflows/mutation-tests.yml)
 [![License](https://img.shields.io/badge/License-MIT%20OR%20Apache--2.0-blue.svg?style=flat-square)](#license)
 
 <div align="center">
@@ -549,6 +549,12 @@ The compose file includes a **cobra-nats** service (`natsio/nats-box`) which pro
 ## Test Metrics
 
 > Snapshot from 2026-04-17. The authoritative source is CI (`.github/workflows/ci.yml` + `.github/workflows/fuzzing.yml`).
+
+<!-- QUALITY_METRICS:START -->
+- Letztes Update (UTC): `1970-01-01T00:00:00+00:00`
+- Mutation Score: **0.0%** (caught: 0, missed: 0, timeout: 0)
+- Fuzzing: **0/0 targets** (no-data)
+<!-- QUALITY_METRICS:END -->
 
 ### Workspace Overview
 

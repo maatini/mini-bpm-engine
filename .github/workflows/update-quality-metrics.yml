@@ -1,0 +1,140 @@
+name: Update Quality Metrics
+
+on:
+  workflow_run:
+    workflows:
+      - Fuzz Testing
+      - Core Mutation Tests
+    types:
+      - completed
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  update-metrics:
+    name: Merge quality metrics and update README
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Download metrics artifacts from triggering run
+        uses: actions/download-artifact@v5
+        with:
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          pattern: "*-metrics"
+          path: incoming-metrics
+          merge-multiple: true
+
+      - name: Merge metrics and update README block
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from datetime import datetime, timezone
+
+          metrics_path = "docs/quality-metrics.json"
+          badges_path = "docs/quality-badges.json"
+          readme_path = "README.md"
+
+          if os.path.exists(metrics_path):
+              with open(metrics_path, "r", encoding="utf-8") as f:
+                  metrics = json.load(f)
+          else:
+              metrics = {}
+
+          metrics.setdefault("updated_at", datetime.now(timezone.utc).isoformat())
+          metrics.setdefault("fuzz", {
+              "status": "no-data",
+              "targets_total": 0,
+              "targets_passed": 0,
+              "targets_failed": 0,
+              "targets": []
+          })
+          metrics.setdefault("mutation", {
+              "status": "no-data",
+              "mutation_score": 0.0,
+              "caught": 0,
+              "missed": 0,
+              "timeout": 0,
+              "unviable": 0,
+              "total_tested": 0
+          })
+
+          fuzz_file = "incoming-metrics/fuzz-metrics.json"
+          mutation_file = "incoming-metrics/mutation-metrics.json"
+
+          if os.path.exists(fuzz_file):
+              with open(fuzz_file, "r", encoding="utf-8") as f:
+                  metrics["fuzz"] = json.load(f)
+
+          if os.path.exists(mutation_file):
+              with open(mutation_file, "r", encoding="utf-8") as f:
+                  metrics["mutation"] = json.load(f)
+
+          metrics["updated_at"] = datetime.now(timezone.utc).isoformat()
+
+          with open(metrics_path, "w", encoding="utf-8") as f:
+              json.dump(metrics, f, indent=2)
+
+          mutation_score = metrics["mutation"].get("mutation_score", 0.0)
+          mutation_color = "success" if mutation_score >= 75 else ("yellow" if mutation_score >= 60 else "red")
+          fuzz_ok = metrics["fuzz"].get("status") == "ok"
+          fuzz_message = f"{metrics['fuzz'].get('targets_passed', 0)}/{metrics['fuzz'].get('targets_total', 0)} targets"
+          fuzz_color = "success" if fuzz_ok else "red"
+
+          badges = {
+              "schemaVersion": 1,
+              "label": "Mutation Score",
+              "message": f"{mutation_score:.1f}%",
+              "color": mutation_color,
+              "namedLogo": "rust",
+              "links": ["https://github.com/maatini/bpmninja/actions/workflows/mutation-tests.yml"]
+          }
+          with open(badges_path, "w", encoding="utf-8") as f:
+              json.dump(badges, f, indent=2)
+
+          with open(readme_path, "r", encoding="utf-8") as f:
+              readme = f.read()
+
+          start_marker = "<!-- QUALITY_METRICS:START -->"
+          end_marker = "<!-- QUALITY_METRICS:END -->"
+
+          block = (
+              f"{start_marker}\n"
+              f"- Letztes Update (UTC): `{metrics['updated_at']}`\n"
+              f"- Mutation Score: **{mutation_score:.1f}%** "
+              f"(caught: {metrics['mutation'].get('caught', 0)}, "
+              f"missed: {metrics['mutation'].get('missed', 0)}, "
+              f"timeout: {metrics['mutation'].get('timeout', 0)})\n"
+              f"- Fuzzing: **{fuzz_message}** "
+              f"({'ok' if fuzz_ok else 'failed'})\n"
+              f"{end_marker}"
+          )
+
+          if start_marker in readme and end_marker in readme:
+              before = readme.split(start_marker)[0]
+              after = readme.split(end_marker, 1)[1]
+              readme = before + block + after
+          else:
+              insertion = "\n## Quality Metrics (Auto)\n\n" + block + "\n"
+              readme += insertion
+
+          with open(readme_path, "w", encoding="utf-8") as f:
+              f.write(readme)
+          PY
+
+      - name: Commit and push if changed
+        run: |
+          git add docs/quality-metrics.json docs/quality-badges.json README.md
+          if git diff --cached --quiet; then
+            echo "No metrics updates."
+            exit 0
+          fi
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -m "chore(docs): aktualisiere qualitaetsmetriken automatisch"
+          git push

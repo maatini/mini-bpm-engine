@@ -120,3 +120,82 @@ jobs:
             fuzz/corpus/${{ matrix.target }}/
           retention-days: 30
           if-no-files-found: ignore
+
+      - name: Write per-target metrics
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import json
+          from datetime import datetime, timezone
+
+          target = "${{ matrix.target }}"
+          outcome = "${{ steps.fuzz_run.outcome }}"
+          payload = {
+              "target": target,
+              "status": "ok" if outcome == "success" else "failed",
+              "generated_at": datetime.now(timezone.utc).isoformat()
+          }
+
+          with open(f"fuzz-metrics-{target}.json", "w", encoding="utf-8") as f:
+              json.dump(payload, f, indent=2)
+          PY
+
+      - name: Upload per-target metrics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-target-metrics-${{ matrix.target }}
+          path: fuzz-metrics-${{ matrix.target }}.json
+          retention-days: 30
+
+  fuzz-metrics:
+    name: Aggregate fuzz metrics
+    runs-on: ubuntu-latest
+    needs: [fuzz]
+    if: always()
+    steps:
+      - name: Download target metrics
+        uses: actions/download-artifact@v5
+        with:
+          pattern: fuzz-target-metrics-*
+          path: fuzz-target-metrics
+          merge-multiple: true
+
+      - name: Build aggregate fuzz metrics JSON
+        run: |
+          python3 - <<'PY'
+          import glob
+          import json
+          from datetime import datetime, timezone
+
+          files = sorted(glob.glob("fuzz-target-metrics/*.json"))
+          targets = []
+          passed = 0
+
+          for file_path in files:
+              with open(file_path, "r", encoding="utf-8") as f:
+                  item = json.load(f)
+                  targets.append(item)
+                  if item.get("status") == "ok":
+                      passed += 1
+
+          result = {
+              "source": "fuzz-testing",
+              "generated_at": datetime.now(timezone.utc).isoformat(),
+              "status": "ok" if targets and passed == len(targets) else "failed",
+              "targets_total": len(targets),
+              "targets_passed": passed,
+              "targets_failed": len(targets) - passed,
+              "targets": targets,
+          }
+
+          with open("fuzz-metrics.json", "w", encoding="utf-8") as f:
+              json.dump(result, f, indent=2)
+          PY
+
+      - name: Upload aggregate fuzz metrics
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-metrics
+          path: fuzz-metrics.json
+          retention-days: 30

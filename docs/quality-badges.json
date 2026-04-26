@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "label": "Mutation Score",
+  "message": "n/a",
+  "color": "lightgrey",
+  "namedLogo": "rust",
+  "links": [
+    "https://github.com/maatini/bpmninja/actions/workflows/mutation-tests.yml"
+  ]
+}
