@@ -112,7 +112,7 @@ jobs:
       # On failure: upload crash reproducers and corpus for local analysis
       - name: Upload crash artifacts
         if: failure() && steps.fuzz_run.outcome == 'failure'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: fuzz-crash-${{ matrix.target }}
           path: |
@@ -142,7 +142,7 @@ jobs:
 
       - name: Upload per-target metrics
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: fuzz-target-metrics-${{ matrix.target }}
           path: fuzz-metrics-${{ matrix.target }}.json
@@ -194,7 +194,7 @@ jobs:
           PY
 
       - name: Upload aggregate fuzz metrics
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: fuzz-metrics
           path: fuzz-metrics.json
