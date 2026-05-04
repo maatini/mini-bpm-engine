@@ -29,7 +29,7 @@
     "@radix-ui/react-toast": "^1.2.15",
     "@tauri-apps/api": "^2.10.1",
     "@tauri-apps/plugin-dialog": "^2.7.0",
-    "@tauri-apps/plugin-fs": "^2.5.0",
+    "@tauri-apps/plugin-fs": "^2.5.1",
     "@tauri-apps/plugin-updater": "^2.10.1",
     "bpmn-js": "^18.14.0",
     "bpmn-js-properties-panel": "^5.53.0",
